@@ -50,7 +50,7 @@ Use `swarm-cadence --help` for the current surface.
 
 ## Freshness policy
 
-For substantive answers, check freshness from `db stats` or `evidence packet`:
+For substantive answers, check freshness from `db stats` or the experimental `evidence packet` envelope:
 
 - `last_fetched_at_iso8601`: latest raw source pull
 - `last_imported_at_iso8601`: latest import into SQLite
@@ -115,7 +115,7 @@ Evidence packets include labeled views (`strongest`, `recent`, `stale`, and `nea
 2. Check `db stats` / packet freshness.
 3. For place-type questions, run `query categories` and select explicit categories.
 4. Choose geography semantics (`locality` vs anchor/radius).
-5. Run `evidence packet` for multi-view evidence, or lower-level `query venues` / `query compare` for narrower debugging.
+5. Run the experimental `evidence packet` envelope for multi-view evidence, or lower-level `query venues` / `query compare` for narrower debugging. Treat it as grounding, not the final answer packet.
 6. Answer in human terms:
    - summarize the most relevant evidence views
    - mention freshness and selected categories/geography

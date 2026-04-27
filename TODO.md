@@ -41,16 +41,15 @@ safely as possible.
    - Keep “in <place>” as locality filtering and “near <place>” as anchor/radius
      or future named-area resolution; distance remains evidence, not judgment.
 
-5. **Build an evidence packet**
-   - Compose generic query results into a small builder-facing evidence packet for one concrete Guide/Almanac experiment.
+5. **Build Guide-ready evidence pieces**
+   - Compose generic query results into a small builder-facing diagnostic envelope only to inspect the pieces for one concrete Guide/Almanac experiment.
    - Lunch is an acceptance-test example, not the center of the tool.
-   - Include account scope, freshness/coverage, explicit windows/geography,
-     support counts, uncertainty, source trails, and caveats.
-   - Do not rank a hidden “best” answer inside `swarm-cadence`.
+   - Keep the stable tool contract boring: account scope, freshness/coverage, explicit windows/geography, support counts, uncertainty, source trails, and caveats.
+   - Do not rank a hidden “best” answer inside `swarm-cadence`, and do not make the CLI own the final Robut evidence packet or workbench/interface.
 
 6. **Only then add corrections / derived model state**
    - Add human-approved labels, exclusions, aliases, and interpretation
-     overrides once evidence packets reveal what needs correcting.
+     overrides once Guide-ready evidence pieces reveal what needs correcting.
    - Raw evidence stays untouched; derived/correction state must be visible and
      scoped.
 
@@ -79,20 +78,20 @@ safely as possible.
   - Explicit Japan window `2025-12-23 08..11` returns two real visits; `2025-12-27 05..08` returns zero because the Haneda row is local 15:31, not morning.
   - `query compare` over 2024 baseline vs 2026 recent works, but without geography it surfaces travel/old one-off venues before it can answer locality-shaped Guide questions.
 
-- [x] Add geography constraints before building the first evidence packet.
+- [x] Add geography constraints before inspecting the first Guide-ready evidence pieces.
   - Added factual Foursquare venue-location filters to `query venues` and `query compare`: `--locality`, `--region`, `--postal-code`, and `--country-code`.
   - Added geometry filters to `query venues` and `query compare`: `--near-lat`, `--near-lng`, and `--radius-meters`.
   - Results include venue location fields and `distance_meters` as evidence.
   - Captured the key semantic distinction: “in San Carlos” means locality; “near San Carlos” should include nearby Redwood City/Belmont venues via an anchor/radius or future `--near-place`/`--area` resolver.
 
-- [x] Build the first evidence packet.
-  - Implemented experimental `evidence packet` output with schema label `swarm_experimental_packet`; naming/API are intentionally provisional.
+- [x] Build the first experimental evidence envelope.
+  - Implemented experimental `evidence packet` output with schema label `swarm_experimental_packet`; naming/API are intentionally provisional and should not imply the CLI owns final packet composition.
   - It composes existing `query venues` and `query compare` results into one JSON packet with explicit account, target window, geography definition, source coverage, sources, and caveats.
   - It includes geography semantics visibly: locality filters are “in place”; anchor/radius filters can include nearby localities.
   - It avoids ranking, recommendation prose, correction state, open-now data, and cross-source joins.
 
 - [x] Add first category/intent-lane filter.
-  - Added `query categories` to list known database category names and repeatable exact case-insensitive `--category <name>` filters to `query venues`, `query compare`, and `evidence packet`.
+  - Added `query categories` to list known database category names and repeatable exact case-insensitive `--category <name>` filters to `query venues`, `query compare`, and the experimental evidence envelope.
   - This lets “coffee near San Carlos” return coffee-shop evidence across nearby localities instead of generic lunch/restaurant rows.
   - It is still factual Foursquare category evidence, not a fuzzy cuisine/preference model.
 
@@ -101,7 +100,7 @@ safely as possible.
   - Implemented `ingest update --account <label> --adapter v2` with defaults `--pages 4`, `--limit 250`, and `--delay-ms 1000`.
   - It preserves raw responses/manifests, imports after each successful page, stops on an existing local check-in id or short page, and reports `updated`, `no_new_checkins`, `updated_partial`, `config_missing`, `source_blocked`, or `import_failed`.
   - Freshness is derived from existing tables: `last_fetched_at`, `last_imported_at`, oldest/latest check-in timestamps, and `current_through` as the latest imported check-in timestamp.
-  - `db stats` and evidence packets now include freshness fields.
+  - `db stats` and the experimental evidence envelope now include freshness fields.
   - This remains v2-only, local-first, read-only with respect to Swarm/Foursquare, and does not add a daemon.
 
 - [x] Add a tool VERSION and include it in provenance.
@@ -131,9 +130,9 @@ safely as possible.
   - Added explicit `--sort nearest|strongest|recent|stale` to `query venues` and `query compare`.
   - JSON filters/results and human output include the effective sort and order label.
   - Defaults remain nearest with geometry filters, strongest for non-geo venue support, and stale for non-geo compare output.
-  - Evidence packets now emit labeled views (`strongest`, `recent`, `stale`, plus `nearest` when geometry filters are present) instead of one ambiguous candidate list.
+  - Experimental evidence envelopes now emit labeled views (`strongest`, `recent`, `stale`, plus `nearest` when geometry filters are present) instead of one ambiguous candidate list.
 
-- [ ] Inspect first evidence packets and decide the next evidence gap.
+- [ ] Inspect the first experimental evidence envelopes and decide the next missing reusable query/derived-observation gap.
   - Candidate next gaps: better `--near-place` / named-area resolution, venue reconciliation/aliases, category-audit/debug output, or a thin human-readable packet rendering.
   - Normal packets should include selected caller-supplied categories, but not dump every excluded category by default; deeper category-selection audit belongs in debug/review flows.
   - Keep lunch/coffee as acceptance tests, not product scope.
@@ -165,7 +164,7 @@ safely as possible.
 - [x] Add calendar/time-of-day query filters.
   - `--date`, `--hour-from`, and `--hour-to` use `local_date` / `local_hour`.
   - Fuzzy labels like lunch/morning stay above the low-level CLI.
-- [x] Add a generic explicit-window evidence packet.
+- [x] Add a generic explicit-window experimental evidence envelope.
   - `evidence window` emits `swarm_window_evidence_packet.v0` over explicit
     date/hour filters.
 - [x] Add generic venue cadence comparison facts.
@@ -188,8 +187,8 @@ safely as possible.
   lat/lng confidence.
 - [ ] Add derived observations: active anchors, lapsed favorites, meal-window
   support, gaps, and geography clusters.
-- [ ] Add correction/edit storage after the evidence-packet shape is stable.
-- [ ] Add Paprika and `clime` mini-packets only with explicit join boundaries.
+- [ ] Add correction/edit storage after the reusable source/derived-output shape is stable.
+- [ ] Add Paprika and `clime` join inputs only above the CLI, with explicit join boundaries; avoid making `swarm-cadence` orchestrate sibling-tool packets.
 - [ ] Document the SQLite audit surface with read-only inspection queries for
   coverage, date ranges, venues, and category completeness.
 

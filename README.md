@@ -312,16 +312,16 @@ swift run swarm-cadence query compare --account julian --baseline-from 2024-01-0
 swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --sort recent --format json
 ```
 
-Build a generic evidence packet over an explicit date/hour window for an LLM or
-Almanac layer to interpret:
+Build a generic evidence envelope over an explicit date/hour window for an LLM or
+Almanac layer to interpret. This is a diagnostic/query shape, not a final Robut packet:
 
 ```bash
 swift run swarm-cadence evidence window --account julian --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
 ```
 
-Build a first evidence packet by composing existing venue support
-and cadence facts over explicit time and geography definitions. This is still an
-evidence packet, not a recommendation:
+Build a first experimental evidence envelope by composing existing venue support
+and cadence facts over explicit time and geography definitions. This is a
+query diagnostic / source-piece composition, not a recommendation and not the final Robut packet:
 
 ```bash
 swift run swarm-cadence evidence packet \
@@ -364,8 +364,8 @@ or Belmont venues can still match. Combining locality and radius is an AND
 refinement, not the default meaning of “near.” Future `--near-place`/`--area`
 work should make that anchor resolution inspectable instead of hiding it.
 
-`evidence packet` is an experimental evidence packet, not a durable public
-API contract. It emits `swarm_experimental_packet` with labeled evidence views
+`evidence packet` is an experimental evidence envelope, not a durable public
+API contract and not the final Robut-composed packet. It emits `swarm_experimental_packet` with labeled evidence views
 over the same explicit filters: `strongest`, `recent`, `stale`, and `nearest`
 when distance filters are present. Each view contains venue support and cadence
 comparison facts ordered by that label. It includes the target window, explicit

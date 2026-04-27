@@ -8,15 +8,15 @@ One near-term acceptance test is concrete:
 
 > Julian asks: “Where should I grab lunch today?”
 
-Lunch is an example Guide to validate the theory, not the center of the tool. The next implementation move is a thin, reusable evidence-query slice, not “the connector” and not a lunch-specific recommender:
+Lunch is an example Guide to validate the theory, not the center of the tool. The next implementation move is a thin, reusable evidence-query slice, not “the connector,” not a lunch-specific recommender, and not a general-purpose packet/workbench generator:
 
 ```text
 proven v2 path + preserved Julian/Alice raw pages
   -> parallel offline SQLite evidence stores with explicit account attribution
   -> first venue/date/window/cadence evidence queries
-  -> produce a real source bundle for a concrete Guide example
-  -> render static Guide option entries from that bundle
-  -> add edits/corrections after the bundle shape is stable
+  -> stable source/derived pieces for Robut to compose
+  -> static Guide option entries or Obsidian artifacts assembled above the CLI
+  -> add edits/corrections after the source-piece shape is stable
 ```
 
 ## Source research notes
@@ -33,7 +33,7 @@ This proposal adapts the Obsidian research notes and artifacts:
 
 ## Vocabulary boundary
 
-Tool-side docs may use precise implementation terms: source adapter, raw evidence DB, sidecar/model DB, evidence packet, provenance, drill-down, derived observation, correction record.
+Tool-side docs may use precise implementation terms: source adapter, raw evidence DB, sidecar/model DB, source bundle, provenance, drill-down, derived observation, correction record. Use **evidence packet** for the Robut/LLM-composed decision artifact, not as the default name for every CLI output.
 
 Human-facing artifacts should use friendlier terms:
 
@@ -105,7 +105,7 @@ Swarm/Foursquare source
   -> raw payload preservation
   -> normalized SQLite evidence store
   -> derived observations and provisional pattern findings
-  -> Lunch Guide source bundle / other evidence packets
+  -> source/derived pieces for Robut-composed Guide packets
   -> Food & Places Almanac + Lunch Guide
   -> Edits/corrections and future bundles
 ```
@@ -137,11 +137,11 @@ Early useful facets:
 
 This surface may use ad hoc SQL for investigation. It should be read-only by default and should not become the normal Robut chat contract.
 
-### 2. Stable verb / source-bundle surface
+### 2. Stable verb / evidence-substrate surface
 
-Purpose: provide bounded grounding for Robut and future Guides.
+Purpose: provide bounded grounding for Robut and future Guides without making `swarm-cadence` own the final answer, evidence packet, or explorable interface.
 
-Early target commands are provisional but should expose reusable evidence facts that a Guide source bundle can consume:
+Early target commands are provisional but should expose reusable evidence facts that Robut or a dedicated artifact layer can consume:
 
 ```bash
 swarm-cadence source probe --account julian --format json
@@ -151,11 +151,13 @@ swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent
 swarm-cadence evidence window --account julian --date 2026-04-27 --hour-from 11 --hour-to 14 --format json
 ```
 
-Guide-specific bundle shaping happens above the reusable query layer. It should consume venue support, cadence, recency, uncertainty, and source trails — not hide a final “best” answer in `swarm-cadence`.
+Guide-specific bundle/packet shaping happens above the reusable query layer. It should consume venue support, cadence, recency, uncertainty, and source trails — not hide a final “best” answer in `swarm-cadence`.
 
-## Concrete Guide source bundle requirements
+If the CLI keeps an experimental `evidence packet` command, treat it as a diagnostic/query envelope while the shape is being learned, not as the model every sibling tool must copy. The stable contract should be the smaller pieces: source rows, candidate sets, rollups, freshness, support counts, and drill-down handles.
 
-The first real bundle can use `Lunch Guide Source Bundle v0` and `Lunch Guide v0` as acceptance-test artifacts.
+## Concrete Guide substrate requirements
+
+The first real Guide artifact can use `Lunch Guide Source Bundle v0` and `Lunch Guide v0` as acceptance-test artifacts.
 
 Required fields:
 
@@ -242,12 +244,12 @@ recomputing timezone behavior at runtime.
    - current first slice: venue visit support, first/last seen, date ranges, explicit single-account scope, and source trails that reproduce supporting rows without printing raw payloads;
    - add explicit date/hour filters and generic cadence comparison facts (baseline vs recent support, last seen, lapse age);
    - later multi-account extension: explicit joint/family scopes, never implicit blending.
-2. **Emit first source bundle for a concrete Guide example**
+2. **Emit first reusable source/derived pieces for a concrete Guide example**
    - use the v0 Lunch artifacts as an acceptance test, while keeping the query layer generic;
    - include source trails and uncertainty;
    - avoid scoring or recommendations until fields are stable.
-3. **Generate static Guide entries**
-   - generate Markdown/HTML option entries from the bundle;
+3. **Generate static Guide entries above the CLI**
+   - generate Markdown/HTML option entries from the pieces;
    - show lenses and why options move.
 4. **Add edit/correction storage**
    - proposed / human-approved / human-authored states;
@@ -273,8 +275,8 @@ recomputing timezone behavior at runtime.
 A first implementation slice succeeds if it can:
 
 - use preserved v2 evidence without live network calls;
-- produce a small real Guide source bundle from reusable evidence queries;
-- render a static Guide from that bundle;
+- produce small real Guide-ready source/derived outputs from reusable evidence queries;
+- let Robut or a script render a static Guide from those pieces;
 - show every option’s source trail;
 - distinguish raw evidence, derived observation, proposed interpretation, and human edit;
 - list missing queries/fields for the next slice.
