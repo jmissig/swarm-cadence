@@ -110,6 +110,12 @@ safely as possible.
   - Keep non-interactive/config-file paths for cron and automation.
   - First-run setup should make it obvious where raw files, SQLite, config, and logs/freshness state will live.
 
+- [ ] Create an OpenClaw skill for `swarm-cadence`.
+  - Mirror the local-tool pattern used by `protect-cadence`, `clime`, and `paprika-pantry`.
+  - Document when to use Swarm evidence, safe read-only/query commands, ingest/update expectations, default paths, and provenance/freshness interpretation.
+  - Include guidance for LLM category selection: run `query categories`, choose explicit categories for the task, pass repeated `--category`, and surface selected categories in answers.
+  - Keep human-facing answers in Guide/Almanac language; do not expose repo jargon unless debugging.
+
 - [ ] Add explicit sorting / multiple evidence views.
   - Current near-radius venue rows sort by distance first, so “top” means nearest, not strongest evidence.
   - Add explicit sort labels/options such as `nearest`, `strongest`, `recent`, and `stale` rather than overloading one order.
