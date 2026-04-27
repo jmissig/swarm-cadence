@@ -401,6 +401,18 @@ enum V2RawCheckinsFetch {
         )
     }
 
+    static func checkinIDs(data: Data) -> [String] {
+        let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        let checkins = (object?["response"] as? [String: Any])?["checkins"] as? [String: Any]
+        let items = checkins?["items"] as? [[String: Any]] ?? []
+        return items.compactMap { item in
+            guard let id = item["id"] as? String, !id.isEmpty else {
+                return nil
+            }
+            return id
+        }
+    }
+
     static func statusFor(httpStatusCode: Int, metaCode: Int?) -> ProbeStatus {
         let code = metaCode ?? httpStatusCode
         switch code {

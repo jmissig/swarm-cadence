@@ -80,6 +80,22 @@ public enum SwarmCadenceCommand {
                 )
                 output(try Formatter.render(result, format: options.format))
                 return 0
+            case let .ingestUpdate(options):
+                let config = try ConfigFile.loadOptional(path: options.configPath, environment: environment)
+                let result = try IngestUpdate.update(
+                    account: options.account,
+                    adapter: options.adapter,
+                    config: config,
+                    environment: environment,
+                    rawDirectory: options.rawDirectory ?? AppSupportDefaults.rawCheckinsDirectory(account: options.account, environment: environment),
+                    dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: environment),
+                    pages: options.pages,
+                    limit: options.limit,
+                    delayMilliseconds: options.delayMilliseconds,
+                    transport: liveTransport
+                )
+                output(try Formatter.render(result, format: options.format))
+                return result.exitCode
             case let .dbImportRaw(options):
                 let result = try SwarmDatabase.importRawV2Checkins(
                     dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: environment),
@@ -241,6 +257,7 @@ public enum SwarmCadenceCommand {
       swarm-cadence source probe --account <label> --adapter <v2|historysearch> [--format <human|json>] [--config <path>] [--live]
       swarm-cadence raw fetch --account <label> --adapter v2 [--out <dir>] [--limit <1...250>] [--offset <n>] [--format <human|json>] [--config <path>]
       swarm-cadence raw fetch-pages --account <label> --adapter v2 [--out <dir>] [--limit <1...250>] [--start-offset <n>] --pages <1...200> [--delay-ms <n>] [--format <human|json>] [--config <path>]
+      swarm-cadence ingest update --account <label> --adapter v2 [--pages <n>] [--limit <1...250>] [--delay-ms <n>] [--config <path>] [--raw-dir <dir>] [--db <path>] [--format <human|json>]
       swarm-cadence db import-raw --account <label> [--db <path>] [--raw-dir <dir>] [--format <human|json>]
       swarm-cadence db import-files --account <label> --path <dir> [--source foursquare-export] [--db <path>] [--format <human|json>]
       swarm-cadence db stats --account <label> [--db <path>] [--format <human|json>]
@@ -255,6 +272,7 @@ public enum SwarmCadenceCommand {
     Defaults live under ~/Library/Application Support/swarm-cadence: config.json plus per-account raw archives and SQLite DBs under accounts/<label>/.
     Source probe is dry config validation by default. Pass --live to perform the explicit minimal read-only v2 checkins probe.
     Raw fetch performs exactly one conservative v2 checkins request and writes one raw JSON response plus an adjacent manifest.
+    Ingest update is cron-friendly v2 collection: fetch bounded recent pages, preserve raw files, import after each successful page, and report factual freshness.
     DB import reads preserved raw v2 files from disk only; it performs no network calls.
     Audit overlap compares preserved v2 raw files and Foursquare export files by check-in id without writing to SQLite.
     """
@@ -265,6 +283,7 @@ enum Invocation {
     case sourceProbe(SourceProbeOptions)
     case rawFetch(RawFetchOptions)
     case rawFetchPages(RawFetchPagesOptions)
+    case ingestUpdate(IngestUpdateOptions)
     case dbImportRaw(DBImportRawOptions)
     case dbImportFiles(DBImportFilesOptions)
     case dbStats(DBStatsOptions)
@@ -298,6 +317,8 @@ enum Invocation {
             self = .rawFetch(try RawFetchOptions(parsed: Self.parse(RawFetchArguments.self, Array(arguments.dropFirst(2)))))
         case ("raw", "fetch-pages"):
             self = .rawFetchPages(try RawFetchPagesOptions(parsed: Self.parse(RawFetchPagesArguments.self, Array(arguments.dropFirst(2)))))
+        case ("ingest", "update"):
+            self = .ingestUpdate(try IngestUpdateOptions(parsed: Self.parse(IngestUpdateArguments.self, Array(arguments.dropFirst(2)))))
         case ("db", "import-raw"):
             self = .dbImportRaw(try DBImportRawOptions(parsed: Self.parse(DBImportRawArguments.self, Array(arguments.dropFirst(2)))))
         case ("db", "import-files"):
@@ -343,7 +364,7 @@ enum Invocation {
     }
 
     private static func normalizeSignedValues(_ arguments: [String]) -> [String] {
-        let signedValueOptions: Set<String> = ["--limit", "--offset", "--from", "--to", "--baseline-from", "--baseline-to", "--recent-from", "--recent-to", "--as-of", "--near-lat", "--near-lng", "--radius-meters"]
+        let signedValueOptions: Set<String> = ["--limit", "--offset", "--pages", "--delay-ms", "--from", "--to", "--baseline-from", "--baseline-to", "--recent-from", "--recent-to", "--as-of", "--near-lat", "--near-lng", "--radius-meters"]
         var normalized: [String] = []
         var index = 0
 
@@ -490,6 +511,49 @@ struct RawFetchPagesOptions {
         self.pages = parsed.pages
         guard (1...RawFetch.fetchPagesHardMaxPages).contains(self.pages) else {
             throw CLIError("--pages \(self.pages) exceeds the hard max of \(RawFetch.fetchPagesHardMaxPages) per invocation.")
+        }
+        self.delayMilliseconds = parsed.delayMilliseconds
+        guard self.delayMilliseconds >= 0 else { throw CLIError("--delay-ms must be at least 0.") }
+    }
+}
+
+struct IngestUpdateOptions {
+    let account: String
+    let adapter: SourceAdapter
+    let format: OutputFormat
+    let configPath: String?
+    let rawDirectory: String?
+    let dbPath: String?
+    let pages: Int
+    let limit: Int
+    let delayMilliseconds: Int
+
+    fileprivate init(parsed: IngestUpdateArguments) throws {
+        self.account = try AccountLabel.validate(parsed.account)
+        self.adapter = try SourceAdapter(rawValue: parsed.adapter)
+            .orThrow("unsupported --adapter. Use `v2`.")
+        guard self.adapter == .v2 else {
+            throw CLIError("ingest update is currently implemented only for --adapter v2.")
+        }
+        self.format = try parseFormat(format: parsed.format, json: parsed.json)
+        self.configPath = parsed.config
+        if let rawDirectory = parsed.rawDirectory, rawDirectory.isEmpty {
+            throw CLIError("--raw-dir must not be empty.")
+        }
+        if let dbPath = parsed.dbPath, dbPath.isEmpty {
+            throw CLIError("--db must not be empty.")
+        }
+        self.rawDirectory = parsed.rawDirectory
+        self.dbPath = parsed.dbPath
+        self.pages = parsed.pages
+        guard self.pages >= 1 else { throw CLIError("--pages must be at least 1.") }
+        guard self.pages <= RawFetch.fetchPagesHardMaxPages else {
+            throw CLIError("--pages \(self.pages) exceeds the hard max of \(RawFetch.fetchPagesHardMaxPages) per invocation.")
+        }
+        self.limit = parsed.limit
+        guard self.limit >= 1 else { throw CLIError("--limit must be at least 1.") }
+        guard self.limit <= RawFetch.hardLimit else {
+            throw CLIError("--limit \(self.limit) exceeds the hard max of \(RawFetch.hardLimit) per invocation.")
         }
         self.delayMilliseconds = parsed.delayMilliseconds
         guard self.delayMilliseconds >= 0 else { throw CLIError("--delay-ms must be at least 0.") }
@@ -909,6 +973,19 @@ private struct RawFetchPagesArguments: ParsableArguments {
     @Flag var json = false
 }
 
+private struct IngestUpdateArguments: ParsableArguments {
+    @Option var account: String?
+    @Option var adapter = "v2"
+    @Option var format = "human"
+    @Option var config: String?
+    @Option(name: .customLong("raw-dir")) var rawDirectory: String?
+    @Option(name: .customLong("db")) var dbPath: String?
+    @Option var pages = IngestUpdate.defaultPages
+    @Option var limit = RawFetch.defaultLimit
+    @Option(name: .customLong("delay-ms")) var delayMilliseconds = RawFetch.fetchPagesDefaultDelayMilliseconds
+    @Flag var json = false
+}
+
 private struct DBImportRawArguments: ParsableArguments {
     @Option var account: String?
     @Option(name: .customLong("db")) var dbPath: String?
@@ -1098,6 +1175,15 @@ enum Formatter {
         }
     }
 
+    static func render(_ result: IngestUpdateResult, format: OutputFormat) throws -> String {
+        switch format {
+        case .human:
+            return renderHuman(result)
+        case .json:
+            return try renderJSON(result)
+        }
+    }
+
     static func render(_ result: RawImportResult, format: OutputFormat) throws -> String {
         switch format {
         case .human:
@@ -1279,6 +1365,42 @@ enum Formatter {
         return lines.joined(separator: "\n")
     }
 
+    private static func renderHuman(_ result: IngestUpdateResult) -> String {
+        var lines: [String] = [
+            "ingest update",
+            "account: \(result.account)",
+            "adapter: \(result.adapter.rawValue)",
+            "status: \(result.status.rawValue)",
+            "complete: \(result.complete)",
+            "requests: \(result.requestCount)",
+            "fetched_pages: \(result.fetchedPages)",
+            "imported_pages: \(result.importedPages)",
+            "checkins_inserted: \(result.checkinsInserted)",
+            "raw_files_inserted: \(result.rawFilesInserted)",
+            "current_through: \(result.freshnessAfter?.currentThroughISO8601 ?? "unknown")"
+        ]
+        if let lastFetched = result.freshnessAfter?.lastFetchedAtISO8601 {
+            lines.append("last_fetched_at: \(lastFetched)")
+        }
+        if let lastImported = result.freshnessAfter?.lastImportedAtISO8601 {
+            lines.append("last_imported_at: \(lastImported)")
+        }
+        if let stopReason = result.stopReason {
+            lines.append("stop_reason: \(stopReason)")
+        }
+        if !result.missingInputs.isEmpty {
+            lines.append("missing_inputs: \(result.missingInputs.joined(separator: ", "))")
+        }
+        if let sourceStatus = result.sourceStatus {
+            lines.append("source_status: \(sourceStatus.rawValue)")
+        }
+        if let errorMessage = result.errorMessage {
+            lines.append("error: \(errorMessage)")
+        }
+        lines.append("network: \(result.networkPerformed ? "performed" : "not performed")")
+        return lines.joined(separator: "\n")
+    }
+
     private static func renderHuman(_ result: RawImportResult) -> String {
         var lines: [String] = [
             result.command,
@@ -1375,6 +1497,15 @@ enum Formatter {
         }
         if let latest = result.latestCreatedAtISO8601 {
             lines.append("latest_created_at_iso8601: \(latest)")
+        }
+        if let currentThrough = result.currentThroughISO8601 {
+            lines.append("current_through_iso8601: \(currentThrough)")
+        }
+        if let lastFetched = result.lastFetchedAtISO8601 {
+            lines.append("last_fetched_at_iso8601: \(lastFetched)")
+        }
+        if let lastImported = result.lastImportedAtISO8601 {
+            lines.append("last_imported_at_iso8601: \(lastImported)")
         }
 
         return lines.joined(separator: "\n")

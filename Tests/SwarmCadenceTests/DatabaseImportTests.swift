@@ -703,6 +703,63 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertTrue(statsOutput.contains("\"checkins\" : 3"))
     }
 
+    func testAdapterFreshnessScopesCheckinWindowThroughRawFileAdapter() throws {
+        let directory = try makeTemporaryDirectory()
+        let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
+        let exportDirectory = directory.appendingPathComponent("export", isDirectory: true)
+        try FileManager.default.createDirectory(at: rawDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+
+        try writeRawPair(
+            rawDirectory: rawDirectory,
+            baseName: "fixture-v2-julian-checkins-offset0-limit250",
+            rawBody: rawBody
+        )
+        try """
+        {
+          "count": 2,
+          "items": [
+            {
+              "id": "export-old-1",
+              "createdAt": "2020-01-01 12:00:00.000000",
+              "type": "checkin",
+              "timeZoneOffset": -480,
+              "venue": null,
+              "comments": { "count": 0 },
+              "lat": 37.3,
+              "lng": -122.4
+            },
+            {
+              "id": "export-new-1",
+              "createdAt": "2024-01-02 12:00:00.000000",
+              "type": "checkin",
+              "timeZoneOffset": -480,
+              "venue": null,
+              "comments": { "count": 0 },
+              "lat": 37.3,
+              "lng": -122.4
+            }
+          ]
+        }
+        """.write(to: exportDirectory.appendingPathComponent("checkins1.json"), atomically: true, encoding: .utf8)
+
+        _ = try SwarmDatabase.importRawV2Checkins(dbPath: dbURL.path, rawDirectory: rawDirectory.path, account: "julian")
+        _ = try SwarmDatabase.importFiles(dbPath: dbURL.path, path: exportDirectory.path, account: "julian")
+
+        let accountFreshness = try SwarmDatabase.freshness(dbPath: dbURL.path, account: "julian")
+        let v2Freshness = try SwarmDatabase.freshness(dbPath: dbURL.path, account: "julian", adapter: "v2")
+        let exportFreshness = try SwarmDatabase.freshness(dbPath: dbURL.path, account: "julian", adapter: "export")
+
+        XCTAssertEqual(accountFreshness.oldestCreatedAtISO8601, "2020-01-01T12:00:00Z")
+        XCTAssertEqual(accountFreshness.latestCreatedAtISO8601, "2024-01-02T12:00:00Z")
+        XCTAssertEqual(v2Freshness.oldestCreatedAt, 1_700_000_000)
+        XCTAssertEqual(v2Freshness.latestCreatedAt, 1_700_000_100)
+        XCTAssertEqual(v2Freshness.currentThroughISO8601, "2023-11-14T22:15:00Z")
+        XCTAssertEqual(exportFreshness.oldestCreatedAtISO8601, "2020-01-01T12:00:00Z")
+        XCTAssertEqual(exportFreshness.latestCreatedAtISO8601, "2024-01-02T12:00:00Z")
+    }
+
     func testCLIQueryCompareRendersVenueCadenceFacts() throws {
         let directory = try makeTemporaryDirectory()
         let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)

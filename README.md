@@ -6,6 +6,7 @@ Foursquare Swarm check-in history as private evidence for OpenClaw/Robut.
 It currently supports:
 
 - explicit source probes for Foursquare v2 and Swarm web `historysearch` config;
+- cron-friendly bounded v2 ingest updates that preserve raw pages and import them locally;
 - one-request and explicit multi-page raw v2 check-in response preservation;
 - offline SQLite import from preserved raw v2 files and Foursquare export files;
 - aggregate database stats and source overlap audits;
@@ -119,6 +120,37 @@ The command writes one unmodified `*.raw.json` response and one adjacent
 redacted `*.manifest.json`. Console output is a compact summary only. `data/`
 is git-ignored; do not commit raw check-in data.
 
+## Unattended v2 Update
+
+Use `ingest update` for a bounded cron-friendly collection run:
+
+```bash
+swift run swarm-cadence ingest update \
+  --account julian \
+  --adapter v2 \
+  --format json
+```
+
+Defaults are intentionally small: `--pages 4`, `--limit 250`, and
+`--delay-ms 1000`. The command performs v2 read-only check-ins requests,
+preserves each raw page and manifest, imports after each successful page, and
+stops when it reaches an existing local check-in id, a short page, or the page
+cap. Status values include `updated`, `no_new_checkins`, `updated_partial`,
+`config_missing`, `source_blocked`, and `import_failed`.
+
+Use explicit paths for tests and one-off dry runs:
+
+```bash
+swift run swarm-cadence ingest update \
+  --account alice \
+  --adapter v2 \
+  --raw-dir /tmp/swarm-cadence/alice/raw \
+  --db /tmp/swarm-cadence/alice/swarm-cadence.sqlite \
+  --pages 1 \
+  --delay-ms 0 \
+  --format json
+```
+
 ## Offline SQLite Import
 
 Import preserved v2 raw files into a rebuildable local SQLite sidecar:
@@ -168,8 +200,9 @@ swift run swarm-cadence db stats --account julian
 swift run swarm-cadence db stats --account julian --format json
 ```
 
-`db stats` reports counts and oldest/latest check-in timestamps only. It does
-not print raw payload contents.
+`db stats` reports aggregate counts plus factual freshness: last raw fetch time,
+last import time, oldest/latest check-in timestamps, and `current_through` as
+the latest imported check-in timestamp. It does not print raw payload contents.
 
 ## Evidence Queries
 

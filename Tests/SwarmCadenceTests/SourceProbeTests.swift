@@ -39,9 +39,7 @@ final class SourceProbeTests: XCTestCase {
         var rendered = ""
         let exitCode = SwarmCadenceCommand.run(
             arguments: ["source", "probe", "--account", "julian", "--adapter", "v2", "--format", "json"],
-            environment: [
-                "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "super-secret-token"
-            ],
+            environment: isolatedEnvironment(["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "super-secret-token"]),
             output: { rendered = $0 },
             errorOutput: { _ in }
         )
@@ -56,9 +54,7 @@ final class SourceProbeTests: XCTestCase {
         var rendered = ""
         let exitCode = SwarmCadenceCommand.run(
             arguments: ["source", "probe", "--account", "julian", "--adapter", "v2", "--format", "json"],
-            environment: [
-                "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "dry-secret-token"
-            ],
+            environment: isolatedEnvironment(["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "dry-secret-token"]),
             liveTransport: FailingTransport(),
             output: { rendered = $0 },
             errorOutput: { _ in }
@@ -249,9 +245,7 @@ final class SourceProbeTests: XCTestCase {
                 "--format", "json",
                 "--live"
             ],
-            environment: [
-                "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "live-secret-token"
-            ],
+            environment: isolatedEnvironment(["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "live-secret-token"]),
             liveTransport: StaticTransport(statusCode: 401, data: body),
             output: { rendered = $0 },
             errorOutput: { _ in }
@@ -329,6 +323,14 @@ final class SourceProbeTests: XCTestCase {
         XCTAssertEqual(result.status, .networkError)
         XCTAssertEqual(result.liveProbe?.status, .networkError)
         XCTAssertEqual(result.liveProbe?.message, "request failed with <redacted>")
+    }
+
+    private func isolatedEnvironment(_ values: [String: String] = [:]) -> [String: String] {
+        var environment = ["HOME": FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path]
+        for (key, value) in values {
+            environment[key] = value
+        }
+        return environment
     }
 }
 

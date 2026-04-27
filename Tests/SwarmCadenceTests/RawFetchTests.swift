@@ -18,9 +18,7 @@ final class RawFetchTests: XCTestCase {
                 "--offset", "250",
                 "--format", "json"
             ],
-            environment: [
-                "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"
-            ],
+            environment: isolatedEnvironment(["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"]),
             liveTransport: transport,
             output: { rendered = $0 },
             errorOutput: { _ in }
@@ -54,9 +52,7 @@ final class RawFetchTests: XCTestCase {
                 "--out", "/tmp/raw-fetch-unused",
                 "--limit", "251"
             ],
-            environment: [
-                "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"
-            ],
+            environment: isolatedEnvironment(["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"]),
             liveTransport: transport,
             output: { _ in },
             errorOutput: { error = $0 }
@@ -80,9 +76,7 @@ final class RawFetchTests: XCTestCase {
                 "--out", "/tmp/raw-fetch-unused",
                 "--offset", "-1"
             ],
-            environment: [
-                "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"
-            ],
+            environment: isolatedEnvironment(["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"]),
             liveTransport: transport,
             output: { _ in },
             errorOutput: { error = $0 }
@@ -106,9 +100,7 @@ final class RawFetchTests: XCTestCase {
                 "--out", "/tmp/raw-fetch-unused",
                 "--limit", "not-a-number"
             ],
-            environment: [
-                "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"
-            ],
+            environment: isolatedEnvironment(["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"]),
             liveTransport: transport,
             output: { _ in },
             errorOutput: { error = $0 }
@@ -127,9 +119,7 @@ final class RawFetchTests: XCTestCase {
         let result = try RawFetch.fetch(
             account: "julian",
             adapter: .v2,
-            environment: [
-                "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"
-            ],
+            environment: isolatedEnvironment(["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"]),
             outputDirectory: outputDirectory.path,
             limit: 25,
             offset: 500,
@@ -253,7 +243,7 @@ final class RawFetchTests: XCTestCase {
                 "--delay-ms", "0",
                 "--format", "json"
             ],
-            environment: ["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"],
+            environment: isolatedEnvironment(["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"]),
             liveTransport: transport,
             output: { rendered = $0 },
             errorOutput: { _ in }
@@ -290,7 +280,7 @@ final class RawFetchTests: XCTestCase {
                 "--out", "/tmp/raw-fetch-unused",
                 "--pages", "201"
             ],
-            environment: ["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"],
+            environment: isolatedEnvironment(["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"]),
             liveTransport: transport,
             output: { _ in },
             errorOutput: { error = $0 }
@@ -314,6 +304,14 @@ final class RawFetchTests: XCTestCase {
           }
         }
         """.data(using: .utf8)!
+    }
+
+    private func isolatedEnvironment(_ values: [String: String] = [:]) -> [String: String] {
+        var environment = ["HOME": FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path]
+        for (key, value) in values {
+            environment[key] = value
+        }
+        return environment
     }
 
     private var successBody: Data {

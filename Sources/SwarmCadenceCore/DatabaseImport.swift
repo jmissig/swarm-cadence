@@ -45,10 +45,25 @@ public struct DatabaseStatsResult: Codable, Equatable {
     public let checkins: Int
     public let venues: Int
     public let categories: Int
+    public let lastFetchedAtISO8601: String?
+    public let lastImportedAtISO8601: String?
+    public let currentThroughISO8601: String?
     public let minCreatedAt: Int?
     public let maxCreatedAt: Int?
     public let oldestCreatedAtISO8601: String?
     public let latestCreatedAtISO8601: String?
+}
+
+public struct DatabaseFreshness: Codable, Equatable {
+    public let account: String?
+    public let adapter: String?
+    public let lastFetchedAtISO8601: String?
+    public let lastImportedAtISO8601: String?
+    public let oldestCreatedAt: Int?
+    public let oldestCreatedAtISO8601: String?
+    public let latestCreatedAt: Int?
+    public let latestCreatedAtISO8601: String?
+    public let currentThroughISO8601: String?
 }
 
 public enum SwarmDatabase {
@@ -57,6 +72,22 @@ public enum SwarmDatabase {
         rawDirectory: String,
         account: String? = nil,
         importedAt: Date = Date()
+    ) throws -> RawImportResult {
+        try importRawV2Checkins(
+            dbPath: dbPath,
+            rawDirectory: rawDirectory,
+            account: account,
+            importedAt: importedAt,
+            manifestFileNames: nil
+        )
+    }
+
+    static func importRawV2Checkins(
+        dbPath: String,
+        rawDirectory: String,
+        account: String? = nil,
+        importedAt: Date = Date(),
+        manifestFileNames: Set<String>?
     ) throws -> RawImportResult {
         guard !dbPath.isEmpty else {
             throw CLIError("missing required --db <path>.")
@@ -77,6 +108,7 @@ public enum SwarmDatabase {
         let manifestURLs = try FileManager.default
             .contentsOfDirectory(at: rawDirectoryURL, includingPropertiesForKeys: nil)
             .filter { $0.lastPathComponent.hasSuffix(".manifest.json") }
+            .filter { manifestFileNames?.contains($0.lastPathComponent) ?? true }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
 
         let importedAtString = iso8601String(importedAt)
@@ -251,6 +283,8 @@ public enum SwarmDatabase {
                 arguments: [account, account]
             )
 
+            let freshness = try freshness(db: db, account: account, adapter: nil)
+
             return DatabaseStatsResult(
                 schemaVersion: 1,
                 command: "db stats",
@@ -286,11 +320,63 @@ public enum SwarmDatabase {
                     """,
                     arguments: [account, account]
                 ) ?? 0,
+                lastFetchedAtISO8601: freshness.lastFetchedAtISO8601,
+                lastImportedAtISO8601: freshness.lastImportedAtISO8601,
+                currentThroughISO8601: freshness.currentThroughISO8601,
                 minCreatedAt: minCreatedAt,
                 maxCreatedAt: maxCreatedAt,
                 oldestCreatedAtISO8601: minCreatedAt.map(iso8601String(timestamp:)),
                 latestCreatedAtISO8601: maxCreatedAt.map(iso8601String(timestamp:))
             )
+        }
+    }
+
+    public static func freshness(
+        dbPath: String,
+        account: String? = nil,
+        adapter: String? = nil
+    ) throws -> DatabaseFreshness {
+        guard !dbPath.isEmpty else {
+            throw CLIError("missing required --db <path>.")
+        }
+
+        let account = try account.map(AccountLabel.validate)
+        let dbQueue = try openDatabase(path: dbPath)
+        try migrate(dbQueue)
+
+        return try dbQueue.read { db in
+            try freshness(db: db, account: account, adapter: adapter)
+        }
+    }
+
+    public static func existingCheckinIDs(dbPath: String, account: String, adapter: String? = nil) throws -> Set<String> {
+        guard !dbPath.isEmpty else {
+            throw CLIError("missing required --db <path>.")
+        }
+
+        let account = try AccountLabel.validate(account)
+        let dbQueue = try openDatabase(path: dbPath)
+        try migrate(dbQueue)
+
+        return try dbQueue.read { db in
+            Set(try String.fetchAll(
+                db,
+                sql: """
+                SELECT c.checkin_id
+                FROM checkins c
+                WHERE c.account = ?
+                  AND (
+                    ? IS NULL
+                    OR EXISTS (
+                      SELECT 1
+                      FROM raw_files rf
+                      WHERE rf.id = c.raw_file_id
+                        AND rf.adapter = ?
+                    )
+                  )
+                """,
+                arguments: [account, adapter, adapter]
+            ))
         }
     }
 
@@ -1126,6 +1212,81 @@ public enum SwarmDatabase {
         formatter.formatOptions = [.withInternetDateTime]
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         return formatter.string(from: date)
+    }
+
+    private static func freshness(
+        db: Database,
+        account: String?,
+        adapter: String?
+    ) throws -> DatabaseFreshness {
+        let minCreatedAt = try Int.fetchOne(
+            db,
+            sql: """
+            SELECT MIN(c.created_at_unix)
+            FROM checkins c
+            WHERE (? IS NULL OR c.account = ?)
+              AND (
+                ? IS NULL
+                OR EXISTS (
+                  SELECT 1
+                  FROM raw_files rf
+                  WHERE rf.id = c.raw_file_id
+                    AND rf.adapter = ?
+                )
+              )
+            """,
+            arguments: [account, account, adapter, adapter]
+        )
+        let maxCreatedAt = try Int.fetchOne(
+            db,
+            sql: """
+            SELECT MAX(c.created_at_unix)
+            FROM checkins c
+            WHERE (? IS NULL OR c.account = ?)
+              AND (
+                ? IS NULL
+                OR EXISTS (
+                  SELECT 1
+                  FROM raw_files rf
+                  WHERE rf.id = c.raw_file_id
+                    AND rf.adapter = ?
+                )
+              )
+            """,
+            arguments: [account, account, adapter, adapter]
+        )
+        let lastFetchedAt = try String.fetchOne(
+            db,
+            sql: """
+            SELECT MAX(fetched_at)
+            FROM raw_files
+            WHERE (? IS NULL OR account = ?)
+              AND (? IS NULL OR adapter = ?)
+            """,
+            arguments: [account, account, adapter, adapter]
+        )
+        let lastImportedAt = try String.fetchOne(
+            db,
+            sql: """
+            SELECT MAX(imported_at)
+            FROM raw_files
+            WHERE (? IS NULL OR account = ?)
+              AND (? IS NULL OR adapter = ?)
+            """,
+            arguments: [account, account, adapter, adapter]
+        )
+
+        return DatabaseFreshness(
+            account: account,
+            adapter: adapter,
+            lastFetchedAtISO8601: lastFetchedAt,
+            lastImportedAtISO8601: lastImportedAt,
+            oldestCreatedAt: minCreatedAt,
+            oldestCreatedAtISO8601: minCreatedAt.map(iso8601String(timestamp:)),
+            latestCreatedAt: maxCreatedAt,
+            latestCreatedAtISO8601: maxCreatedAt.map(iso8601String(timestamp:)),
+            currentThroughISO8601: maxCreatedAt.map(iso8601String(timestamp:))
+        )
     }
 }
 

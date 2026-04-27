@@ -92,12 +92,13 @@ safely as possible.
   - This lets “coffee near San Carlos” return coffee-shop evidence across nearby localities instead of generic lunch/restaurant rows.
   - It is still factual Foursquare category evidence, not a fuzzy cuisine/preference model.
 
-- [ ] Add an ingest/update loop suitable for cron.
+- [x] Add an ingest/update loop suitable for cron.
   - Goal shape should resemble `protect-cadence`: safe to run every couple of hours without manual babysitting.
-  - Add a command like `ingest update` (or similar) that fetches new v2 pages, preserves raw responses/manifests, imports them, and exits cleanly when there is nothing new.
-  - Track and expose freshness plainly: `last_ingested_at` / `last_imported_at`, `latest_checkin_at`, and `oldest_checkin_at`.
-  - Include freshness in `db stats` and evidence packets so users can see what the evidence is current through.
-  - Keep this local-first/read-only with respect to Swarm/Foursquare; no write-back or hidden background daemon.
+  - Implemented `ingest update --account <label> --adapter v2` with defaults `--pages 4`, `--limit 250`, and `--delay-ms 1000`.
+  - It preserves raw responses/manifests, imports after each successful page, stops on an existing local check-in id or short page, and reports `updated`, `no_new_checkins`, `updated_partial`, `config_missing`, `source_blocked`, or `import_failed`.
+  - Freshness is derived from existing tables: `last_fetched_at`, `last_imported_at`, oldest/latest check-in timestamps, and `current_through` as the latest imported check-in timestamp.
+  - `db stats` and evidence packets now include freshness fields.
+  - This remains v2-only, local-first, read-only with respect to Swarm/Foursquare, and does not add a daemon.
 
 - [ ] Add a tool VERSION and include it in provenance.
   - Add a repo `VERSION` file like other local tools.

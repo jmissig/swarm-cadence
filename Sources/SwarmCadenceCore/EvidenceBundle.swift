@@ -24,6 +24,9 @@ public struct EvidenceSourceCoverage: Codable, Equatable {
     public let venues: Int
     public let oldestCreatedAtISO8601: String?
     public let latestCreatedAtISO8601: String?
+    public let currentThroughISO8601: String?
+    public let lastFetchedAtISO8601: String?
+    public let lastImportedAtISO8601: String?
 }
 
 public struct EvidenceWindowPacket: Codable, Equatable {
@@ -221,7 +224,10 @@ private func evidenceSourceCoverage(dbPath: String, stats: DatabaseStatsResult) 
         checkins: stats.checkins,
         venues: stats.venues,
         oldestCreatedAtISO8601: stats.oldestCreatedAtISO8601,
-        latestCreatedAtISO8601: stats.latestCreatedAtISO8601
+        latestCreatedAtISO8601: stats.latestCreatedAtISO8601,
+        currentThroughISO8601: stats.currentThroughISO8601,
+        lastFetchedAtISO8601: stats.lastFetchedAtISO8601,
+        lastImportedAtISO8601: stats.lastImportedAtISO8601
     )
 }
 
