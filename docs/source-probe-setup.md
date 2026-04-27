@@ -15,6 +15,10 @@ the live v2 path has already been proven. It is intentionally conservative: one
 request per invocation, small default limit, no pagination loop, and no SQLite
 write.
 
+The `db import-raw` command is the first SQLite slice. It performs no network
+calls; it reads preserved v2 raw/manifest pairs from disk and builds a small
+query sidecar.
+
 ## Current command
 
 ```bash
@@ -123,6 +127,48 @@ swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --
 This is intentionally manual paging. Each command performs one request only; the
 CLI does not follow cursors or loop through pages.
 
+## Offline v2 SQLite import
+
+After preserving one or more raw v2 pages, import them into a local SQLite
+sidecar:
+
+```bash
+swift run swarm-cadence db import-raw \
+  --db data/swarm-cadence.sqlite \
+  --raw-dir data/raw/v2/checkins
+```
+
+Safety boundary:
+
+- no network request is performed;
+- only `*.manifest.json` files and their matching `*.raw.json` files are read;
+- raw SHA256 and byte count must match the manifest before a file is imported;
+- imported rows keep raw-file provenance through `raw_files.id`;
+- reruns are idempotent through upserts on raw relative filename, check-in id,
+  venue id, and category id;
+- raw files and SQLite files under `data/` remain git-ignored.
+
+The initial schema is intentionally small:
+
+- `raw_files` records file metadata from the manifest: relative filename,
+  SHA256, bytes, fetched timestamp, adapter, account, endpoint, API version,
+  limit/offset, HTTP/API status, returned/total counts, and import timestamp;
+- `checkins` records check-in id, account, adapter, created timestamp, venue id,
+  raw file provenance, and the reserialized raw check-in object;
+- `venues` records venue id, name, lat/lng, category summary JSON, and raw venue
+  JSON;
+- `categories` and `checkin_categories` record category labels and check-in
+  category provenance when present.
+
+Audit aggregate coverage:
+
+```bash
+swift run swarm-cadence db stats --db data/swarm-cadence.sqlite
+```
+
+`db stats` reports raw file, check-in, venue, and category counts plus oldest
+and latest check-in timestamps. It does not print raw payload contents.
+
 ## v2 OAuth path
 
 Preferred if the future live probe can read check-in history for the account.
@@ -220,15 +266,14 @@ work must preserve attribution from the first row onward.
 
 ## Next implementation checkpoint
 
-Now that the v2 live probe and conservative raw preservation exist, use the
-saved raw files to choose the next source slice:
+Now that the v2 live probe, conservative raw preservation, and offline SQLite
+import exist, use the local sidecar to define the first evidence queries:
 
-- If live v2 returns `success` with useful field coverage, build the first
-  normalized SQLite evidence slice around preserved v2 raw files.
-- If live v2 returns `payment_required`, `unauthorized`, or durable `blocked`,
-  implement the narrow live `historysearch` fallback.
-- Keep export/import available for bootstrap, backfill, and reconciliation.
-- Continue to save no fixtures unless they are sanitized and explicitly used in
+- derive venue visit counts and date ranges from imported v2 check-ins;
+- add lunch-window filters against stored timestamps;
+- keep export/import available for bootstrap, backfill, and reconciliation;
+- keep `historysearch` as fallback only if v2 becomes blocked for ongoing use;
+- continue to save no fixtures unless they are sanitized and explicitly used in
   tests.
 
 The live probe decides source viability only. It is not ingest/backfill.

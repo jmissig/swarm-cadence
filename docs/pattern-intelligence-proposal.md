@@ -50,10 +50,10 @@ Implementation rule of thumb:
 ## Current state
 
 The repo now has a minimal Swift Package CLI with dry `source probe` commands,
-an explicit live v2 source probe, and conservative one-request raw v2
-preservation. `AGENTS.md` carries durable architecture guidance; schema,
-ingest, normalized SQLite evidence, and Lunch Guide source bundles are still
-not implemented.
+an explicit live v2 source probe, conservative one-request raw v2 preservation,
+and an offline GRDB/SQLite import for preserved v2 raw files. `AGENTS.md`
+carries durable architecture guidance; Lunch Guide source bundles are still not
+implemented.
 
 Implemented dry probe commands:
 
@@ -85,6 +85,18 @@ fails above `limit=250`, writes one unmodified raw JSON response and one
 adjacent manifest, and does not write SQLite.
 
 The proposal below should guide the first real slice without encouraging a broad connector build.
+
+Implemented offline v2 SQLite import:
+
+```bash
+swarm-cadence db import-raw --db data/swarm-cadence.sqlite --raw-dir data/raw/v2/checkins
+swarm-cadence db stats --db data/swarm-cadence.sqlite
+```
+
+The importer performs no network calls, verifies raw SHA256 against adjacent
+manifests, and builds small provenance-preserving `raw_files`, `checkins`,
+`venues`, `categories`, and `checkin_categories` tables. The SQLite database is
+a rebuildable query sidecar; preserved raw files remain the source of truth.
 
 ## Desired architecture
 

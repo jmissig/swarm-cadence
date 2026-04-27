@@ -4,9 +4,9 @@
 Foursquare Swarm check-in history as private evidence for OpenClaw/Robut.
 
 The first slices are intentionally narrow: the CLI validates local
-configuration, can perform one explicit read-only v2 source probe, and can
-preserve one conservative raw v2 check-ins response. It does not ingest data,
-write an evidence database, or make lunch recommendations.
+configuration, can perform one explicit read-only v2 source probe, can preserve
+one conservative raw v2 check-ins response, and can build a small local SQLite
+index from preserved raw files. It does not make lunch recommendations.
 
 The CLI uses a tiny dependency-free parser for this first offline slice.
 Adopt `swift-argument-parser` once the command surface grows beyond the dry
@@ -126,6 +126,33 @@ swift run swarm-cadence raw fetch --account julian --adapter v2 --config ./.swar
 
 Each command still performs exactly one request and writes one raw file plus one
 manifest.
+
+## Offline SQLite Import
+
+After preserving raw v2 pages, build or refresh the local SQLite sidecar without
+calling the network:
+
+```bash
+swift run swarm-cadence db import-raw \
+  --db data/swarm-cadence.sqlite \
+  --raw-dir data/raw/v2/checkins
+```
+
+The importer reads adjacent `*.manifest.json` and `*.raw.json` pairs, verifies
+the raw SHA256 from the manifest, parses
+`response.checkins.items`, and upserts small provenance-preserving tables:
+`raw_files`, `checkins`, `venues`, `categories`, and `checkin_categories`.
+Rerunning the command is idempotent. Raw files and SQLite files under `data/`
+remain git-ignored.
+
+To audit aggregate coverage:
+
+```bash
+swift run swarm-cadence db stats --db data/swarm-cadence.sqlite
+```
+
+`db stats` reports table counts and oldest/latest check-in timestamps only. Use
+`--format json` for machine-readable output.
 
 ## What Julian Needs To Do Next
 

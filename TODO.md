@@ -18,13 +18,17 @@ Short active backlog only. Durable architecture and constraints live in `AGENTS.
   - Performs exactly one read-only `GET /v2/users/self/checkins` request per invocation.
   - Defaults to `limit=250` and `offset=0`; fails above the hard max limit of `250` or below offset `0`.
   - Writes one unmodified `*.raw.json` response plus one redacted adjacent manifest; no SQLite writes.
-- [ ] Use the live v2 probe result to choose the next source path.
-  - If v2 succeeds, build the smallest normalized SQLite slice around preserved v2 raw files.
+- [x] Use the live v2 probe result to choose the next source path.
+  - v2 succeeded; the first normalized SQLite slice now imports preserved v2 raw files offline.
+  - `swarm-cadence db import-raw --db data/swarm-cadence.sqlite --raw-dir data/raw/v2/checkins`
+  - `swarm-cadence db stats --db data/swarm-cadence.sqlite`
+  - Import verifies manifest SHA256, preserves raw-file provenance, and upserts raw files/check-ins/venues/categories.
   - If v2 is gated, unauthorized, or payment-required, implement the narrow live `historysearch` fallback.
   - Keep export/import available for bootstrap/backfill/reconciliation.
-- [ ] Create a fixture/minimal-ingest path for enough Julian check-in data to exercise the lunch scenario.
-  - Use repo-local fixture/temp DB paths.
-  - Mark fixture/placeholder fields explicitly.
+- [ ] Use the local v2 SQLite sidecar to define the first lunch evidence queries.
+  - Keep raw files as source of truth; treat SQLite as rebuildable.
+  - Start with counts, date ranges, venue visit support, and lunch-window filters.
+  - Avoid open-now/enrichment until a separate venue-enrichment boundary exists.
 - [ ] Emit a first `evidence lunch` / Lunch Guide source bundle JSON shape.
   - Follow `docs/pattern-intelligence-proposal.md` and Obsidian `Lunch Guide Source Bundle v0`.
   - Include options, source trails, support counts, uncertainty, visible joins, and correction affordances.
