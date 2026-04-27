@@ -94,6 +94,32 @@ final class RawFetchTests: XCTestCase {
         XCTAssertFalse(error.contains("raw-secret-token"))
     }
 
+    func testRawFetchRejectsNonIntegerLimitBeforeTransport() {
+        let transport = CapturingRawTransport(response: ProbeHTTPResponse(statusCode: 200, data: successBody))
+        var error = ""
+
+        let exitCode = SwarmCadenceCommand.run(
+            arguments: [
+                "raw", "fetch",
+                "--account", "julian",
+                "--adapter", "v2",
+                "--out", "/tmp/raw-fetch-unused",
+                "--limit", "not-a-number"
+            ],
+            environment: [
+                "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"
+            ],
+            liveTransport: transport,
+            output: { _ in },
+            errorOutput: { error = $0 }
+        )
+
+        XCTAssertEqual(exitCode, 2)
+        XCTAssertEqual(transport.requests.count, 0)
+        XCTAssertTrue(error.contains("invalid for '--limit"))
+        XCTAssertFalse(error.contains("raw-secret-token"))
+    }
+
     func testRawFetchWritesUnalteredResponseAndAdjacentManifest() throws {
         let outputDirectory = try makeTemporaryDirectory()
         let fetchedAt = Date(timeIntervalSince1970: 1_700_000_000.123)

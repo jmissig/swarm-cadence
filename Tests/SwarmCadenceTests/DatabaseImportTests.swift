@@ -124,7 +124,7 @@ final class DatabaseImportTests: XCTestCase {
             arguments: [
                 "db", "stats",
                 "--db", dbURL.path,
-                "--format", "json"
+                "--json"
             ],
             output: { statsOutput = $0 },
             errorOutput: { _ in }

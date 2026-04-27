@@ -8,11 +8,12 @@ The near-term acceptance test is concrete:
 
 > Julian asks: “Where should I grab lunch today?”
 
-The next implementation move is a thin vertical slice, not “the connector”:
+The next implementation move is a thin evidence-query slice, not “the connector”:
 
 ```text
-source probe
-  -> ingest or fixture enough Julian data
+proven v2 path + preserved raw pages
+  -> offline SQLite sidecar
+  -> first venue/date/window evidence queries
   -> produce a real Lunch Guide source bundle
   -> render static Lunch Guide option entries from that bundle
   -> add edits/corrections after the bundle shape is stable
@@ -84,8 +85,6 @@ This command performs exactly one v2 check-ins request, defaults to `limit=250`,
 fails above `limit=250`, writes one unmodified raw JSON response and one
 adjacent manifest, and does not write SQLite.
 
-The proposal below should guide the first real slice without encouraging a broad connector build.
-
 Implemented offline v2 SQLite import:
 
 ```bash
@@ -118,7 +117,8 @@ Source paths should remain replaceable:
 3. official export/takeout for bootstrap/backfill/reconciliation;
 4. current Places APIs only for venue enrichment, not check-in history.
 
-Do not build a broad connector before the source probe establishes which path is viable.
+Do not turn the proven v2 path into a broad connector before the local evidence
+queries and Lunch Guide bundle shape are useful.
 
 ## Two sibling surfaces
 
@@ -209,26 +209,22 @@ Raw check-ins stay untouched. Edits/corrections apply visibly to future bundles 
 
 ## Recommended next slices
 
-1. **Source probe**
-   - decide viable ingest path for Julian;
-   - redact credentials/secrets;
-   - report available fields, date range, venue/category/location coverage.
-2. **Fixture or minimal ingest**
-   - enough data to populate the lunch scenario;
-   - explicit placeholders where real source fields are missing;
-   - no broad sync yet.
-3. **Emit first `lunch` source bundle**
+1. **Evidence queries over imported v2 data**
+   - venue visit support, first/last seen, date ranges, and lunch-window filters;
+   - explicit account scope and freshness;
+   - source trails that reproduce the supporting rows without printing raw payloads.
+2. **Emit first `lunch` source bundle**
    - use the v0 bundle shape;
    - include source trails and uncertainty;
    - avoid scoring or recommendations until fields are stable.
-4. **Generate static Lunch Guide entries**
+3. **Generate static Lunch Guide entries**
    - generate Markdown/HTML option entries from the bundle;
    - show lenses and why options move.
-5. **Add edit/correction storage**
+4. **Add edit/correction storage**
    - proposed / human-approved / human-authored states;
    - scoped effects on future bundles;
    - raw evidence untouched.
-6. **Add join mini-bundles later**
+5. **Add join mini-bundles later**
    - Paprika dinner/taste context;
    - `clime` outing/weather context;
    - explicit join-boundary table.
@@ -247,8 +243,8 @@ Raw check-ins stay untouched. Edits/corrections apply visibly to future bundles 
 
 A first implementation slice succeeds if it can:
 
-- probe the source safely;
-- produce a small real or fixture-backed Lunch Guide source bundle;
+- use preserved v2 evidence without live network calls;
+- produce a small real Lunch Guide source bundle;
 - render a static Lunch Guide from that bundle;
 - show every option’s source trail;
 - distinguish raw evidence, derived observation, proposed interpretation, and human edit;

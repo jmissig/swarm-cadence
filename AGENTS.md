@@ -8,7 +8,7 @@ Preserve `swarm-cadence`’s purpose. Do not broaden it into a generic location 
 
 Current posture: **early exploration**
 
-`swarm-cadence` is a newly cloned project intended to become a small local-first CLI for ingesting, storing, querying, and eventually modeling Foursquare Swarm check-in history for OpenClaw/Robut.
+`swarm-cadence` is a small local-first CLI for ingesting, storing, querying, and eventually modeling Foursquare Swarm check-in history for OpenClaw/Robut.
 
 Project posture controls how aggressive architecture, schema, dependency, and cleanup changes should be.
 
@@ -73,35 +73,59 @@ Attractive but wrong expansion: **do not build a general personal-location intel
 
 ## Current state
 
-As of this AGENTS file, the repository is skeletal: `README.md`, license, and git metadata only.
+The repository is now a Swift Package Manager project with:
 
-Expected initial direction:
+- executable target `swarm-cadence`;
+- library target `SwarmCadenceCore`;
+- `swift-argument-parser` for CLI option parsing behind the testable `SwarmCadenceCommand.run(...)` seam;
+- GRDB-backed SQLite import/stats code;
+- explicit dry `source probe` for `v2` and `historysearch` config validation;
+- explicit live v2 source probe for one read-only `GET /v2/users/self/checkins` request with `limit=1`;
+- conservative `raw fetch --adapter v2` that performs exactly one read-only v2 check-ins request and writes one raw file plus one redacted manifest;
+- offline `db import-raw` from preserved v2 raw/manifest pairs;
+- aggregate-only `db stats`;
+- fixture/temp-path tests for probes, raw fetch behavior, parser validation, redaction, import idempotency, and aggregate stats.
 
-- Swift Package Manager project;
-- local CLI executable named `swarm-cadence`;
-- SQLite for durable local evidence;
-- GRDB used lightly for SQLite access;
-- `swift-argument-parser` for non-trivial CLI parsing;
-- `Makefile` wrappers once the package exists, matching sibling tools where useful.
+The v2 API direction is proven locally for Julian. Treat v2 OAuth as the primary source path unless it becomes blocked for another account or future token/app setup. Keep `historysearch` as a narrow fallback, and keep official export/takeout import as a later bootstrap/backfill/reconciliation path.
 
-Do not assume these are already implemented. When bootstrapping the package, keep the first slice extremely narrow.
+Current command surface:
+
+```bash
+swarm-cadence source probe --account julian --adapter v2 --format json --config ./.swarm-cadence.env
+swarm-cadence source probe --account julian --adapter v2 --format json --config ./.swarm-cadence.env --live
+swarm-cadence raw fetch --account julian --adapter v2 --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 0
+swarm-cadence db import-raw --db data/swarm-cadence.sqlite --raw-dir data/raw/v2/checkins --format json
+swarm-cadence db stats --db data/swarm-cadence.sqlite --format json
+```
+
+Near-term direction:
+
+- add evidence queries over the imported SQLite sidecar;
+- keep the raw v2 files as source of truth and the SQLite DB rebuildable;
+- add lunch-window/venue-support facts before any recommendation-like surface;
+- preserve account separation from the first query slice;
+- add `Makefile` wrappers when they clarify common build/test commands.
+
+Do not broaden this into a general connector while filling in the next slices.
 
 ## Validation
 
-Current routine checks before the Swift package exists:
-
-```bash
-git status --short
-```
-
-Once the Swift package exists, routine checks should become:
+Routine checks:
 
 ```bash
 swift build
 swift test
 ```
 
-If a Makefile is added, prefer:
+In sandboxed environments that block SwiftPM's default cache paths, use
+repo-local caches:
+
+```bash
+mkdir -p .tmp/home .build/clang-module-cache
+HOME=$PWD/.tmp/home CLANG_MODULE_CACHE_PATH=$PWD/.build/clang-module-cache swift test --disable-sandbox
+```
+
+If a Makefile is added, prefer the wrapper commands:
 
 ```bash
 make build
@@ -166,15 +190,18 @@ Rules:
 
 ## Ingest strategy
 
-The research recommendation is adapter-first, not source-path absolutism:
+The research recommendation is adapter-first, not source-path absolutism. The
+v2 OAuth path has been proven locally for Julian, so use it as the primary path
+for the next evidence/query slices while keeping the fallback boundaries clear:
 
-1. **Credential probe first.** Test whether official/legacy v2 OAuth can call `GET /v2/users/self/checkins` for the configured account.
-2. If v2 OAuth works, use it as the primary ongoing ingest path.
-3. If v2 OAuth fails because of gating, `402`, app restrictions, or unusable token flow, use a narrow Swarm web `historysearch` adapter as fallback.
-4. Use official export/takeout for bootstrap, backfill, and reconciliation.
-5. Use current Places APIs only for venue enrichment, not as the check-in history source.
+1. **v2 OAuth user check-ins** — primary path for Julian after the successful credential probe.
+2. **Credential probe per account** — still test whether each configured account can call `GET /v2/users/self/checkins`.
+3. **Swarm web `historysearch`** — narrow fallback if v2 fails because of gating, `402`, app restrictions, or unusable token flow.
+4. **Official export/takeout** — bootstrap, backfill, and reconciliation.
+5. **Current Places APIs** — venue enrichment only, not check-in history.
 
-Important: do not build the full connector before the credential probe answers which source paths are viable.
+Important: v2 is proven enough to build the next local evidence/query slices,
+not a broad connector or Foursquare SDK.
 
 ### Credential and account handling
 

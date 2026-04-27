@@ -1,7 +1,7 @@
 # Source Probe Setup
 
-This document defines the handoff between the safe local scaffolding and the
-first external Foursquare/Swarm work.
+This document defines the handoff between safe local commands and explicit
+external Foursquare/Swarm reads.
 
 The default `source probe` command is dry config validation only. It does not
 call Foursquare, call Swarm, open a browser, refresh tokens, ingest check-ins,
@@ -171,7 +171,9 @@ and latest check-in timestamps. It does not print raw payload contents.
 
 ## v2 OAuth path
 
-Preferred if the future live probe can read check-in history for the account.
+Primary path for Julian after the successful live v2 probe. Run the same
+credential probe for each additional account before fetching or importing that
+account's data.
 
 Current Foursquare v2 docs identify the target read endpoint as:
 
@@ -181,7 +183,8 @@ GET https://api.foursquare.com/v2/users/self/checkins
 
 The v2 docs require a version parameter and support authenticated user access
 with an OAuth access token. The live probe tests this endpoint with a minimal
-limit and redacted errors before any ingest/backfill work exists.
+limit and redacted errors before raw preservation or backfill work for an
+account.
 
 Required for a live v2 probe:
 
@@ -197,7 +200,7 @@ SWARM_CADENCE_JULIAN_V2_CLIENT_SECRET
 SWARM_CADENCE_JULIAN_V2_REDIRECT_URI
 ```
 
-Julian's external setup steps:
+External setup steps for a new or repaired v2 credential:
 
 1. Create or identify a Foursquare developer app.
 2. Register a local redirect URI for an OAuth web flow.
@@ -205,7 +208,8 @@ Julian's external setup steps:
 4. Exchange the OAuth code for an access token.
 5. Put the access token in the environment or in a git-ignored config file.
 6. Rerun the dry probe and confirm it reports `ready_for_live_probe`.
-7. Run the explicit live v2 command and inspect the redacted JSON status.
+7. Run the explicit live v2 command and inspect the redacted JSON status before
+   any `raw fetch`.
 
 Do not paste the token into issues, commits, test fixtures, terminal transcripts
 intended for sharing, or docs.
@@ -213,7 +217,7 @@ intended for sharing, or docs.
 ## Swarm web historysearch fallback
 
 Use this only if v2 OAuth is blocked, gated, or does not provide usable
-check-in history.
+check-in history for an account.
 
 Required for a future live historysearch probe:
 
@@ -223,13 +227,13 @@ SWARM_CADENCE_JULIAN_HISTORYSEARCH_WSID
 SWARM_CADENCE_JULIAN_HISTORYSEARCH_OAUTH_TOKEN
 ```
 
-Optional, only if the future live probe proves it is needed:
+Optional, only if a future live historysearch probe proves it is needed:
 
 ```text
 SWARM_CADENCE_JULIAN_HISTORYSEARCH_COOKIE
 ```
 
-Julian's external setup steps:
+External setup steps for a historysearch fallback credential:
 
 1. Log in to Swarm in a browser for the intended account.
 2. Open the browser's network tools.

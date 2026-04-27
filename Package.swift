@@ -12,12 +12,14 @@ let package = Package(
         .library(name: "SwarmCadenceCore", targets: ["SwarmCadenceCore"])
     ],
     dependencies: [
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.6.0"),
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.10.0")
     ],
     targets: [
         .target(
             name: "SwarmCadenceCore",
             dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "GRDB", package: "GRDB.swift")
             ]
         ),

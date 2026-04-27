@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 
 public enum SwarmCadenceCommand {
@@ -8,9 +9,25 @@ public enum SwarmCadenceCommand {
         output: (String) -> Void = { print($0) },
         errorOutput: (String) -> Void = { fputs($0 + "\n", stderr) }
     ) -> Int {
+        let invocation: Invocation
         do {
-            let invocation = try Invocation(arguments: arguments)
+            invocation = try Invocation(arguments: arguments)
+        } catch let exit as ArgumentParserExit {
+            if exit.isSuccess {
+                output(exit.message)
+            } else {
+                errorOutput(exit.message)
+            }
+            return exit.code
+        } catch let error as CLIError {
+            errorOutput(error.message)
+            return 2
+        } catch {
+            errorOutput("error: \(argumentParserMessage(error))")
+            return 2
+        }
 
+        do {
             switch invocation {
             case .help:
                 output(Self.helpText)
@@ -68,6 +85,14 @@ public enum SwarmCadenceCommand {
         }
     }
 
+    private static func argumentParserMessage(_ error: Error) -> String {
+        let message = error.localizedDescription
+        if message.hasPrefix("Error: ") {
+            return String(message.dropFirst("Error: ".count))
+        }
+        return message
+    }
+
     public static let helpText = """
     swarm-cadence
 
@@ -100,19 +125,71 @@ enum Invocation {
             throw CLIError("unsupported command. Run `swarm-cadence --help`.")
         }
 
+        if Array(arguments.dropFirst(2)).contains(where: { $0 == "--help" || $0 == "-h" }) {
+            self = .help
+            return
+        }
+
         switch (arguments[0], arguments[1]) {
         case ("source", "probe"):
-            self = .sourceProbe(try SourceProbeOptions(arguments: Array(arguments.dropFirst(2))))
+            self = .sourceProbe(try SourceProbeOptions(parsed: Self.parse(SourceProbeArguments.self, Array(arguments.dropFirst(2)))))
         case ("raw", "fetch"):
-            self = .rawFetch(try RawFetchOptions(arguments: Array(arguments.dropFirst(2))))
+            self = .rawFetch(try RawFetchOptions(parsed: Self.parse(RawFetchArguments.self, Array(arguments.dropFirst(2)))))
         case ("db", "import-raw"):
-            self = .dbImportRaw(try DBImportRawOptions(arguments: Array(arguments.dropFirst(2))))
+            self = .dbImportRaw(try DBImportRawOptions(parsed: Self.parse(DBImportRawArguments.self, Array(arguments.dropFirst(2)))))
         case ("db", "stats"):
-            self = .dbStats(try DBStatsOptions(arguments: Array(arguments.dropFirst(2))))
+            self = .dbStats(try DBStatsOptions(parsed: Self.parse(DBStatsArguments.self, Array(arguments.dropFirst(2)))))
         default:
             throw CLIError("unsupported command. Run `swarm-cadence --help`.")
         }
     }
+
+    private static func parse<Arguments: ParsableArguments>(
+        _ type: Arguments.Type,
+        _ arguments: [String]
+    ) throws -> Arguments {
+        do {
+            return try type.parse(Self.normalizeSignedValues(arguments))
+        } catch {
+            let exitCode = type.exitCode(for: error)
+            if exitCode.rawValue == 0 {
+                throw ArgumentParserExit(
+                    message: type.fullMessage(for: error),
+                    code: Int(exitCode.rawValue),
+                    isSuccess: true
+                )
+            }
+            throw CLIError(type.message(for: error))
+        }
+    }
+
+    private static func normalizeSignedValues(_ arguments: [String]) -> [String] {
+        let signedValueOptions: Set<String> = ["--limit", "--offset"]
+        var normalized: [String] = []
+        var index = 0
+
+        while index < arguments.count {
+            let argument = arguments[index]
+            if signedValueOptions.contains(argument),
+               index + 1 < arguments.count,
+               arguments[index + 1].hasPrefix("-"),
+               Int(arguments[index + 1]) != nil {
+                normalized.append("\(argument)=\(arguments[index + 1])")
+                index += 2
+            } else {
+                normalized.append(argument)
+                index += 1
+            }
+        }
+
+        return normalized
+    }
+}
+
+private struct ArgumentParserExit: Error {
+    let message: String
+    let code: Int
+    let isSuccess: Bool
 }
 
 struct SourceProbeOptions {
@@ -122,28 +199,23 @@ struct SourceProbeOptions {
     let configPath: String?
     let live: Bool
 
-    init(arguments: [String]) throws {
-        var parser = OptionParser(arguments: arguments)
-
-        let account = parser.value(for: "--account")
-        var format = try OutputFormat(rawValue: parser.value(for: "--format") ?? "human")
+    fileprivate init(parsed: SourceProbeArguments) throws {
+        var format = try OutputFormat(rawValue: parsed.format)
             .orThrow("unsupported --format. Use `human` or `json`.")
 
-        if parser.consumeFlag("--json") {
+        if parsed.json {
             guard format == .human else {
                 throw CLIError("use either `--json` or `--format json`, not both.")
             }
             format = .json
         }
 
-        self.account = try AccountLabel.validate(account)
-        self.adapter = try SourceAdapter(rawValue: parser.value(for: "--adapter") ?? "v2")
+        self.account = try AccountLabel.validate(parsed.account)
+        self.adapter = try SourceAdapter(rawValue: parsed.adapter)
             .orThrow("unsupported --adapter. Use `v2` or `historysearch`.")
         self.format = format
-        self.configPath = parser.value(for: "--config")
-        self.live = parser.consumeFlag("--live")
-
-        try parser.finish()
+        self.configPath = parsed.config
+        self.live = parsed.live
     }
 }
 
@@ -156,43 +228,32 @@ struct RawFetchOptions {
     let limit: Int
     let offset: Int
 
-    init(arguments: [String]) throws {
-        var parser = OptionParser(arguments: arguments)
-
-        let account = parser.value(for: "--account")
-        var format = try OutputFormat(rawValue: parser.value(for: "--format") ?? "human")
+    fileprivate init(parsed: RawFetchArguments) throws {
+        var format = try OutputFormat(rawValue: parsed.format)
             .orThrow("unsupported --format. Use `human` or `json`.")
 
-        if parser.consumeFlag("--json") {
+        if parsed.json {
             guard format == .human else {
                 throw CLIError("use either `--json` or `--format json`, not both.")
             }
             format = .json
         }
 
-        self.account = try AccountLabel.validate(account)
-        self.adapter = try SourceAdapter(rawValue: parser.value(for: "--adapter") ?? "v2")
+        self.account = try AccountLabel.validate(parsed.account)
+        self.adapter = try SourceAdapter(rawValue: parsed.adapter)
             .orThrow("unsupported --adapter. Use `v2`.")
         guard self.adapter == .v2 else {
             throw CLIError("raw fetch is currently implemented only for --adapter v2.")
         }
         self.format = format
-        self.configPath = parser.value(for: "--config")
-        self.outputDirectory = try parser.value(for: "--out")
+        self.configPath = parsed.config
+        self.outputDirectory = try parsed.outputDirectory
             .orThrow("missing required --out <dir>.")
         guard !self.outputDirectory.isEmpty else {
             throw CLIError("missing required --out <dir>.")
         }
 
-        if let rawLimit = parser.value(for: "--limit") {
-            guard let parsedLimit = Int(rawLimit) else {
-                throw CLIError("--limit must be an integer between 1 and \(RawFetch.hardLimit).")
-            }
-            self.limit = parsedLimit
-        } else {
-            self.limit = RawFetch.defaultLimit
-        }
-
+        self.limit = parsed.limit
         guard self.limit >= 1 else {
             throw CLIError("--limit must be at least 1.")
         }
@@ -200,20 +261,10 @@ struct RawFetchOptions {
             throw CLIError("--limit \(self.limit) exceeds the hard max of \(RawFetch.hardLimit) per invocation.")
         }
 
-        if let rawOffset = parser.value(for: "--offset") {
-            guard let parsedOffset = Int(rawOffset) else {
-                throw CLIError("--offset must be a non-negative integer.")
-            }
-            self.offset = parsedOffset
-        } else {
-            self.offset = 0
-        }
-
+        self.offset = parsed.offset
         guard self.offset >= 0 else {
             throw CLIError("--offset must be at least 0.")
         }
-
-        try parser.finish()
     }
 }
 
@@ -222,14 +273,12 @@ struct DBImportRawOptions {
     let rawDirectory: String
     let format: OutputFormat
 
-    init(arguments: [String]) throws {
-        var parser = OptionParser(arguments: arguments)
-        self.format = try parseFormat(parser: &parser)
-        self.dbPath = try parser.value(for: "--db")
+    fileprivate init(parsed: DBImportRawArguments) throws {
+        self.format = try parseFormat(format: parsed.format, json: parsed.json)
+        self.dbPath = try parsed.dbPath
             .orThrow("missing required --db <path>.")
-        self.rawDirectory = try parser.value(for: "--raw-dir")
+        self.rawDirectory = try parsed.rawDirectory
             .orThrow("missing required --raw-dir <dir>.")
-        try parser.finish()
     }
 }
 
@@ -237,20 +286,51 @@ struct DBStatsOptions {
     let dbPath: String
     let format: OutputFormat
 
-    init(arguments: [String]) throws {
-        var parser = OptionParser(arguments: arguments)
-        self.format = try parseFormat(parser: &parser)
-        self.dbPath = try parser.value(for: "--db")
+    fileprivate init(parsed: DBStatsArguments) throws {
+        self.format = try parseFormat(format: parsed.format, json: parsed.json)
+        self.dbPath = try parsed.dbPath
             .orThrow("missing required --db <path>.")
-        try parser.finish()
     }
 }
 
-private func parseFormat(parser: inout OptionParser) throws -> OutputFormat {
-    var format = try OutputFormat(rawValue: parser.value(for: "--format") ?? "human")
+private struct SourceProbeArguments: ParsableArguments {
+    @Option var account: String?
+    @Option var adapter = "v2"
+    @Option var format = "human"
+    @Option var config: String?
+    @Flag var live = false
+    @Flag var json = false
+}
+
+private struct RawFetchArguments: ParsableArguments {
+    @Option var account: String?
+    @Option var adapter = "v2"
+    @Option var format = "human"
+    @Option var config: String?
+    @Option(name: .customLong("out")) var outputDirectory: String?
+    @Option var limit = RawFetch.defaultLimit
+    @Option var offset = 0
+    @Flag var json = false
+}
+
+private struct DBImportRawArguments: ParsableArguments {
+    @Option(name: .customLong("db")) var dbPath: String?
+    @Option(name: .customLong("raw-dir")) var rawDirectory: String?
+    @Option var format = "human"
+    @Flag var json = false
+}
+
+private struct DBStatsArguments: ParsableArguments {
+    @Option(name: .customLong("db")) var dbPath: String?
+    @Option var format = "human"
+    @Flag var json = false
+}
+
+private func parseFormat(format rawFormat: String, json: Bool) throws -> OutputFormat {
+    var format = try OutputFormat(rawValue: rawFormat)
         .orThrow("unsupported --format. Use `human` or `json`.")
 
-    if parser.consumeFlag("--json") {
+    if json {
         guard format == .human else {
             throw CLIError("use either `--json` or `--format json`, not both.")
         }
@@ -258,56 +338,6 @@ private func parseFormat(parser: inout OptionParser) throws -> OutputFormat {
     }
 
     return format
-}
-
-struct OptionParser {
-    private var values: [String: String] = [:]
-    private var flags: Set<String> = []
-    private var unknown: [String] = []
-
-    init(arguments: [String]) {
-        var index = 0
-        while index < arguments.count {
-            let argument = arguments[index]
-            switch argument {
-            case "--json", "--live":
-                flags.insert(argument)
-                index += 1
-            case "--account", "--adapter", "--format", "--config", "--out", "--limit", "--offset", "--db", "--raw-dir":
-                guard index + 1 < arguments.count else {
-                    unknown.append(argument)
-                    index += 1
-                    continue
-                }
-                values[argument] = arguments[index + 1]
-                index += 2
-            default:
-                unknown.append(argument)
-                index += 1
-            }
-        }
-    }
-
-    func value(for option: String) -> String? {
-        values[option]
-    }
-
-    mutating func consumeFlag(_ flag: String) -> Bool {
-        flags.remove(flag) != nil
-    }
-
-    func finish() throws {
-        if let first = unknown.first {
-            if ["--account", "--adapter", "--format", "--config", "--out", "--limit", "--offset", "--db", "--raw-dir"].contains(first) {
-                throw CLIError("missing value for \(first).")
-            }
-            throw CLIError("unknown argument: \(first).")
-        }
-
-        if let flag = flags.first {
-            throw CLIError("unknown flag: \(flag).")
-        }
-    }
 }
 
 enum Formatter {
