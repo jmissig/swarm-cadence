@@ -106,11 +106,14 @@ safely as possible.
   - Evidence packets include `tool_version` in JSON and human output.
   - Future build metadata/git SHA can be added later without changing `VERSION` as the stable human/tool contract.
 
-- [ ] Add interactive first-run auth/setup, aping the `protect-cadence` shape.
-  - Provide a guided setup path for creating the local Application Support config without hand-editing JSON.
+- [x] Add interactive first-run auth login, matching the `protect-cadence` auth shape.
+  - Provide a guided auth path for creating the local Application Support config without hand-editing JSON.
   - Check whether a usable Swarm/Foursquare token/config already exists, explain what is missing, and avoid printing secrets.
   - Keep non-interactive/config-file paths for cron and automation.
-  - First-run setup should make it obvious where raw files, SQLite, config, and logs/freshness state will live.
+  - First-run auth should make it obvious where raw files, SQLite, config, and logs/freshness state will live.
+  - Added canonical `auth status`, `auth login`, and `auth clear`; `setup` is only a compatibility alias for `auth login`.
+  - `auth login` supports token paste and Foursquare OAuth code exchange via injectable transport.
+  - Config writes merge into `accounts.<label>.v2`, preserve sibling account/historysearch config, and set `0600` permissions where supported.
 
 - [ ] Create an OpenClaw skill for `swarm-cadence`.
   - Mirror the local-tool pattern used by `protect-cadence`, `clime`, and `paprika-pantry`.

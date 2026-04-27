@@ -59,14 +59,42 @@ The normal config location is:
 ~/Library/Application Support/swarm-cadence/config.json
 ```
 
-Use `config/swarm-cadence.config.example.json` as a template:
+The guided first-run auth path creates or updates that JSON config without
+requiring hand-editing:
+
+```bash
+swift run swarm-cadence auth login --account julian
+swift run swarm-cadence auth login --account alice
+```
+
+`auth login` prompts for either an existing Foursquare v2 access token or the
+OAuth client id/secret, redirect URI, and authorization code needed to exchange
+for one. The fastest practical path follows the same pattern other Swarm tools
+use: copy an `oauth_token` from a Foursquare API Explorer request and paste it
+as the access token. The official fallback is the documented web OAuth code
+exchange; `auth login` prints the authorization URL, stores the resulting token
+under the selected account, and never prints tokens or client secrets. If a
+token is already stored, rerunning `auth login` keeps it unless `--access-token`
+is supplied. `swarm-cadence setup` remains as a compatibility alias for
+`auth login`.
+
+Check auth state without changing files:
+
+```bash
+swift run swarm-cadence auth status --account julian
+swift run swarm-cadence auth status --account julian --format json
+```
+
+Use `config/swarm-cadence.config.example.json` as a template when you prefer
+manual config:
 
 ```bash
 make install-config-example
 ```
 
 Keep real tokens out of git. `--config <path>` remains available for explicit
-repo-local/temp/sandbox runs.
+repo-local/temp/sandbox runs. Non-interactive auth login can pass `--access-token <token>`; JSON mode requires
+non-interactive inputs.
 
 Account labels are explicit and simultaneous:
 

@@ -6,6 +6,7 @@ public enum SwarmCadenceCommand {
         arguments: [String],
         environment: [String: String] = ProcessInfo.processInfo.environment,
         liveTransport: ProbeHTTPTransport = URLSessionProbeHTTPTransport(),
+        input: @escaping () -> String? = { readLine(strippingNewline: true) },
         output: (String) -> Void = { print($0) },
         errorOutput: (String) -> Void = { fputs($0 + "\n", stderr) }
     ) -> Int {
@@ -34,6 +35,51 @@ public enum SwarmCadenceCommand {
                 return 0
             case .version:
                 output(SwarmCadenceVersion.current)
+                return 0
+            case let .setup(options):
+                let result = try SetupAuth.setup(
+                    action: AuthAction.login.rawValue,
+                    account: options.account,
+                    configPath: options.configPath,
+                    format: options.format,
+                    inputs: options.inputs,
+                    environment: environment,
+                    transport: liveTransport,
+                    input: input,
+                    promptOutput: output
+                )
+                output(try Formatter.render(result, format: options.format))
+                return 0
+            case let .auth(options):
+                let result: SetupAuthResult
+                switch options.action {
+                case .status:
+                    result = try SetupAuth.status(
+                        account: options.account,
+                        configPath: options.configPath,
+                        environment: environment
+                    )
+                case .login:
+                    result = try SetupAuth.setup(
+                        action: options.action.rawValue,
+                        account: options.account,
+                        configPath: options.configPath,
+                        format: options.format,
+                        inputs: options.inputs,
+                        environment: environment,
+                        transport: liveTransport,
+                        input: input,
+                        promptOutput: output
+                    )
+                case .clear:
+                    result = try SetupAuth.clear(
+                        account: options.account,
+                        configPath: options.configPath,
+                        environment: environment,
+                        force: options.force
+                    )
+                }
+                output(try Formatter.render(result, format: options.format))
                 return 0
             case let .sourceProbe(options):
                 let config = try ConfigFile.loadOptional(path: options.configPath, environment: environment)
@@ -258,6 +304,10 @@ public enum SwarmCadenceCommand {
 
     Usage:
       swarm-cadence --version
+      swarm-cadence auth status --account <label> [--config <path>] [--format <human|json>]
+      swarm-cadence auth login --account <label> [--config <path>] [--format <human|json>] [--access-token <token>]
+      swarm-cadence auth clear --account <label> [--config <path>] --force [--format <human|json>]
+      swarm-cadence setup --account <label> [--config <path>] [--format <human|json>] [--access-token <token>]  # alias for auth login
       swarm-cadence source probe --account <label> --adapter <v2|historysearch> [--format <human|json>] [--config <path>] [--live]
       swarm-cadence raw fetch --account <label> --adapter v2 [--out <dir>] [--limit <1...250>] [--offset <n>] [--format <human|json>] [--config <path>]
       swarm-cadence raw fetch-pages --account <label> --adapter v2 [--out <dir>] [--limit <1...250>] [--start-offset <n>] --pages <1...200> [--delay-ms <n>] [--format <human|json>] [--config <path>]
@@ -274,6 +324,7 @@ public enum SwarmCadenceCommand {
       swarm-cadence evidence packet --account <label> --date <YYYY-MM-DD> --baseline-from <time> --recent-from <time> [--db <path>] [--baseline-to <time>] [--recent-to <time>] [--as-of <time>] [--hour-from <0...23>] [--hour-to <0...23>] [--locality <name>] [--region <code>] [--postal-code <code>] [--country-code <code>] [--category <name>] [--near-lat <lat> --near-lng <lng> --radius-meters <m>] [--min-baseline-visits <n>] [--limit <1...250>] [--format <human|json>]
 
     Defaults live under ~/Library/Application Support/swarm-cadence: config.json plus per-account raw archives and SQLite DBs under accounts/<label>/.
+    Auth login guides first-run v2 token/OAuth config without printing tokens or client secrets. `setup` is a compatibility alias for `auth login`.
     Source probe is dry config validation by default. Pass --live to perform the explicit minimal read-only v2 checkins probe.
     Raw fetch performs exactly one conservative v2 checkins request and writes one raw JSON response plus an adjacent manifest.
     Ingest update is cron-friendly v2 collection: fetch bounded recent pages, preserve raw files, import after each successful page, and report factual freshness.
@@ -285,6 +336,8 @@ public enum SwarmCadenceCommand {
 enum Invocation {
     case help
     case version
+    case setup(SetupOptions)
+    case auth(AuthOptions)
     case sourceProbe(SourceProbeOptions)
     case rawFetch(RawFetchOptions)
     case rawFetchPages(RawFetchPagesOptions)
@@ -310,16 +363,27 @@ enum Invocation {
             return
         }
 
-        guard arguments.count >= 2 else {
+        guard !arguments.isEmpty else {
             throw CLIError("unsupported command. Run `swarm-cadence --help`.")
         }
 
-        if Array(arguments.dropFirst(2)).contains(where: { $0 == "--help" || $0 == "-h" }) {
+        if Array(arguments.dropFirst()).contains(where: { $0 == "--help" || $0 == "-h" }) {
             self = .help
             return
         }
 
+        if arguments[0] == "setup" {
+            self = .setup(try SetupOptions(parsed: Self.parse(SetupArguments.self, Array(arguments.dropFirst()))))
+            return
+        }
+
+        guard arguments.count >= 2 else {
+            throw CLIError("unsupported command. Run `swarm-cadence --help`.")
+        }
+
         switch (arguments[0], arguments[1]) {
+        case ("auth", _):
+            self = .auth(try AuthOptions(parsed: Self.parse(AuthArguments.self, Array(arguments.dropFirst()))))
         case ("source", "probe"):
             self = .sourceProbe(try SourceProbeOptions(parsed: Self.parse(SourceProbeArguments.self, Array(arguments.dropFirst(2)))))
         case ("raw", "fetch"):
@@ -399,6 +463,73 @@ private struct ArgumentParserExit: Error {
     let message: String
     let code: Int
     let isSuccess: Bool
+}
+
+enum AuthAction: String {
+    case status
+    case login
+    case clear
+}
+
+struct SetupOptions {
+    let account: String
+    let configPath: String?
+    let format: OutputFormat
+    let inputs: SetupAuthInputs
+
+    fileprivate init(parsed: SetupArguments) throws {
+        self.account = try AccountLabel.validate(parsed.account)
+        self.configPath = parsed.config
+        self.format = try parseFormat(format: parsed.format, json: parsed.json)
+        self.inputs = SetupAuthInputs(
+            accessToken: parsed.accessToken,
+            clientID: parsed.clientID,
+            clientSecret: parsed.clientSecret,
+            redirectURI: parsed.redirectURI,
+            authorizationCode: parsed.authorizationCode
+        )
+    }
+}
+
+struct AuthOptions {
+    let action: AuthAction
+    let account: String
+    let configPath: String?
+    let format: OutputFormat
+    let inputs: SetupAuthInputs
+    let force: Bool
+
+    fileprivate init(parsed: AuthArguments) throws {
+        self.action = try AuthAction(rawValue: parsed.action ?? AuthAction.status.rawValue)
+            .orThrow("unsupported auth action. Use `status`, `login`, or `clear`.")
+        self.account = try AccountLabel.validate(parsed.account)
+        self.configPath = parsed.config
+        self.format = try parseFormat(format: parsed.format, json: parsed.json)
+        self.inputs = SetupAuthInputs(
+            accessToken: parsed.accessToken,
+            clientID: parsed.clientID,
+            clientSecret: parsed.clientSecret,
+            redirectURI: parsed.redirectURI,
+            authorizationCode: parsed.authorizationCode
+        )
+        self.force = parsed.force
+
+        if action != .login {
+            let setupFlags = [
+                parsed.accessToken,
+                parsed.clientID,
+                parsed.clientSecret,
+                parsed.redirectURI,
+                parsed.authorizationCode
+            ]
+            if setupFlags.contains(where: { $0 != nil }) {
+                throw CLIError("auth \(action.rawValue) does not accept setup credential options.")
+            }
+        }
+        if action != .clear, force {
+            throw CLIError("auth \(action.rawValue) does not accept --force.")
+        }
+    }
 }
 
 struct SourceProbeOptions {
@@ -950,6 +1081,32 @@ struct EvidencePacketOptions {
     }
 }
 
+private struct SetupArguments: ParsableArguments {
+    @Option var account: String?
+    @Option var config: String?
+    @Option var format = "human"
+    @Option(name: .customLong("access-token")) var accessToken: String?
+    @Option(name: .customLong("client-id")) var clientID: String?
+    @Option(name: .customLong("client-secret")) var clientSecret: String?
+    @Option(name: .customLong("redirect-uri")) var redirectURI: String?
+    @Option(name: .customLong("authorization-code")) var authorizationCode: String?
+    @Flag var json = false
+}
+
+private struct AuthArguments: ParsableArguments {
+    @Argument var action: String?
+    @Option var account: String?
+    @Option var config: String?
+    @Option var format = "human"
+    @Option(name: .customLong("access-token")) var accessToken: String?
+    @Option(name: .customLong("client-id")) var clientID: String?
+    @Option(name: .customLong("client-secret")) var clientSecret: String?
+    @Option(name: .customLong("redirect-uri")) var redirectURI: String?
+    @Option(name: .customLong("authorization-code")) var authorizationCode: String?
+    @Flag var force = false
+    @Flag var json = false
+}
+
 private struct SourceProbeArguments: ParsableArguments {    @Option var account: String?
     @Option var adapter = "v2"
     @Option var format = "human"
@@ -1149,6 +1306,15 @@ private func parseFormat(format rawFormat: String, json: Bool) throws -> OutputF
 }
 
 enum Formatter {
+    static func render(_ result: SetupAuthResult, format: OutputFormat) throws -> String {
+        switch format {
+        case .human:
+            return renderHuman(result)
+        case .json:
+            return try renderJSON(result)
+        }
+    }
+
     static func render(_ result: SourceProbeResult, format: OutputFormat) throws -> String {
         switch format {
         case .human:
@@ -1284,6 +1450,24 @@ enum Formatter {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let data = try encoder.encode(result)
         return String(decoding: data, as: UTF8.self)
+    }
+
+    private static func renderHuman(_ result: SetupAuthResult) -> String {
+        [
+            "Auth \(result.action): \(result.status)",
+            result.message,
+            "Config path: \(result.configPath)",
+            "Config exists: \(result.configExists ? "yes" : "no")",
+            "Account: \(result.account)",
+            "V2 access token: \(result.v2AccessTokenPresent ? "present" : "missing")",
+            "V2 client id: \(result.v2ClientIDPresent ? "present" : "missing")",
+            "V2 client secret: \(result.v2ClientSecretPresent ? "present" : "missing")",
+            "V2 redirect URI: \(result.v2RedirectURIPresent ? "present" : "missing")",
+            "Raw check-ins: \(result.rawDirectory)",
+            "SQLite DB: \(result.sqlitePath)",
+            "Network: \(result.networkPerformed ? "performed" : "not performed")",
+            "Next: \(result.nextSuggestedCommand)"
+        ].joined(separator: "\n")
     }
 
     private static func renderHuman(_ result: SourceProbeResult) -> String {
@@ -1743,6 +1927,13 @@ enum AppSupportDefaults {
 }
 
 enum JSONConfig {
+    static func flatten(_ dictionary: [String: Any]) throws -> [String: String] {
+        var values: [String: String] = [:]
+        flattenFlatEnvironmentKeys(from: dictionary, into: &values)
+        flattenAccounts(from: dictionary["accounts"], into: &values)
+        return values
+    }
+
     static func load(path: String) throws -> [String: String] {
         let data = try Data(contentsOf: URL(fileURLWithPath: path))
         let object = try JSONSerialization.jsonObject(with: data)
@@ -1750,10 +1941,7 @@ enum JSONConfig {
             throw CLIError("config JSON must be an object: \(path)")
         }
 
-        var values: [String: String] = [:]
-        flattenFlatEnvironmentKeys(from: dictionary, into: &values)
-        flattenAccounts(from: dictionary["accounts"], into: &values)
-        return values
+        return try flatten(dictionary)
     }
 
     private static func flattenFlatEnvironmentKeys(from dictionary: [String: Any], into values: inout [String: String]) {

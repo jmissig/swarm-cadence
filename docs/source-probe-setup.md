@@ -22,6 +22,8 @@ query sidecar.
 ## Current command
 
 ```bash
+swift run swarm-cadence auth login --account julian
+swift run swarm-cadence auth status --account julian --format json
 swift run swarm-cadence source probe --account julian --adapter v2 --format json
 swift run swarm-cadence source probe --account julian --adapter historysearch --format json
 ```
@@ -32,14 +34,39 @@ Default config:
 ~/Library/Application Support/swarm-cadence/config.json
 ```
 
-Use `config/swarm-cadence.config.example.json` as the template, or run
-`make install-config-example` to copy it into the default location without
-overwriting an existing config.
+Use `swarm-cadence auth login --account <label>` for the normal first-run auth
+path. It creates or merges the JSON config, preserving other accounts and
+fallback adapter sections. `swarm-cadence setup` is kept only as a compatibility
+alias for `auth login`, so the command shape stays aligned with
+`protect-cadence auth login/status/clear`. Use
+`config/swarm-cadence.config.example.json` as the manual
+template, or run `make install-config-example` to copy it into the default
+location without overwriting an existing config.
 
 The JSON config is account-structured with first-class `accounts.julian` and
 `accounts.alice` sections. Environment variables override values from the config
 file. All configured values are reported as present or missing only; values are
 never printed.
+
+`auth login` supports two v2 paths:
+
+- paste an existing access token. This intentionally mirrors the practical path
+  used by `liskin/foursquare-swarm-ical`: use Foursquare's API Explorer, grant
+  account access, inspect an executed request in DevTools, and copy the
+  `oauth_token` query parameter;
+- enter the Foursquare OAuth code-flow pieces. The CLI prints
+  `https://foursquare.com/oauth2/authenticate?...`, asks for the returned code,
+  and exchanges it through the documented `oauth2/access_token` endpoint using
+  injectable HTTP transport in tests.
+
+Rerunning `auth login` keeps an already stored token by default, which matches
+the local-first/idempotent shape from `protect-cadence` auth setup. Pass
+`--access-token` to replace the token or use `auth clear --force` to remove v2
+credentials while preserving sibling account/historysearch config.
+
+`auth status` reports config path/existence, account, v2 token/client
+id/client secret/redirect URI presence, default raw and SQLite paths, and the
+next suggested command. It does not create files or call the network.
 
 ## Live v2 command
 
@@ -272,13 +299,17 @@ SWARM_CADENCE_JULIAN_V2_REDIRECT_URI
 
 External setup steps for a new or repaired v2 credential:
 
-1. Create or identify a Foursquare developer app.
-2. Register a local redirect URI for an OAuth web flow.
-3. Authorize the intended account, such as `julian`.
-4. Exchange the OAuth code for an access token.
-5. Put the access token in `~/Library/Application Support/swarm-cadence/config.json` under the correct account, or use an explicit temporary `--config` path for sandboxed work.
-6. Rerun the dry probe and confirm it reports `ready_for_live_probe`.
-7. Run the explicit live v2 command and inspect the redacted JSON status before
+1. Try the practical API Explorer path first when available: authorize the
+   intended account, inspect an executed request in browser DevTools, and copy
+   the `oauth_token` query parameter into `swarm-cadence auth login --account <label>`.
+2. If the API Explorer path is not available, create or identify a Foursquare
+   developer app.
+3. Register the default local redirect URI or another redirect URI you can copy
+   a `code` from: `http://localhost:17342/foursquare/callback`.
+4. Run `swarm-cadence auth login --account <label>`, leave the access-token prompt
+   blank, open the printed authorization URL, and paste the returned code.
+5. Confirm `auth status` reports a v2 token present for the correct account.
+6. Run the explicit live v2 command and inspect the redacted JSON status before
    any `raw fetch`.
 
 Do not paste the token into issues, commits, test fixtures, terminal transcripts
@@ -356,3 +387,6 @@ The live probe decides source viability only. It is not ingest/backfill.
 
 - Foursquare v2 `Get User Checkins`: <https://docs.foursquare.com/developer/reference/get-user-checkins>
 - Foursquare v2 authentication: <https://docs.foursquare.com/developer/reference/v2-authentication>
+- `liskin/foursquare-swarm-ical` setup notes: <https://github.com/liskin/foursquare-swarm-ical>
+- Aaron Parecki `Swarm-Checkins-Import`/OwnYourSwarm auth notes: <https://github.com/aaronpk/Swarm-Checkins-Import>
+- Swarm web `historysearch` DevTools fallback gist: <https://gist.github.com/jsundram/7d8d4fcb5c5684617f4d496dc8c47347>
