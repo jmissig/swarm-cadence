@@ -1,8 +1,11 @@
 SWIFT ?= swift
 CONFIG_EXAMPLE ?= config/swarm-cadence.config.example.json
 APP_SUPPORT_DIR ?= $(HOME)/Library/Application Support/swarm-cadence
+PREFIX ?= $(HOME)
+BINDIR ?= $(PREFIX)/bin
+PRODUCT ?= swarm-cadence
 
-.PHONY: build release test clean show-defaults install-config-example
+.PHONY: build release test clean show-defaults install install-config-example
 
 build:
 	$(SWIFT) build
@@ -22,6 +25,11 @@ show-defaults:
 	@printf 'julian sqlite: %s\n' '$(APP_SUPPORT_DIR)/accounts/julian/swarm-cadence.sqlite'
 	@printf 'alice raw:     %s\n' '$(APP_SUPPORT_DIR)/accounts/alice/raw/v2/checkins'
 	@printf 'alice sqlite:  %s\n' '$(APP_SUPPORT_DIR)/accounts/alice/swarm-cadence.sqlite'
+
+install: release
+	install -d '$(BINDIR)'
+	install -m 0755 '.build/release/$(PRODUCT)' '$(BINDIR)/$(PRODUCT)'
+	@printf 'installed %s\n' '$(BINDIR)/$(PRODUCT)'
 
 install-config-example:
 	install -d '$(APP_SUPPORT_DIR)'
