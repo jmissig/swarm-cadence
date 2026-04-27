@@ -30,6 +30,14 @@ playground.xcworkspace
 # .swiftpm
 
 .build/
+.swiftpm/
+
+# Local swarm-cadence config and scratch paths
+.tmp/
+.env
+.env.*
+!.env.example
+.swarm-cadence.env
 
 # CocoaPods
 #
