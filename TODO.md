@@ -112,6 +112,7 @@ safely as possible.
   - Keep non-interactive/config-file paths for cron and automation.
   - First-run auth should make it obvious where raw files, SQLite, config, and logs/freshness state will live.
   - Added canonical `auth status`, `auth login`, and `auth clear`; `setup` is only a compatibility alias for `auth login`.
+  - `auth login` prompts for an account label in human mode when `--account` is omitted, so the first account is labeled and adding a second account is clean.
   - `auth login` supports token paste and Foursquare OAuth code exchange via injectable transport.
   - Config writes merge into `accounts.<label>.v2`, preserve sibling account/historysearch config, and set `0600` permissions where supported.
 

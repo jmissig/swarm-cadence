@@ -63,20 +63,23 @@ The guided first-run auth path creates or updates that JSON config without
 requiring hand-editing:
 
 ```bash
-swift run swarm-cadence auth login --account julian
+swift run swarm-cadence auth login      # prompts for account label; default: julian
 swift run swarm-cadence auth login --account alice
 ```
 
-`auth login` prompts for either an existing Foursquare v2 access token or the
-OAuth client id/secret, redirect URI, and authorization code needed to exchange
-for one. The fastest practical path follows the same pattern other Swarm tools
-use: copy an `oauth_token` from a Foursquare API Explorer request and paste it
-as the access token. The official fallback is the documented web OAuth code
-exchange; `auth login` prints the authorization URL, stores the resulting token
-under the selected account, and never prints tokens or client secrets. If a
-token is already stored, rerunning `auth login` keeps it unless `--access-token`
-is supplied. `swarm-cadence setup` remains as a compatibility alias for
-`auth login`.
+`auth login` prompts for an account label when `--account` is omitted. On the
+first run it defaults to `julian`; when accounts already exist, it lists them
+and lets you type an existing label to update or a new label such as `alice` to
+add a second account. It then prompts for either an existing Foursquare v2
+access token or the OAuth client id/secret, redirect URI, and authorization code
+needed to exchange for one. The fastest practical path follows the same pattern
+other Swarm tools use: copy an `oauth_token` from a Foursquare API Explorer
+request and paste it as the access token. The official fallback is the
+documented web OAuth code exchange; `auth login` prints the authorization URL,
+stores the resulting token under the selected account, and never prints tokens
+or client secrets. If a token is already stored, rerunning `auth login` keeps it
+unless `--access-token` is supplied. `swarm-cadence setup` remains as a
+compatibility alias for `auth login`.
 
 Check auth state without changing files:
 
@@ -93,8 +96,8 @@ make install-config-example
 ```
 
 Keep real tokens out of git. `--config <path>` remains available for explicit
-repo-local/temp/sandbox runs. Non-interactive auth login can pass `--access-token <token>`; JSON mode requires
-non-interactive inputs.
+repo-local/temp/sandbox runs. Non-interactive auth login should pass both `--account <label>` and
+`--access-token <token>`; JSON mode never prompts.
 
 Account labels are explicit and simultaneous:
 
@@ -354,7 +357,7 @@ not to hidden presets in this evidence CLI.
 
 - Keep tokens, cookies, browser-session details, raw payloads, and SQLite files
   out of git.
-- Use explicit `--account`; use `--config`, `--db`, `--raw-dir`, and `--out` when overriding defaults.
+- Use explicit `--account` for non-login commands; `auth login` can prompt for it in human mode. Use `--config`, `--db`, `--raw-dir`, and `--out` when overriding defaults.
 - Default paths live under `~/Library/Application Support/swarm-cadence`, not dotfiles.
 - Do not run `--live` or `raw fetch` as routine tests.
 - Do not use one account's credentials for another account label.

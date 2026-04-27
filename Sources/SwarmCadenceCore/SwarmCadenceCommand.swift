@@ -305,9 +305,9 @@ public enum SwarmCadenceCommand {
     Usage:
       swarm-cadence --version
       swarm-cadence auth status --account <label> [--config <path>] [--format <human|json>]
-      swarm-cadence auth login --account <label> [--config <path>] [--format <human|json>] [--access-token <token>]
+      swarm-cadence auth login [--account <label>] [--config <path>] [--format <human|json>] [--access-token <token>]
       swarm-cadence auth clear --account <label> [--config <path>] --force [--format <human|json>]
-      swarm-cadence setup --account <label> [--config <path>] [--format <human|json>] [--access-token <token>]  # alias for auth login
+      swarm-cadence setup [--account <label>] [--config <path>] [--format <human|json>] [--access-token <token>]  # alias for auth login
       swarm-cadence source probe --account <label> --adapter <v2|historysearch> [--format <human|json>] [--config <path>] [--live]
       swarm-cadence raw fetch --account <label> --adapter v2 [--out <dir>] [--limit <1...250>] [--offset <n>] [--format <human|json>] [--config <path>]
       swarm-cadence raw fetch-pages --account <label> --adapter v2 [--out <dir>] [--limit <1...250>] [--start-offset <n>] --pages <1...200> [--delay-ms <n>] [--format <human|json>] [--config <path>]
@@ -324,7 +324,7 @@ public enum SwarmCadenceCommand {
       swarm-cadence evidence packet --account <label> --date <YYYY-MM-DD> --baseline-from <time> --recent-from <time> [--db <path>] [--baseline-to <time>] [--recent-to <time>] [--as-of <time>] [--hour-from <0...23>] [--hour-to <0...23>] [--locality <name>] [--region <code>] [--postal-code <code>] [--country-code <code>] [--category <name>] [--near-lat <lat> --near-lng <lng> --radius-meters <m>] [--min-baseline-visits <n>] [--limit <1...250>] [--format <human|json>]
 
     Defaults live under ~/Library/Application Support/swarm-cadence: config.json plus per-account raw archives and SQLite DBs under accounts/<label>/.
-    Auth login guides first-run v2 token/OAuth config without printing tokens or client secrets. `setup` is a compatibility alias for `auth login`.
+    Auth login guides first-run v2 token/OAuth config without printing tokens or client secrets; when --account is omitted in human mode, it prompts for an account label. `setup` is a compatibility alias for `auth login`.
     Source probe is dry config validation by default. Pass --live to perform the explicit minimal read-only v2 checkins probe.
     Raw fetch performs exactly one conservative v2 checkins request and writes one raw JSON response plus an adjacent manifest.
     Ingest update is cron-friendly v2 collection: fetch bounded recent pages, preserve raw files, import after each successful page, and report factual freshness.
@@ -472,13 +472,13 @@ enum AuthAction: String {
 }
 
 struct SetupOptions {
-    let account: String
+    let account: String?
     let configPath: String?
     let format: OutputFormat
     let inputs: SetupAuthInputs
 
     fileprivate init(parsed: SetupArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = parsed.account
         self.configPath = parsed.config
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.inputs = SetupAuthInputs(
@@ -493,7 +493,7 @@ struct SetupOptions {
 
 struct AuthOptions {
     let action: AuthAction
-    let account: String
+    let account: String?
     let configPath: String?
     let format: OutputFormat
     let inputs: SetupAuthInputs
@@ -502,7 +502,11 @@ struct AuthOptions {
     fileprivate init(parsed: AuthArguments) throws {
         self.action = try AuthAction(rawValue: parsed.action ?? AuthAction.status.rawValue)
             .orThrow("unsupported auth action. Use `status`, `login`, or `clear`.")
-        self.account = try AccountLabel.validate(parsed.account)
+        if self.action == .login {
+            self.account = parsed.account
+        } else {
+            self.account = try AccountLabel.validate(parsed.account)
+        }
         self.configPath = parsed.config
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.inputs = SetupAuthInputs(

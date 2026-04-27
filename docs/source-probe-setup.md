@@ -22,7 +22,7 @@ query sidecar.
 ## Current command
 
 ```bash
-swift run swarm-cadence auth login --account julian
+swift run swarm-cadence auth login
 swift run swarm-cadence auth status --account julian --format json
 swift run swarm-cadence source probe --account julian --adapter v2 --format json
 swift run swarm-cadence source probe --account julian --adapter historysearch --format json
@@ -34,10 +34,12 @@ Default config:
 ~/Library/Application Support/swarm-cadence/config.json
 ```
 
-Use `swarm-cadence auth login --account <label>` for the normal first-run auth
-path. It creates or merges the JSON config, preserving other accounts and
-fallback adapter sections. `swarm-cadence setup` is kept only as a compatibility
-alias for `auth login`, so the command shape stays aligned with
+Use `swarm-cadence auth login` for the normal first-run auth path. If
+`--account` is omitted in human mode, it prompts for an account label: default
+`julian` when no accounts exist, or an existing/new label when accounts are
+already present. It creates or merges the JSON config, preserving other accounts
+and fallback adapter sections. `swarm-cadence setup` is kept only as a
+compatibility alias for `auth login`, so the command shape stays aligned with
 `protect-cadence auth login/status/clear`. Use
 `config/swarm-cadence.config.example.json` as the manual
 template, or run `make install-config-example` to copy it into the default
@@ -61,8 +63,9 @@ never printed.
 
 Rerunning `auth login` keeps an already stored token by default, which matches
 the local-first/idempotent shape from `protect-cadence` auth setup. Pass
-`--access-token` to replace the token or use `auth clear --force` to remove v2
-credentials while preserving sibling account/historysearch config.
+`--account` to skip the label prompt, `--access-token` to replace the token, or
+use `auth clear --force` to remove v2 credentials while preserving sibling
+account/historysearch config.
 
 `auth status` reports config path/existence, account, v2 token/client
 id/client secret/redirect URI presence, default raw and SQLite paths, and the
@@ -301,12 +304,12 @@ External setup steps for a new or repaired v2 credential:
 
 1. Try the practical API Explorer path first when available: authorize the
    intended account, inspect an executed request in browser DevTools, and copy
-   the `oauth_token` query parameter into `swarm-cadence auth login --account <label>`.
+   the `oauth_token` query parameter into `swarm-cadence auth login`.
 2. If the API Explorer path is not available, create or identify a Foursquare
    developer app.
 3. Register the default local redirect URI or another redirect URI you can copy
    a `code` from: `http://localhost:17342/foursquare/callback`.
-4. Run `swarm-cadence auth login --account <label>`, leave the access-token prompt
+4. Run `swarm-cadence auth login`, confirm or enter the account label, leave the access-token prompt
    blank, open the printed authorization URL, and paste the returned code.
 5. Confirm `auth status` reports a v2 token present for the correct account.
 6. Run the explicit live v2 command and inspect the redacted JSON status before

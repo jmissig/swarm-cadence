@@ -45,7 +45,7 @@ enum SetupAuth {
     static let defaultRedirectURI = "http://localhost:17342/foursquare/callback"
 
     static func status(
-        account: String,
+        account: String?,
         configPath explicitConfigPath: String?,
         environment: [String: String]
     ) throws -> SetupAuthResult {
@@ -64,7 +64,7 @@ enum SetupAuth {
 
     static func setup(
         action: String = "login",
-        account: String,
+        account rawAccount: String?,
         configPath explicitConfigPath: String?,
         format: OutputFormat,
         inputs: SetupAuthInputs,
@@ -73,10 +73,17 @@ enum SetupAuth {
         input: () -> String?,
         promptOutput: (String) -> Void
     ) throws -> SetupAuthResult {
-        let account = try AccountLabel.validate(account)
         let configPath = explicitConfigPath ?? AppSupportDefaults.configPath(environment: environment)
         try requireJSONConfigPath(configPath)
         let existing = try SetupConfigStore.loadObjectIfPresent(path: configPath)
+        let existingAccounts = SetupConfigStore.accountLabels(in: existing)
+        let account = try resolvedAccountLabel(
+            rawAccount,
+            existingAccounts: existingAccounts,
+            format: format,
+            input: input,
+            output: promptOutput
+        )
         let existingValues = try existing.map { try JSONConfig.flatten($0) } ?? [:]
         var networkPerformed = false
 
@@ -93,7 +100,7 @@ enum SetupAuth {
         var authorizationCode = trimmedNonEmpty(inputs.authorizationCode)
 
         if format == .human {
-            promptOutput("First-run auth login for swarm-cadence.")
+            promptOutput("Auth login for swarm-cadence.")
             promptOutput("Config path: \(configPath)")
             promptOutput("Raw check-ins: \(AppSupportDefaults.rawCheckinsDirectory(account: account, environment: environment))")
             promptOutput("SQLite DB: \(AppSupportDefaults.sqlitePath(account: account, environment: environment))")
@@ -189,7 +196,7 @@ enum SetupAuth {
     }
 
     static func clear(
-        account: String,
+        account: String?,
         configPath explicitConfigPath: String?,
         environment: [String: String],
         force: Bool
@@ -260,6 +267,40 @@ enum SetupAuth {
             nextSuggestedCommand: nextCommand,
             message: message
         )
+    }
+
+
+    private static func resolvedAccountLabel(
+        _ rawAccount: String?,
+        existingAccounts: [String],
+        format: OutputFormat,
+        input: () -> String?,
+        output: (String) -> Void
+    ) throws -> String {
+        if let rawAccount {
+            return try AccountLabel.validate(rawAccount)
+        }
+
+        guard format == .human else {
+            throw CLIError("auth login --format json requires --account <label>.")
+        }
+
+        if existingAccounts.isEmpty {
+            return try AccountLabel.validate(promptWithDefault(
+                "Account label",
+                defaultValue: "julian",
+                input: input,
+                output: output
+            ))
+        }
+
+        output("Existing accounts: \(existingAccounts.joined(separator: ", "))")
+        return try AccountLabel.validate(promptWithDefault(
+            "Account label to update or add",
+            defaultValue: existingAccounts[0],
+            input: input,
+            output: output
+        ))
     }
 
     private static func credentialPresent(_ name: String, environment: [String: String], config: [String: String]) -> Bool {
@@ -410,6 +451,13 @@ enum FoursquareOAuth {
 }
 
 enum SetupConfigStore {
+    static func accountLabels(in object: [String: Any]?) -> [String] {
+        guard let accounts = object?["accounts"] as? [String: Any] else {
+            return []
+        }
+        return accounts.keys.sorted()
+    }
+
     static func loadObjectIfPresent(path: String) throws -> [String: Any]? {
         guard FileManager.default.fileExists(atPath: path) else {
             return nil
