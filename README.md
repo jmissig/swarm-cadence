@@ -93,12 +93,14 @@ swift run swarm-cadence raw fetch \
   --adapter v2 \
   --config ./.swarm-cadence.env \
   --out data/raw/v2/checkins \
-  --limit 250
+  --limit 250 \
+  --offset 0
 ```
 
 This performs exactly one `GET /v2/users/self/checkins` request. There is no
 pagination loop and no backfill. The default `--limit` is `250`; the command fails above the hard max of `250`
-per invocation. The current Get User Checkins docs identify this as the endpoint
+per invocation. The default `--offset` is `0`, and offsets must be
+non-negative. The current Get User Checkins docs identify `250` as the endpoint
 limit, so this uses the largest documented page size while still performing only
 one request per invocation.
 
@@ -111,6 +113,19 @@ one request per invocation.
 Console output is a concise redacted summary: raw file path, manifest path,
 bytes, status, returned count, and total count when parseable. Tokens are not
 printed. `data/` is git-ignored; do not commit raw check-in data.
+
+For a deliberate four-page sample of roughly 1000 check-ins, run four separate
+commands after confirming the live v2 probe succeeds:
+
+```bash
+swift run swarm-cadence raw fetch --account julian --adapter v2 --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 0
+swift run swarm-cadence raw fetch --account julian --adapter v2 --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 250
+swift run swarm-cadence raw fetch --account julian --adapter v2 --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 500
+swift run swarm-cadence raw fetch --account julian --adapter v2 --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 750
+```
+
+Each command still performs exactly one request and writes one raw file plus one
+manifest.
 
 ## What Julian Needs To Do Next
 

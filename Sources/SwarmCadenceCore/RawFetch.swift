@@ -13,6 +13,7 @@ public struct RawFetchResult: Codable, Equatable {
     public let method: String
     public let apiVersion: String
     public let limit: Int
+    public let offset: Int
     public let fetchedAt: String
     public let httpStatusCode: Int
     public let apiMetaCode: Int?
@@ -33,6 +34,7 @@ public struct RawFetchManifest: Codable, Equatable {
     public let method: String
     public let apiVersion: String
     public let limit: Int
+    public let offset: Int
     public let pageMarker: String
     public let fetchedAt: String
     public let httpStatusCode: Int
@@ -47,7 +49,6 @@ public struct RawFetchManifest: Codable, Equatable {
 public enum RawFetch {
     public static let defaultLimit = 250
     public static let hardLimit = 250
-    static let pageMarker = "page1"
 
     public static func fetch(
         account: String,
@@ -56,6 +57,7 @@ public enum RawFetch {
         environment: [String: String],
         outputDirectory: String,
         limit: Int = defaultLimit,
+        offset: Int = 0,
         transport: ProbeHTTPTransport = URLSessionProbeHTTPTransport(),
         fetchedAt: Date = Date()
     ) throws -> RawFetchResult {
@@ -65,6 +67,9 @@ public enum RawFetch {
         }
         guard (1...hardLimit).contains(limit) else {
             throw CLIError("--limit \(limit) exceeds the allowed range of 1...\(hardLimit).")
+        }
+        guard offset >= 0 else {
+            throw CLIError("--offset must be at least 0.")
         }
         guard !outputDirectory.isEmpty else {
             throw CLIError("missing required --out <dir>.")
@@ -76,7 +81,7 @@ public enum RawFetch {
             throw CLIError("missing required \(tokenName).")
         }
 
-        let request = try V2RawCheckinsFetch.makeRequest(accessToken: accessToken, limit: limit)
+        let request = try V2RawCheckinsFetch.makeRequest(accessToken: accessToken, limit: limit, offset: offset)
         let response: ProbeHTTPResponse
         do {
             response = try transport.perform(request)
@@ -88,6 +93,7 @@ public enum RawFetch {
         try FileManager.default.createDirectory(at: outputDirectoryURL, withIntermediateDirectories: true)
 
         let fetchedAtString = iso8601Formatter.string(from: fetchedAt)
+        let pageMarker = Self.pageMarker(offset: offset)
         let baseName = "\(filenameTimestampFormatter.string(from: fetchedAt))-\(adapter.rawValue)-\(account)-checkins-\(pageMarker)-limit\(limit)"
         let rawFileURL = try uniqueFileURL(in: outputDirectoryURL, baseName: baseName, extension: "raw.json")
         guard FileManager.default.createFile(atPath: rawFileURL.path, contents: response.data) else {
@@ -107,6 +113,7 @@ public enum RawFetch {
             method: "GET",
             apiVersion: SourceProbe.v2APIVersion,
             limit: limit,
+            offset: offset,
             pageMarker: pageMarker,
             fetchedAt: fetchedAtString,
             httpStatusCode: response.statusCode,
@@ -131,6 +138,7 @@ public enum RawFetch {
             method: "GET",
             apiVersion: SourceProbe.v2APIVersion,
             limit: limit,
+            offset: offset,
             fetchedAt: fetchedAtString,
             httpStatusCode: response.statusCode,
             apiMetaCode: summary.apiMetaCode,
@@ -141,6 +149,10 @@ public enum RawFetch {
             bytes: response.data.count,
             sha256: sha256
         )
+    }
+
+    static func pageMarker(offset: Int) -> String {
+        "offset\(offset)"
     }
 
     static func sha256Hex(_ data: Data) -> String {
@@ -226,11 +238,13 @@ enum V2RawCheckinsFetch {
     static func makeRequest(
         accessToken: String,
         limit: Int,
+        offset: Int,
         apiVersion: String = SourceProbe.v2APIVersion
     ) throws -> URLRequest {
         var components = URLComponents(string: endpoint)
         components?.queryItems = [
             URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "offset", value: String(offset)),
             URLQueryItem(name: "v", value: apiVersion),
             URLQueryItem(name: "oauth_token", value: accessToken)
         ]

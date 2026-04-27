@@ -3,7 +3,7 @@ import XCTest
 @testable import SwarmCadenceCore
 
 final class RawFetchTests: XCTestCase {
-    func testRawFetchRequestUsesBoundedLimitAndSingleTransportCall() throws {
+    func testRawFetchRequestUsesBoundedLimitOffsetAndSingleTransportCall() throws {
         let outputDirectory = try makeTemporaryDirectory()
         let transport = CapturingRawTransport(response: ProbeHTTPResponse(statusCode: 200, data: successBody))
 
@@ -15,6 +15,7 @@ final class RawFetchTests: XCTestCase {
                 "--adapter", "v2",
                 "--out", outputDirectory.path,
                 "--limit", "25",
+                "--offset", "250",
                 "--format", "json"
             ],
             environment: [
@@ -33,10 +34,12 @@ final class RawFetchTests: XCTestCase {
         XCTAssertEqual(transport.requests.count, 1)
         XCTAssertEqual(components.path, "/v2/users/self/checkins")
         XCTAssertEqual(queryItems["limit"], "25")
+        XCTAssertEqual(queryItems["offset"], "250")
         XCTAssertEqual(queryItems["v"], "20260427")
         XCTAssertEqual(queryItems["oauth_token"], "raw-secret-token")
         XCTAssertFalse(rendered.contains("raw-secret-token"))
         XCTAssertTrue(rendered.contains("\"request_count\" : 1"))
+        XCTAssertTrue(rendered.contains("\"offset\" : 250"))
     }
 
     func testRawFetchRejectsLimitAboveHardMaxBeforeTransport() {
@@ -65,6 +68,32 @@ final class RawFetchTests: XCTestCase {
         XCTAssertFalse(error.contains("raw-secret-token"))
     }
 
+    func testRawFetchRejectsNegativeOffsetBeforeTransport() {
+        let transport = CapturingRawTransport(response: ProbeHTTPResponse(statusCode: 200, data: successBody))
+        var error = ""
+
+        let exitCode = SwarmCadenceCommand.run(
+            arguments: [
+                "raw", "fetch",
+                "--account", "julian",
+                "--adapter", "v2",
+                "--out", "/tmp/raw-fetch-unused",
+                "--offset", "-1"
+            ],
+            environment: [
+                "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"
+            ],
+            liveTransport: transport,
+            output: { _ in },
+            errorOutput: { error = $0 }
+        )
+
+        XCTAssertEqual(exitCode, 2)
+        XCTAssertEqual(transport.requests.count, 0)
+        XCTAssertTrue(error.contains("--offset must be at least 0"))
+        XCTAssertFalse(error.contains("raw-secret-token"))
+    }
+
     func testRawFetchWritesUnalteredResponseAndAdjacentManifest() throws {
         let outputDirectory = try makeTemporaryDirectory()
         let fetchedAt = Date(timeIntervalSince1970: 1_700_000_000.123)
@@ -77,6 +106,7 @@ final class RawFetchTests: XCTestCase {
             ],
             outputDirectory: outputDirectory.path,
             limit: 25,
+            offset: 500,
             transport: StaticRawTransport(response: ProbeHTTPResponse(statusCode: 200, data: successBody)),
             fetchedAt: fetchedAt
         )
@@ -87,8 +117,13 @@ final class RawFetchTests: XCTestCase {
         let manifest = try JSONDecoder.snakeCase.decode(RawFetchManifest.self, from: Data(contentsOf: manifestURL))
 
         XCTAssertEqual(rawData, successBody)
-        XCTAssertTrue(rawURL.lastPathComponent.contains("20231114T221320.123Z-v2-julian-checkins-page1-limit25"))
+        XCTAssertTrue(rawURL.lastPathComponent.contains("20231114T221320.123Z-v2-julian-checkins-offset500-limit25"))
+        XCTAssertEqual(result.limit, 25)
+        XCTAssertEqual(result.offset, 500)
         XCTAssertEqual(manifest.rawFileName, rawURL.lastPathComponent)
+        XCTAssertEqual(manifest.limit, 25)
+        XCTAssertEqual(manifest.offset, 500)
+        XCTAssertEqual(manifest.pageMarker, "offset500")
         XCTAssertEqual(manifest.rawBytes, successBody.count)
         XCTAssertEqual(manifest.rawSha256, RawFetch.sha256Hex(successBody))
         XCTAssertEqual(manifest.httpStatusCode, 200)
@@ -139,7 +174,7 @@ final class RawFetchTests: XCTestCase {
         XCTAssertFalse(String(data: manifestData, encoding: .utf8)?.contains("raw-secret-token") ?? true)
     }
 
-    func testRawFetchDefaultsToLimit250AndRequiresExplicitOutputDirectory() throws {
+    func testRawFetchDefaultsToLimit250Offset0AndRequiresExplicitOutputDirectory() throws {
         var missingOutError = ""
         let missingOutExit = SwarmCadenceCommand.run(
             arguments: [
@@ -179,6 +214,7 @@ final class RawFetchTests: XCTestCase {
         let queryItems = Dictionary(uniqueKeysWithValues: (components?.queryItems ?? []).map { ($0.name, $0.value ?? "") })
         XCTAssertEqual(defaultLimitExit, 0)
         XCTAssertEqual(queryItems["limit"], "250")
+        XCTAssertEqual(queryItems["offset"], "0")
     }
 
     private var successBody: Data {

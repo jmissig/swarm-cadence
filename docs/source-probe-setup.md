@@ -80,33 +80,48 @@ swift run swarm-cadence raw fetch \
   --format json \
   --config ./.swarm-cadence.env \
   --out data/raw/v2/checkins \
-  --limit 250
+  --limit 250 \
+  --offset 0
 ```
 
 This performs exactly one read-only request:
 
 ```text
-GET https://api.foursquare.com/v2/users/self/checkins?limit=<1...250>&v=<api-version>&oauth_token=<redacted>
+GET https://api.foursquare.com/v2/users/self/checkins?limit=<1...250>&offset=<0...>&v=<api-version>&oauth_token=<redacted>
 ```
 
 Safety boundary:
 
 - default `--limit` is `250`;
 - hard max is `250`; larger values fail before any network request;
+- default `--offset` is `0`; negative offsets fail before any network request;
 - current Get User Checkins docs identify `250` as the endpoint limit, so this
   command uses 250 as the largest documented page size;
 - no pagination, cursor, or broad backfill exists in this slice;
 - `--out` is required and one raw JSON response is written there;
 - raw files are named with a UTC timestamp, adapter, account, check-ins marker,
-  page marker, and limit;
-- an adjacent manifest records endpoint, adapter, account, limit, API version,
-  fetched timestamp, HTTP status, v2 `meta.code` when parseable, returned/total
-  counts when parseable, bytes, and SHA256;
+  offset page marker, and limit;
+- an adjacent manifest records endpoint, adapter, account, limit, offset, page
+  marker, API version, fetched timestamp, HTTP status, v2 `meta.code` when
+  parseable, returned/total counts when parseable, bytes, and SHA256;
 - raw response bytes are not altered when written as `*.raw.json`;
 - tokens, cookies, OAuth params, and raw payloads are not printed.
 
 Use `data/raw/v2/checkins` for local manual runs. `data/` is git-ignored and
 raw check-in payloads must not be committed.
+
+To preserve a deliberate four-page sample of roughly 1000 check-ins, run four
+separate invocations:
+
+```bash
+swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 0
+swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 250
+swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 500
+swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 750
+```
+
+This is intentionally manual paging. Each command performs one request only; the
+CLI does not follow cursors or loop through pages.
 
 ## v2 OAuth path
 

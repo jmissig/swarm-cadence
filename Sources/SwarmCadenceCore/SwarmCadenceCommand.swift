@@ -42,6 +42,7 @@ public enum SwarmCadenceCommand {
                     environment: environment,
                     outputDirectory: options.outputDirectory,
                     limit: options.limit,
+                    offset: options.offset,
                     transport: liveTransport
                 )
                 output(try Formatter.render(result, format: options.format))
@@ -61,7 +62,7 @@ public enum SwarmCadenceCommand {
 
     Usage:
       swarm-cadence source probe --account <label> --adapter <v2|historysearch> [--format <human|json>] [--config <path>] [--live]
-      swarm-cadence raw fetch --account <label> --adapter v2 --out <dir> [--limit <1...250>] [--format <human|json>] [--config <path>]
+      swarm-cadence raw fetch --account <label> --adapter v2 --out <dir> [--limit <1...250>] [--offset <n>] [--format <human|json>] [--config <path>]
 
     Source probe is dry config validation by default. Pass --live to perform the explicit minimal read-only v2 checkins probe.
     Raw fetch performs exactly one conservative v2 checkins request and writes one raw JSON response plus an adjacent manifest.
@@ -133,6 +134,7 @@ struct RawFetchOptions {
     let configPath: String?
     let outputDirectory: String
     let limit: Int
+    let offset: Int
 
     init(arguments: [String]) throws {
         var parser = OptionParser(arguments: arguments)
@@ -178,6 +180,19 @@ struct RawFetchOptions {
             throw CLIError("--limit \(self.limit) exceeds the hard max of \(RawFetch.hardLimit) per invocation.")
         }
 
+        if let rawOffset = parser.value(for: "--offset") {
+            guard let parsedOffset = Int(rawOffset) else {
+                throw CLIError("--offset must be a non-negative integer.")
+            }
+            self.offset = parsedOffset
+        } else {
+            self.offset = 0
+        }
+
+        guard self.offset >= 0 else {
+            throw CLIError("--offset must be at least 0.")
+        }
+
         try parser.finish()
     }
 }
@@ -195,7 +210,7 @@ struct OptionParser {
             case "--json", "--live":
                 flags.insert(argument)
                 index += 1
-            case "--account", "--adapter", "--format", "--config", "--out", "--limit":
+            case "--account", "--adapter", "--format", "--config", "--out", "--limit", "--offset":
                 guard index + 1 < arguments.count else {
                     unknown.append(argument)
                     index += 1
@@ -220,7 +235,7 @@ struct OptionParser {
 
     func finish() throws {
         if let first = unknown.first {
-            if ["--account", "--adapter", "--format", "--config", "--out", "--limit"].contains(first) {
+            if ["--account", "--adapter", "--format", "--config", "--out", "--limit", "--offset"].contains(first) {
                 throw CLIError("missing value for \(first).")
             }
             throw CLIError("unknown argument: \(first).")
@@ -300,6 +315,8 @@ enum Formatter {
             "account: \(result.account)",
             "adapter: \(result.adapter.rawValue)",
             "status: \(result.status.rawValue)",
+            "limit: \(result.limit)",
+            "offset: \(result.offset)",
             "raw_file: \(result.rawFilePath)",
             "manifest_file: \(result.manifestFilePath)",
             "bytes: \(result.bytes)",
