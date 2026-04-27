@@ -200,47 +200,120 @@ final class RawFetchTests: XCTestCase {
         XCTAssertFalse(String(data: manifestData, encoding: .utf8)?.contains("raw-secret-token") ?? true)
     }
 
-    func testRawFetchDefaultsToLimit250Offset0AndRequiresExplicitOutputDirectory() throws {
-        var missingOutError = ""
-        let missingOutExit = SwarmCadenceCommand.run(
-            arguments: [
-                "raw", "fetch",
-                "--account", "julian",
-                "--adapter", "v2"
-            ],
-            environment: [
-                "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"
-            ],
-            output: { _ in },
-            errorOutput: { missingOutError = $0 }
-        )
-
-        XCTAssertEqual(missingOutExit, 2)
-        XCTAssertTrue(missingOutError.contains("missing required --out"))
-
-        let outputDirectory = try makeTemporaryDirectory()
+    func testRawFetchDefaultsToLimit250Offset0AndApplicationSupportOutputDirectory() throws {
+        let home = try makeTemporaryDirectory()
         let transport = CapturingRawTransport(response: ProbeHTTPResponse(statusCode: 200, data: successBody))
+        var rendered = ""
+
         let defaultLimitExit = SwarmCadenceCommand.run(
             arguments: [
                 "raw", "fetch",
                 "--account", "julian",
                 "--adapter", "v2",
-                "--out", outputDirectory.path
+                "--format", "json"
             ],
             environment: [
+                "HOME": home.path,
                 "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"
             ],
             liveTransport: transport,
-            output: { _ in },
+            output: { rendered = $0 },
             errorOutput: { _ in }
         )
 
         let requestURL = transport.requests.first?.url
         let components = requestURL.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
         let queryItems = Dictionary(uniqueKeysWithValues: (components?.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        let result = try JSONDecoder.snakeCase.decode(RawFetchResult.self, from: Data(rendered.utf8))
+
         XCTAssertEqual(defaultLimitExit, 0)
         XCTAssertEqual(queryItems["limit"], "250")
         XCTAssertEqual(queryItems["offset"], "0")
+        XCTAssertTrue(result.rawFilePath.contains("Library/Application Support/swarm-cadence/accounts/julian/raw/v2/checkins"))
+    }
+
+
+    func testRawFetchPagesFetchesSequentialOffsetsAndStopsOnShortPage() throws {
+        let outputDirectory = try makeTemporaryDirectory()
+        let transport = SequenceRawTransport(responses: [
+            ProbeHTTPResponse(statusCode: 200, data: pageBody(total: 3, ids: ["a", "b"])),
+            ProbeHTTPResponse(statusCode: 200, data: pageBody(total: 3, ids: ["c"]))
+        ])
+        var rendered = ""
+
+        let exitCode = SwarmCadenceCommand.run(
+            arguments: [
+                "raw", "fetch-pages",
+                "--account", "julian",
+                "--adapter", "v2",
+                "--out", outputDirectory.path,
+                "--limit", "2",
+                "--start-offset", "4",
+                "--pages", "3",
+                "--delay-ms", "0",
+                "--format", "json"
+            ],
+            environment: ["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"],
+            liveTransport: transport,
+            output: { rendered = $0 },
+            errorOutput: { _ in }
+        )
+
+        let result = try JSONDecoder.snakeCase.decode(RawFetchPagesResult.self, from: Data(rendered.utf8))
+        let offsets = try transport.requests.map { request -> String in
+            let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+            let queryItems = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+            return queryItems["offset"] ?? ""
+        }
+
+        XCTAssertEqual(exitCode, 0)
+        XCTAssertEqual(transport.requests.count, 2)
+        XCTAssertEqual(offsets, ["4", "6"])
+        XCTAssertEqual(result.command, "raw fetch-pages")
+        XCTAssertEqual(result.requestCount, 2)
+        XCTAssertEqual(result.fetchedPages, 2)
+        XCTAssertEqual(result.nextOffset, 8)
+        XCTAssertTrue(result.stoppedEarly)
+        XCTAssertTrue(result.stopReason?.contains("returned 1 below limit 2") ?? false)
+        XCTAssertFalse(rendered.contains("raw-secret-token"))
+    }
+
+    func testRawFetchPagesRejectsAboveHardMaxBeforeTransport() {
+        let transport = CapturingRawTransport(response: ProbeHTTPResponse(statusCode: 200, data: successBody))
+        var error = ""
+
+        let exitCode = SwarmCadenceCommand.run(
+            arguments: [
+                "raw", "fetch-pages",
+                "--account", "julian",
+                "--adapter", "v2",
+                "--out", "/tmp/raw-fetch-unused",
+                "--pages", "201"
+            ],
+            environment: ["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"],
+            liveTransport: transport,
+            output: { _ in },
+            errorOutput: { error = $0 }
+        )
+
+        XCTAssertEqual(exitCode, 2)
+        XCTAssertEqual(transport.requests.count, 0)
+        XCTAssertTrue(error.contains("hard max of 200"))
+    }
+
+    private func pageBody(total: Int, ids: [String]) -> Data {
+        let items = ids.map { "{ \"id\": \"\($0)\" }" }.joined(separator: ",")
+        return """
+        {
+          "meta": { "code": 200 },
+          "response": {
+            "checkins": {
+              "count": \(total),
+              "items": [\(items)]
+            }
+          }
+        }
+        """.data(using: .utf8)!
     }
 
     private var successBody: Data {
@@ -295,5 +368,23 @@ private final class CapturingRawTransport: ProbeHTTPTransport {
     func perform(_ request: URLRequest) throws -> ProbeHTTPResponse {
         requests.append(request)
         return response
+    }
+}
+
+
+private final class SequenceRawTransport: ProbeHTTPTransport {
+    private var responses: [ProbeHTTPResponse]
+    private(set) var requests: [URLRequest] = []
+
+    init(responses: [ProbeHTTPResponse]) {
+        self.responses = responses
+    }
+
+    func perform(_ request: URLRequest) throws -> ProbeHTTPResponse {
+        requests.append(request)
+        if responses.isEmpty {
+            throw ProbeTransportError("unexpected extra request")
+        }
+        return responses.removeFirst()
     }
 }

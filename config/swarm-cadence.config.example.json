@@ -1,0 +1,32 @@
+{
+  "accounts": {
+    "julian": {
+      "v2": {
+        "access_token": "replace-with-julian-oauth-access-token",
+        "client_id": "replace-with-developer-app-client-id",
+        "client_secret": "replace-with-developer-app-secret-if-issued",
+        "redirect_uri": "http://localhost:17342/foursquare/callback"
+      },
+      "historysearch": {
+        "userid": "replace-with-swarm-web-userid-if-needed",
+        "wsid": "replace-with-swarm-web-wsid-if-needed",
+        "oauth_token": "replace-with-swarm-web-oauth-token-if-needed",
+        "cookie": "replace-with-cookie-only-if-needed"
+      }
+    },
+    "alice": {
+      "v2": {
+        "access_token": "replace-with-alice-oauth-access-token",
+        "client_id": "replace-with-developer-app-client-id",
+        "client_secret": "replace-with-developer-app-secret-if-issued",
+        "redirect_uri": "http://localhost:17342/foursquare/callback"
+      },
+      "historysearch": {
+        "userid": "replace-with-swarm-web-userid-if-needed",
+        "wsid": "replace-with-swarm-web-wsid-if-needed",
+        "oauth_token": "replace-with-swarm-web-oauth-token-if-needed",
+        "cookie": "replace-with-cookie-only-if-needed"
+      }
+    }
+  }
+}

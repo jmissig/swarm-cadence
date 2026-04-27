@@ -38,7 +38,6 @@ data/
 .env
 .env.*
 !.env.example
-.swarm-cadence.env
 
 # CocoaPods
 #
@@ -69,3 +68,6 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Legacy local config; normal config lives in Application Support/swarm-cadence/config.json
+.swarm-cadence.env

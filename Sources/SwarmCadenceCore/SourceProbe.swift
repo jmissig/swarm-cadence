@@ -445,10 +445,12 @@ extension SourceProbeResult {
 public struct ProbeHTTPResponse {
     public let statusCode: Int
     public let data: Data
+    public let headers: [String: String]
 
-    public init(statusCode: Int, data: Data) {
+    public init(statusCode: Int, data: Data, headers: [String: String] = [:]) {
         self.statusCode = statusCode
         self.data = data
+        self.headers = headers
     }
 }
 
@@ -476,7 +478,13 @@ public final class URLSessionProbeHTTPTransport: ProbeHTTPTransport {
                 return
             }
 
-            result = .success(ProbeHTTPResponse(statusCode: httpResponse.statusCode, data: data ?? Data()))
+            var headers: [String: String] = [:]
+            for (key, value) in httpResponse.allHeaderFields {
+                if let key = key as? String {
+                    headers[key] = String(describing: value)
+                }
+            }
+            result = .success(ProbeHTTPResponse(statusCode: httpResponse.statusCode, data: data ?? Data(), headers: headers))
         }.resume()
 
         semaphore.wait()

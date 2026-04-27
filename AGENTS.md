@@ -81,30 +81,51 @@ The repository is now a Swift Package Manager project with:
 - GRDB-backed SQLite import/stats code;
 - explicit dry `source probe` for `v2` and `historysearch` config validation;
 - explicit live v2 source probe for one read-only `GET /v2/users/self/checkins` request with `limit=1`;
+- Application Support defaults: `config.json`, plus per-account `raw/v2/checkins` and `swarm-cadence.sqlite` under `~/Library/Application Support/swarm-cadence/accounts/<account>`;
+- JSON config with first-class `accounts.julian` and `accounts.alice` sections;
 - conservative `raw fetch --adapter v2` that performs exactly one read-only v2 check-ins request and writes one raw file plus one redacted manifest;
+- `Makefile` wrappers for build/test/release/default inspection/config bootstrap;
 - offline `db import-raw` from preserved v2 raw/manifest pairs;
 - aggregate-only `db stats`;
-- fixture/temp-path tests for probes, raw fetch behavior, parser validation, redaction, import idempotency, and aggregate stats.
+- account-scoped `query venues` and `query visits` over the imported SQLite sidecar, including factual local-calendar filters (`--date`, `--hour-from`, `--hour-to`);
+- venue geography filters from factual Foursquare location fields (`locality`, `region`, `postal_code`, `country_code`) and explicit map-distance primitives (`--near-lat`, `--near-lng`, `--radius-meters`), with distance returned as evidence;
+- `query categories` for inspecting known category names, plus first factual category filter `--category <name>` for intent lanes like Coffee Shop, threaded through venue, compare, and evidence packet queries;
+- import-time local-time sidecar fields for visits when raw timezone evidence is available (`local_date`, `local_hour`, `local_weekday_iso`, timezone id/offset), while retaining UTC `createdAt` as canonical provenance;
+- generic venue cadence comparisons over explicit baseline/recent windows (`query compare`) for active/lapsed/rotation evidence;
+- generic builder-facing `evidence window` packets over explicit date/hour filters, without fuzzy meal/time labels in the CLI;
+- first experimental evidence packet `evidence packet`, which composes venue support and cadence comparison facts with explicit target window, geography semantics, source coverage, sources, and caveats; its name/schema are provisional and not a durable API commitment;
+- fixture/temp-path tests for probes, raw fetch behavior, parser validation, redaction, import idempotency, aggregate stats, two-account defaults, first evidence queries, and local-time sidecar output.
 
-The v2 API direction is proven locally for Julian. Treat v2 OAuth as the primary source path unless it becomes blocked for another account or future token/app setup. Keep `historysearch` as a narrow fallback, and keep official export/takeout import as a later bootstrap/backfill/reconciliation path.
+The v2 API direction is proven locally for Julian and should be exercised for Alice as a first-class second account. Treat v2 OAuth as the primary source path unless it becomes blocked for an account or token/app setup. Keep `historysearch` as a narrow fallback, and keep official export/takeout import as an audit/completeness backstop for rows the API does not return.
 
 Current command surface:
 
 ```bash
-swarm-cadence source probe --account julian --adapter v2 --format json --config ./.swarm-cadence.env
-swarm-cadence source probe --account julian --adapter v2 --format json --config ./.swarm-cadence.env --live
-swarm-cadence raw fetch --account julian --adapter v2 --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 0
-swarm-cadence db import-raw --db data/swarm-cadence.sqlite --raw-dir data/raw/v2/checkins --format json
-swarm-cadence db stats --db data/swarm-cadence.sqlite --format json
+swarm-cadence source probe --account julian --adapter v2 --format json
+swarm-cadence source probe --account alice --adapter v2 --format json
+swarm-cadence raw fetch --account julian --adapter v2 --limit 250 --offset 0
+swarm-cadence raw fetch --account alice --adapter v2 --limit 250 --offset 0
+swarm-cadence db import-raw --account julian --format json
+swarm-cadence db import-raw --account alice --format json
+swarm-cadence db stats --account julian --format json
+swarm-cadence db stats --account alice --format json
+swarm-cadence query venues --account julian --format json
+swarm-cadence query visits --account julian --venue-id <venue-id> --format json
 ```
 
-Near-term direction:
+Near-term critical path:
 
-- add evidence queries over the imported SQLite sidecar;
-- keep the raw v2 files as source of truth and the SQLite DB rebuildable;
-- add lunch-window/venue-support facts before any recommendation-like surface;
-- preserve account separation from the first query slice;
-- add `Makefile` wrappers when they clarify common build/test commands.
+1. Fetch v2 API pages at `limit=250` to prove the live source, current schema, and category/venue richness.
+2. Build/finish the SQLite raw-file manifest index and import those API raw files.
+3. Add official export/takeout import as an audit/completeness backstop.
+4. Compare overlapping API vs export data by check-in id before trusting source semantics.
+5. Preserve export-only coordinate/timestamp breadcrumbs, but prefer API rows where both exist.
+6. Import and inspect real coverage with `db stats`, `query venues`, `query visits`, and `query compare`.
+7. Use geography constraints in real Guide/Almanac reads, keeping “in <place>” and “near <place>” semantics distinct.
+8. Inspect first evidence packets and decide the next evidence gap: named-place/area resolution, category/cuisine filters, venue reconciliation, or human-readable packet rendering.
+9. Add correction/derived model state only after evidence packets show what actually needs correcting.
+
+Keep raw files as source of truth and the SQLite DB rebuildable. Build generic cadence/evidence query tools before any recommendation-like or guide-specific surface. Preserve account separation throughout.
 
 Do not broaden this into a general connector while filling in the next slices.
 
@@ -113,8 +134,8 @@ Do not broaden this into a general connector while filling in the next slices.
 Routine checks:
 
 ```bash
-swift build
-swift test
+make build
+make test
 ```
 
 In sandboxed environments that block SwiftPM's default cache paths, use
@@ -125,22 +146,22 @@ mkdir -p .tmp/home .build/clang-module-cache
 HOME=$PWD/.tmp/home CLANG_MODULE_CACHE_PATH=$PWD/.build/clang-module-cache swift test --disable-sandbox
 ```
 
-If a Makefile is added, prefer the wrapper commands:
+Direct SwiftPM equivalents remain fine when needed:
 
 ```bash
-make build
-make test
+swift build
+swift test
 ```
 
 Do not run during routine verification:
 
 - install/publish commands;
 - commands that mutate real Swarm/Foursquare state;
-- commands that write to default real token/config/database paths;
+- commands that write to default real token/config/database/raw paths;
 - live credential probes unless Julian explicitly asks and credentials/config are already provided safely;
 - destructive cleanup of evidence/model databases outside repo-local/temp/fixture paths.
 
-Use repo-local, fixture, sandboxed, or temporary paths for tests and smoke checks. Prefer explicit `--db`, `--config`, `--account`, and source-file paths when exercising commands.
+Use repo-local, fixture, sandboxed, or temporary paths for tests and smoke checks. Prefer explicit `--db`, `--config`, `--account`, `--raw-dir`, and `--out` paths when exercising commands.
 
 ## Core principles
 
@@ -170,7 +191,7 @@ Swarm/Foursquare source
     -> raw payload preservation
     -> normalized SQLite evidence store
     -> derived descriptive model layer / optional sidecar
-    -> query verbs + builder-facing source bundles / evidence packets
+    -> query verbs + builder-facing evidence packets
     -> Food & Places Almanac / Lunch Guide
     -> OpenClaw / Robut conversation + edit/correction loop
 ```
@@ -188,16 +209,50 @@ Rules:
 - Do not store LLM-generated interpretations in base evidence tables.
 - After a directional change, make the new path the real path. Delete or clearly retire superseded code, docs, files, TODOs, and stale architectural discussion unless they are needed for migration or recovery.
 
+## Geography semantics
+
+Do not flatten human place language into a single city-name filter.
+
+Durable distinction:
+
+- **“in San Carlos”** means a factual venue-location filter, e.g. Foursquare
+  venue `locality = San Carlos` plus optional `region`/`country_code`.
+- **“near San Carlos”** means San Carlos is an anchor/area, then nearby venues
+  may include Belmont, Redwood City, etc. Use geometry/bounds around the anchor
+  and return each venue's factual locality plus `distance_meters` as evidence.
+- **“San Carlos / Redwood City area”** means an explicit area definition, such as
+  a named city set, polygon, or bounding shape. Do not silently turn it into one
+  city unless the caller asked for “in”.
+
+This was learned from the concrete case: coffee near San Carlos should include
+Redwood City coffee places when they are only a few kilometers away. Strict
+`--locality "San Carlos"` is correct for “in San Carlos” but wrong for “near San
+Carlos”.
+
+Interim CLI guidance:
+
+- `--locality`, `--region`, `--postal-code`, and `--country-code` are factual
+  Foursquare venue-location filters.
+- `--near-lat`, `--near-lng`, and `--radius-meters` are geometry primitives.
+  They must be used together and should return `distance_meters` rather than
+  hiding the judgment.
+- Combining locality and radius is an AND refinement, not the default semantics
+  of “near <place>”. Use it only when that is actually intended.
+- Prefer future `--near-place` / `--area` work to resolve human phrases into an
+  inspectable anchor, city-set, bounds, or polygon before applying geometry.
+- Keep low-level CLI filters factual; fuzzy names and user-facing phrasing belong
+  in the Almanac/Robut layer, backed by explicit filter definitions.
+
 ## Ingest strategy
 
 The research recommendation is adapter-first, not source-path absolutism. The
 v2 OAuth path has been proven locally for Julian, so use it as the primary path
 for the next evidence/query slices while keeping the fallback boundaries clear:
 
-1. **v2 OAuth user check-ins** — primary path for Julian after the successful credential probe.
-2. **Credential probe per account** — still test whether each configured account can call `GET /v2/users/self/checkins`.
-3. **Swarm web `historysearch`** — narrow fallback if v2 fails because of gating, `402`, app restrictions, or unusable token flow.
-4. **Official export/takeout** — bootstrap, backfill, and reconciliation.
+1. **v2 OAuth user check-ins** — primary path for Julian, and the expected first path to probe for Alice.
+2. **Credential probe per account** — Alice is a first-class simultaneous account, not a later optional add-on; test whether each configured account can call `GET /v2/users/self/checkins`.
+3. **Official export/takeout** — audit/completeness backstop after API proof/backfill exists; useful for API-missing coordinate/timestamp breadcrumbs.
+4. **Swarm web `historysearch`** — narrow fallback if v2/export fail because of gating, `402`, app restrictions, missing export coverage, or unusable token flow.
 5. **Current Places APIs** — venue enrichment only, not check-in history.
 
 Important: v2 is proven enough to build the next local evidence/query slices,
@@ -205,14 +260,28 @@ not a broad connector or Foursquare SDK.
 
 ### Credential and account handling
 
-- Keep credentials outside git.
+- Keep credentials outside git in `~/Library/Application Support/swarm-cadence/config.json` by default; do not use repo dotfiles as the normal config home.
 - Avoid printing tokens, cookies, OAuth params, or browser-session details in logs, test failures, or examples.
 - Account profiles should be explicit, e.g. `julian`, `alice`, or another configured label.
-- Each account has its own source credentials, sync state, provenance, raw payloads, and evidence rows.
+- Each account has its own source credentials, sync state, provenance, raw payloads, raw archive, and SQLite evidence database under the same local Application Support app root unless explicitly overridden.
 - Do not design around a single global Swarm identity and add multi-account later. This repo is the first local pattern tool where separate Julian/Alice sourcing is a first-order requirement.
 - Multi-account queries must preserve account attribution.
 - Joint/family outputs are allowed only when the command/query is explicitly scoped that way.
 - Treat browser-session approaches as sensitive and brittle. Keep them isolated behind an adapter and documented as fallback.
+
+## Default local paths
+
+Normal operator defaults mirror the other installed CLI tools and live under Application Support rather than repo-local dotfiles:
+
+```text
+~/Library/Application Support/swarm-cadence/config.json
+~/Library/Application Support/swarm-cadence/accounts/julian/raw/v2/checkins
+~/Library/Application Support/swarm-cadence/accounts/julian/swarm-cadence.sqlite
+~/Library/Application Support/swarm-cadence/accounts/alice/raw/v2/checkins
+~/Library/Application Support/swarm-cadence/accounts/alice/swarm-cadence.sqlite
+```
+
+`config.json` is account-structured: `accounts.julian` and `accounts.alice` are first-class sibling account profiles. Default raw and SQLite paths are also per-account. Environment variables and explicit `--config`, `--db`, `--raw-dir`, and `--out` paths remain available for tests, probes, and sandboxed runs.
 
 ## Data model sketch
 
@@ -286,7 +355,7 @@ Command names are provisional, but prefer `source probe` because the command sho
 
 > Julian asks: “Where should I grab lunch today?”
 
-The tool should not answer “best lunch” by itself. It should provide builder-facing source bundles / evidence packets that let Robut power human-facing Almanacs and Guides.
+The tool should not answer “best lunch” by itself. It should provide builder-facing evidence packets that let Robut power human-facing Almanacs and Guides.
 
 Useful pattern-extraction verbs for this project:
 
@@ -323,7 +392,7 @@ Strong candidate facts for lunch evidence packets:
 
 ### Two-surface design
 
-Build toward two sibling surfaces over the same local evidence:
+Build toward two sibling surfaces over the local evidence:
 
 1. **SQLite/Datasette-style explore/audit surface**
    - read-only browsing, faceting, ad hoc SQL, source coverage, schema inspection, and debugging;
@@ -453,7 +522,7 @@ Watch for:
 - derived labels lack support counts, generated-at timestamps, or active windows;
 - old patterns are treated as current preferences;
 - cross-source joins happen without explicit purpose or privacy boundary;
-- a dashboard/workbench replaces the evidence API instead of sitting beside it.
+- a dashboard/prototype replaces the evidence API instead of sitting beside it.
 
 ## Working style for agents
 

@@ -6,14 +6,22 @@ Foursquare Swarm check-in history as private evidence for OpenClaw/Robut.
 It currently supports:
 
 - explicit source probes for Foursquare v2 and Swarm web `historysearch` config;
-- one-request raw v2 check-in response preservation;
-- offline SQLite import from preserved raw v2 files;
-- aggregate database stats.
+- one-request and explicit multi-page raw v2 check-in response preservation;
+- offline SQLite import from preserved raw v2 files and Foursquare export files;
+- aggregate database stats and source overlap audits;
+- evidence queries for venues, visits, local calendar windows, venue cadence comparisons, and geography filters.
 
 It does not make recommendations, run hidden background sync, write to
 Foursquare/Swarm, or inspect raw payloads during routine commands.
 
 ## Build and Test
+
+```bash
+make build
+make test
+```
+
+The direct SwiftPM equivalents are:
 
 ```bash
 swift build
@@ -30,31 +38,41 @@ HOME=$PWD/.tmp/home CLANG_MODULE_CACHE_PATH=$PWD/.build/clang-module-cache swift
 
 ## Configuration
 
-Use `config/swarm-cadence.env.example` as a template and keep the real config
-outside git:
+The normal config location is:
 
-```bash
-cp config/swarm-cadence.env.example ./.swarm-cadence.env
+```text
+~/Library/Application Support/swarm-cadence/config.json
 ```
 
-Account labels are explicit:
+Use `config/swarm-cadence.config.example.json` as a template:
+
+```bash
+make install-config-example
+```
+
+Keep real tokens out of git. `--config <path>` remains available for explicit
+repo-local/temp/sandbox runs.
+
+Account labels are explicit and simultaneous:
 
 ```bash
 --account julian
 --account alice
 ```
 
-The label determines the expected environment/config variable names. For
-example, `--account julian` reads
-`SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN` for v2 commands.
+The config has separate `accounts.julian` and `accounts.alice` sections. Each
+account has its own v2/historysearch credentials, raw provenance, and imported
+SQLite rows. Joint/family queries should be explicitly scoped; there is no silent
+Julian/Alice blending.
 
 ## Source Probe
 
 Dry source probes validate local config shape only:
 
 ```bash
-swift run swarm-cadence source probe --account julian --adapter v2 --format json --config ./.swarm-cadence.env
-swift run swarm-cadence source probe --account julian --adapter historysearch --format json --config ./.swarm-cadence.env
+swift run swarm-cadence source probe --account julian --adapter v2 --format json
+swift run swarm-cadence source probe --account alice --adapter v2 --format json
+swift run swarm-cadence source probe --account julian --adapter historysearch --format json
 ```
 
 Dry probes do not call Foursquare or Swarm. They report missing/present inputs
@@ -68,7 +86,6 @@ swift run swarm-cadence source probe \
   --account julian \
   --adapter v2 \
   --format json \
-  --config ./.swarm-cadence.env \
   --live
 ```
 
@@ -84,15 +101,19 @@ After a live v2 probe succeeds, preserve one raw check-ins page explicitly:
 swift run swarm-cadence raw fetch \
   --account julian \
   --adapter v2 \
-  --config ./.swarm-cadence.env \
-  --out data/raw/v2/checkins \
   --limit 250 \
   --offset 0
 ```
 
 `raw fetch` performs exactly one request per invocation. `--limit` defaults to
 `250` and cannot exceed `250`; `--offset` defaults to `0` and must be
-non-negative.
+non-negative. By default, raw files are written under:
+
+```text
+~/Library/Application Support/swarm-cadence/accounts/<account>/raw/v2/checkins
+```
+
+Use `--out` to override that path for tests, samples, or one-off runs.
 
 The command writes one unmodified `*.raw.json` response and one adjacent
 redacted `*.manifest.json`. Console output is a compact summary only. `data/`
@@ -103,30 +124,161 @@ is git-ignored; do not commit raw check-in data.
 Import preserved v2 raw files into a rebuildable local SQLite sidecar:
 
 ```bash
-swift run swarm-cadence db import-raw \
-  --db data/swarm-cadence.sqlite \
-  --raw-dir data/raw/v2/checkins
+swift run swarm-cadence db import-raw --account julian
 ```
 
 The importer performs no network calls. It verifies each raw file against its
 manifest SHA256, then upserts aggregate evidence tables for raw files,
 check-ins, venues, categories, and check-in/category links.
 
+The default SQLite path is:
+
+```text
+~/Library/Application Support/swarm-cadence/accounts/<account>/swarm-cadence.sqlite
+```
+
+Use `--db` and `--raw-dir` to override paths for tests, samples, or one-off runs. Repeat import/stats with `--account alice` for Alice's parallel evidence store.
+
+Import local file-based sources with `db import-files`. The default source is
+`foursquare-export`, which expects a Foursquare export/takeout directory with
+`checkins*.json` files:
+
+```bash
+swift run swarm-cadence db import-files --account julian --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/Julian/Foursquare" --format json
+```
+
+When export rows overlap existing v2/API check-ins by id, the importer preserves
+the existing richer API row and inserts only export-only historical rows. It also
+writes `quality/checkins-missing-values.csv` next to the SQLite DB when imported
+check-ins have null values in fields the importer expects, such as `venue`.
+
+Audit raw v2 pages against an official export by check-in id:
+
+```bash
+swift run swarm-cadence audit overlap --account julian --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/Julian/Foursquare" --format json
+```
+
+The audit is read-only and compares preserved source files directly; it does not
+write to SQLite or call the network.
+
 Audit aggregate coverage:
 
 ```bash
-swift run swarm-cadence db stats --db data/swarm-cadence.sqlite
-swift run swarm-cadence db stats --db data/swarm-cadence.sqlite --format json
+swift run swarm-cadence db stats --account julian
+swift run swarm-cadence db stats --account julian --format json
 ```
 
 `db stats` reports counts and oldest/latest check-in timestamps only. It does
 not print raw payload contents.
 
+## Evidence Queries
+
+Query aggregate venue support from the per-account SQLite sidecar:
+
+```bash
+swift run swarm-cadence query categories --account julian --format json
+swift run swarm-cadence query venues --account julian --format json
+swift run swarm-cadence query venues --account julian --from 2024-01-01 --to 2024-12-31 --limit 50
+
+# "in San Mateo" — factual Foursquare venue locality fields
+swift run swarm-cadence query venues --account julian --locality "San Mateo" --region CA --country-code US --format json
+
+# "near San Carlos" — geometry around an anchor, allowing nearby cities too
+swift run swarm-cadence query venues --account julian --near-lat 37.5072 --near-lng -122.2605 --radius-meters 7000 --format json
+
+# narrow/refine when intended: locality AND distance
+swift run swarm-cadence query venues --account julian --locality "San Mateo" --near-lat 37.563 --near-lng -122.325 --radius-meters 5000 --format json
+```
+
+Query supporting visits, optionally drilled down to one venue:
+
+```bash
+swift run swarm-cadence query visits --account julian --venue-id <venue-id> --format json
+```
+
+Use local-calendar filters for Almanac-style questions. These read import-time
+sidecar fields; they do not recalculate timezones at query time:
+
+```bash
+swift run swarm-cadence query visits --account julian --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
+swift run swarm-cadence query venues --account julian --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
+```
+
+Compare venue support across a broad baseline and a recent window. This is the
+reusable cadence query for questions like active anchors, lapsed places, and
+rotation changes; interpretation belongs above the CLI:
+
+```bash
+swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --hour-from 11 --hour-to 14 --locality "San Mateo" --region CA --format json
+```
+
+Build a generic evidence packet over an explicit date/hour window for an LLM or
+Almanac layer to interpret:
+
+```bash
+swift run swarm-cadence evidence window --account julian --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
+```
+
+Build a first evidence packet by composing existing venue support
+and cadence facts over explicit time and geography definitions. This is still an
+evidence packet, not a recommendation:
+
+```bash
+swift run swarm-cadence evidence packet \
+  --account julian \
+  --date 2026-04-27 \
+  --hour-from 11 \
+  --hour-to 14 \
+  --near-lat 37.5072 \
+  --near-lng -122.2605 \
+  --radius-meters 7000 \
+  --category "Coffee Shop" \
+  --baseline-from 2024-01-01 \
+  --recent-from 2026-01-01 \
+  --format json
+```
+
+`query categories` lists the known category names for an account, ordered by supporting check-ins. `query venues` returns visit counts, first/last seen timestamps, categories, and
+a drill-down descriptor for reproducing the supporting visit rows. `query venues`
+and `query compare` can also be bounded by factual Foursquare venue location
+fields (`--locality`, `--region`, `--postal-code`, `--country-code`), category
+name (`--category "Coffee Shop"`), and/or explicit map distance using
+`--near-lat`, `--near-lng`, and `--radius-meters`.
+The distance options must be used together, and matching rows include
+`distance_meters` as evidence.
+
+Place wording matters: use locality fields for **“in San Mateo”** style queries.
+For **“near San Carlos”**, use a geographic anchor/radius so nearby Redwood City
+or Belmont venues can still match. Combining locality and radius is an AND
+refinement, not the default meaning of “near.” Future `--near-place`/`--area`
+work should make that anchor resolution inspectable instead of hiding it.
+
+`evidence packet` is an experimental evidence packet, not a durable public
+API contract. It emits `swarm_experimental_packet`, composed from existing venue
+support and cadence comparison queries. It includes the target window, explicit
+geography semantics, source coverage, nested query results, sources, caveats, and
+drill-down descriptors. It deliberately avoids ranking, recommendation prose,
+correction state, open-now data, and cross-source joins.
+
+`query visits`
+returns bounded check-in evidence with venue/category labels plus import-time
+local-time sidecar fields (`local_date`, `local_hour`, `local_weekday_iso`, and
+timezone evidence) when the raw check-in provided enough information. Both
+commands open an existing SQLite DB read-only, default to the account's own DB,
+and do not print raw payloads. Date-only `--from` starts at UTC midnight;
+date-only `--to` includes the full UTC day for these first instant-bound query
+filters. Almanac-style calendar/time-of-day filters should use the imported
+local-time fields and should treat local check-in calendar/time as the default;
+UTC/absolute filters should be explicitly named when added. Fuzzy labels such as
+“lunch” or “morning” belong to the LLM/Almanac layer choosing explicit windows,
+not to hidden presets in this evidence CLI.
+
 ## Safety Boundaries
 
 - Keep tokens, cookies, browser-session details, raw payloads, and SQLite files
   out of git.
-- Use explicit `--account`, `--config`, `--db`, `--raw-dir`, and `--out` paths.
+- Use explicit `--account`; use `--config`, `--db`, `--raw-dir`, and `--out` when overriding defaults.
+- Default paths live under `~/Library/Application Support/swarm-cadence`, not dotfiles.
 - Do not run `--live` or `raw fetch` as routine tests.
 - Do not use one account's credentials for another account label.
 - Treat the SQLite DB as rebuildable from preserved raw evidence.

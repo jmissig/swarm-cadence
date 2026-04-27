@@ -26,18 +26,20 @@ swift run swarm-cadence source probe --account julian --adapter v2 --format json
 swift run swarm-cadence source probe --account julian --adapter historysearch --format json
 ```
 
-Optional dotenv-style config:
+Default config:
 
-```bash
-swift run swarm-cadence source probe \
-  --account julian \
-  --adapter v2 \
-  --format json \
-  --config ./.swarm-cadence.env
+```text
+~/Library/Application Support/swarm-cadence/config.json
 ```
 
-Environment variables override values from the config file. All configured
-values are reported as present or missing only; values are never printed.
+Use `config/swarm-cadence.config.example.json` as the template, or run
+`make install-config-example` to copy it into the default location without
+overwriting an existing config.
+
+The JSON config is account-structured with first-class `accounts.julian` and
+`accounts.alice` sections. Environment variables override values from the config
+file. All configured values are reported as present or missing only; values are
+never printed.
 
 ## Live v2 command
 
@@ -48,7 +50,6 @@ swift run swarm-cadence source probe \
   --account julian \
   --adapter v2 \
   --format json \
-  --config ./.swarm-cadence.env \
   --live
 ```
 
@@ -82,8 +83,6 @@ swift run swarm-cadence raw fetch \
   --account julian \
   --adapter v2 \
   --format json \
-  --config ./.swarm-cadence.env \
-  --out data/raw/v2/checkins \
   --limit 250 \
   --offset 0
 ```
@@ -102,7 +101,7 @@ Safety boundary:
 - current Get User Checkins docs identify `250` as the endpoint limit, so this
   command uses 250 as the largest documented page size;
 - no pagination, cursor, or broad backfill exists in this slice;
-- `--out` is required and one raw JSON response is written there;
+- `--out` is optional; by default one raw JSON response is written under `~/Library/Application Support/swarm-cadence/accounts/<account>/raw/v2/checkins`;
 - raw files are named with a UTC timestamp, adapter, account, check-ins marker,
   offset page marker, and limit;
 - an adjacent manifest records endpoint, adapter, account, limit, offset, page
@@ -111,17 +110,16 @@ Safety boundary:
 - raw response bytes are not altered when written as `*.raw.json`;
 - tokens, cookies, OAuth params, and raw payloads are not printed.
 
-Use `data/raw/v2/checkins` for local manual runs. `data/` is git-ignored and
-raw check-in payloads must not be committed.
+Use explicit `--out` paths for repo-local/manual samples. Each account has its own default raw archive under `accounts/<label>/`; account labels are also preserved in filenames, manifests, and imported evidence rows.
 
 To preserve a deliberate four-page sample of roughly 1000 check-ins, run four
 separate invocations:
 
 ```bash
-swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 0
-swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 250
-swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 500
-swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250 --offset 750
+swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --limit 250 --offset 0
+swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --limit 250 --offset 250
+swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --limit 250 --offset 500
+swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --limit 250 --offset 750
 ```
 
 This is intentionally manual paging. Each command performs one request only; the
@@ -129,13 +127,10 @@ CLI does not follow cursors or loop through pages.
 
 ## Offline v2 SQLite import
 
-After preserving one or more raw v2 pages, import them into a local SQLite
-sidecar:
+After preserving one or more raw v2 pages, import them into that account's local SQLite sidecar:
 
 ```bash
-swift run swarm-cadence db import-raw \
-  --db data/swarm-cadence.sqlite \
-  --raw-dir data/raw/v2/checkins
+swift run swarm-cadence db import-raw --account julian
 ```
 
 Safety boundary:
@@ -146,15 +141,39 @@ Safety boundary:
 - imported rows keep raw-file provenance through `raw_files.id`;
 - reruns are idempotent through upserts on raw relative filename, check-in id,
   venue id, and category id;
-- raw files and SQLite files under `data/` remain git-ignored.
+- raw files and SQLite files remain local-only and must not be committed; use explicit repo-local paths only for samples/tests.
+
+Import local file-based sources with `db import-files`. The default source is
+`foursquare-export`, which expects a Foursquare export/takeout directory with
+`checkins*.json` files:
+
+```bash
+swift run swarm-cadence db import-files --account julian --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/Julian/Foursquare" --format json
+```
+
+When export rows overlap existing v2/API check-ins by id, the importer preserves
+the existing richer API row and inserts only export-only historical rows. It also
+writes `quality/checkins-missing-values.csv` next to the SQLite DB when imported
+check-ins have null values in fields the importer expects, such as `venue`.
+
+Audit raw v2 pages against an official export by check-in id:
+
+```bash
+swift run swarm-cadence audit overlap --account julian --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/Julian/Foursquare" --format json
+```
+
+The audit is read-only and compares preserved source files directly; it does not
+write to SQLite or call the network.
 
 The initial schema is intentionally small:
 
 - `raw_files` records file metadata from the manifest: relative filename,
   SHA256, bytes, fetched timestamp, adapter, account, endpoint, API version,
   limit/offset, HTTP/API status, returned/total counts, and import timestamp;
-- `checkins` records check-in id, account, adapter, created timestamp, venue id,
-  raw file provenance, and the reserialized raw check-in object;
+- `checkins` records check-in id, account, adapter, UTC created timestamp,
+  import-time local-time sidecar fields when raw timezone evidence is available
+  (`local_date`, `local_hour`, `local_weekday_iso`, timezone id/offset), venue
+  id, raw file provenance, and the reserialized raw check-in object;
 - `venues` records venue id, name, lat/lng, category summary JSON, and raw venue
   JSON;
 - `categories` and `checkin_categories` record category labels and check-in
@@ -163,17 +182,68 @@ The initial schema is intentionally small:
 Audit aggregate coverage:
 
 ```bash
-swift run swarm-cadence db stats --db data/swarm-cadence.sqlite
+swift run swarm-cadence db stats --account julian
 ```
 
 `db stats` reports raw file, check-in, venue, and category counts plus oldest
 and latest check-in timestamps. It does not print raw payload contents.
 
+Read aggregate venue evidence from the account DB:
+
+```bash
+swift run swarm-cadence query venues --account julian --format json
+swift run swarm-cadence query venues --account julian --from 2024-01-01 --to 2024-12-31 --limit 50
+swift run swarm-cadence query venues --account julian --locality "San Mateo" --region CA --country-code US --format json
+swift run swarm-cadence query venues --account julian --locality "San Mateo" --near-lat 37.563 --near-lng -122.325 --radius-meters 5000 --format json
+```
+
+Drill into supporting rows without printing raw payloads:
+
+```bash
+swift run swarm-cadence query visits --account julian --venue-id <venue-id> --format json
+```
+
+For Almanac-style local calendar/time questions, filter with the imported
+sidecar fields:
+
+```bash
+swift run swarm-cadence query visits --account julian --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
+swift run swarm-cadence query venues --account julian --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
+```
+
+For generic cadence comparison, compare a baseline window against a recent
+window. This returns venue-level support facts rather than recommendations:
+
+```bash
+swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --hour-from 11 --hour-to 14 --locality "San Mateo" --region CA --format json
+```
+
+For builder-facing packets, use the same explicit window without adding fuzzy
+labels inside the CLI:
+
+```bash
+swift run swarm-cadence evidence window --account julian --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
+```
+
+`query venues` and `query compare` support factual Foursquare venue-location
+bounds with `--locality`, `--region`, `--postal-code`, and `--country-code`, plus
+optional explicit map-distance bounds with `--near-lat`, `--near-lng`, and
+`--radius-meters`. The distance options must be supplied together, and results
+include `distance_meters` as factual evidence rather than a hidden recommendation
+or place-name judgment.
+
+Date bounds accept Unix timestamps, ISO8601 instants, or `YYYY-MM-DD` UTC dates.
+Date-only `--from` starts at UTC midnight; date-only `--to` includes the full UTC
+day for these first instant-bound filters. Almanac-style calendar/time-of-day
+filters should use the imported local-time sidecar fields by default; UTC or
+absolute-time variants should be explicitly named when added. The query commands
+open an existing SQLite DB read-only and fail before creating a DB if import has
+not run yet. JSON output includes the account, DB path, normalized bounds,
+match/return counts, categories when present, and local-time fields for visits.
+
 ## v2 OAuth path
 
-Primary path for Julian after the successful live v2 probe. Run the same
-credential probe for each additional account before fetching or importing that
-account's data.
+Primary path for Julian after the successful live v2 probe. Alice is a first-class simultaneous account for this tool: run the same credential probe for Alice before fetching or importing Alice's data.
 
 Current Foursquare v2 docs identify the target read endpoint as:
 
@@ -206,7 +276,7 @@ External setup steps for a new or repaired v2 credential:
 2. Register a local redirect URI for an OAuth web flow.
 3. Authorize the intended account, such as `julian`.
 4. Exchange the OAuth code for an access token.
-5. Put the access token in the environment or in a git-ignored config file.
+5. Put the access token in `~/Library/Application Support/swarm-cadence/config.json` under the correct account, or use an explicit temporary `--config` path for sandboxed work.
 6. Rerun the dry probe and confirm it reports `ready_for_live_probe`.
 7. Run the explicit live v2 command and inspect the redacted JSON status before
    any `raw fetch`.
@@ -275,7 +345,7 @@ import exist, use the local sidecar to define the first evidence queries:
 
 - derive venue visit counts and date ranges from imported v2 check-ins;
 - add lunch-window filters against stored timestamps;
-- keep export/import available for bootstrap, backfill, and reconciliation;
+- keep export/import available for audit, reconciliation, and API-missing coordinate breadcrumbs;
 - keep `historysearch` as fallback only if v2 becomes blocked for ongoing use;
 - continue to save no fixtures unless they are sanitized and explicitly used in
   tests.

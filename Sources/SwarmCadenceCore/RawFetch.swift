@@ -19,10 +19,32 @@ public struct RawFetchResult: Codable, Equatable {
     public let apiMetaCode: Int?
     public let returnedCount: Int?
     public let totalCount: Int?
+    public let rateLimitLimit: Int?
+    public let rateLimitRemaining: Int?
+    public let rateLimitReset: Int?
     public let rawFilePath: String
     public let manifestFilePath: String
     public let bytes: Int
     public let sha256: String
+}
+
+public struct RawFetchPagesResult: Codable, Equatable {
+    public let schemaVersion: Int
+    public let command: String
+    public let account: String
+    public let adapter: SourceAdapter
+    public let status: ProbeStatus
+    public let networkPerformed: Bool
+    public let requestCount: Int
+    public let outputDirectory: String
+    public let limit: Int
+    public let startOffset: Int
+    public let requestedPages: Int
+    public let fetchedPages: Int
+    public let nextOffset: Int
+    public let stoppedEarly: Bool
+    public let stopReason: String?
+    public let results: [RawFetchResult]
 }
 
 public struct RawFetchManifest: Codable, Equatable {
@@ -41,6 +63,9 @@ public struct RawFetchManifest: Codable, Equatable {
     public let apiMetaCode: Int?
     public let returnedCount: Int?
     public let totalCount: Int?
+    public let rateLimitLimit: Int?
+    public let rateLimitRemaining: Int?
+    public let rateLimitReset: Int?
     public let rawFileName: String
     public let rawBytes: Int
     public let rawSha256: String
@@ -49,6 +74,95 @@ public struct RawFetchManifest: Codable, Equatable {
 public enum RawFetch {
     public static let defaultLimit = 250
     public static let hardLimit = 250
+    public static let fetchPagesDefaultDelayMilliseconds = 1_000
+    public static let fetchPagesHardMaxPages = 200
+
+    public static func fetchPages(
+        account: String,
+        adapter: SourceAdapter,
+        config: [String: String] = [:],
+        environment: [String: String],
+        outputDirectory: String,
+        limit: Int = defaultLimit,
+        startOffset: Int = 0,
+        pages: Int,
+        delayMilliseconds: Int = fetchPagesDefaultDelayMilliseconds,
+        transport: ProbeHTTPTransport = URLSessionProbeHTTPTransport(),
+        fetchedAt: Date = Date(),
+        sleep: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) }
+    ) throws -> RawFetchPagesResult {
+        let account = try AccountLabel.validate(account)
+        guard adapter == .v2 else {
+            throw CLIError("raw fetch-pages is currently implemented only for --adapter v2.")
+        }
+        guard (1...hardLimit).contains(limit) else {
+            throw CLIError("--limit \(limit) exceeds the allowed range of 1...\(hardLimit).")
+        }
+        guard startOffset >= 0 else {
+            throw CLIError("--start-offset must be at least 0.")
+        }
+        guard (1...fetchPagesHardMaxPages).contains(pages) else {
+            throw CLIError("--pages \(pages) exceeds the allowed range of 1...\(fetchPagesHardMaxPages).")
+        }
+        guard delayMilliseconds >= 0 else {
+            throw CLIError("--delay-ms must be at least 0.")
+        }
+
+        var results: [RawFetchResult] = []
+        var stoppedEarly = false
+        var stopReason: String?
+        for pageIndex in 0..<pages {
+            let offset = startOffset + (pageIndex * limit)
+            let result = try fetch(
+                account: account,
+                adapter: adapter,
+                config: config,
+                environment: environment,
+                outputDirectory: outputDirectory,
+                limit: limit,
+                offset: offset,
+                transport: transport,
+                fetchedAt: fetchedAt.addingTimeInterval(TimeInterval(pageIndex) / 1_000)
+            )
+            results.append(result)
+
+            if result.status != .success {
+                stoppedEarly = true
+                stopReason = "stopped after offset \(offset): status \(result.status.rawValue)"
+                break
+            }
+            if let returnedCount = result.returnedCount, returnedCount < limit {
+                stoppedEarly = true
+                stopReason = "stopped after offset \(offset): returned \(returnedCount) below limit \(limit)"
+                break
+            }
+            if pageIndex < pages - 1, delayMilliseconds > 0 {
+                sleep(TimeInterval(delayMilliseconds) / 1_000)
+            }
+        }
+
+        let lastOffset = results.last?.offset ?? startOffset
+        let nextOffset = results.isEmpty ? startOffset : lastOffset + limit
+        let status: ProbeStatus = results.last?.status ?? .externalSetupRequired
+        return RawFetchPagesResult(
+            schemaVersion: 1,
+            command: "raw fetch-pages",
+            account: account,
+            adapter: adapter,
+            status: status,
+            networkPerformed: !results.isEmpty,
+            requestCount: results.count,
+            outputDirectory: outputDirectory,
+            limit: limit,
+            startOffset: startOffset,
+            requestedPages: pages,
+            fetchedPages: results.count,
+            nextOffset: nextOffset,
+            stoppedEarly: stoppedEarly,
+            stopReason: stopReason,
+            results: results
+        )
+    }
 
     public static func fetch(
         account: String,
@@ -120,6 +234,9 @@ public enum RawFetch {
             apiMetaCode: summary.apiMetaCode,
             returnedCount: summary.returnedCount,
             totalCount: summary.totalCount,
+            rateLimitLimit: rateLimitHeader(response.headers, "X-RateLimit-Limit"),
+            rateLimitRemaining: rateLimitHeader(response.headers, "X-RateLimit-Remaining"),
+            rateLimitReset: rateLimitHeader(response.headers, "X-RateLimit-Reset"),
             rawFileName: rawFileURL.lastPathComponent,
             rawBytes: response.data.count,
             rawSha256: sha256
@@ -144,6 +261,9 @@ public enum RawFetch {
             apiMetaCode: summary.apiMetaCode,
             returnedCount: summary.returnedCount,
             totalCount: summary.totalCount,
+            rateLimitLimit: rateLimitHeader(response.headers, "X-RateLimit-Limit"),
+            rateLimitRemaining: rateLimitHeader(response.headers, "X-RateLimit-Remaining"),
+            rateLimitReset: rateLimitHeader(response.headers, "X-RateLimit-Reset"),
             rawFilePath: rawFileURL.path,
             manifestFilePath: manifestFileURL.path,
             bytes: response.data.count,
@@ -157,6 +277,13 @@ public enum RawFetch {
 
     static func sha256Hex(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func rateLimitHeader(_ headers: [String: String], _ name: String) -> Int? {
+        for (key, value) in headers where key.caseInsensitiveCompare(name) == .orderedSame {
+            return Int(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return nil
     }
 
     private static func writeManifest(_ manifest: RawFetchManifest, to url: URL) throws {

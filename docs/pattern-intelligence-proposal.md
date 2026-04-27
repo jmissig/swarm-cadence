@@ -4,18 +4,18 @@
 
 `swarm-cadence` should be the local-first Swarm/Foursquare check-in evidence layer for Robut: preserve raw check-in history, normalize visits and venues, compute traceable/rebuildable derived observations, and support human-facing **Almanacs** and **Guides** without becoming a generic Foursquare SDK, social client, dashboard, or opaque recommender.
 
-The near-term acceptance test is concrete:
+One near-term acceptance test is concrete:
 
 > Julian asks: “Where should I grab lunch today?”
 
-The next implementation move is a thin evidence-query slice, not “the connector”:
+Lunch is an example Guide to validate the theory, not the center of the tool. The next implementation move is a thin, reusable evidence-query slice, not “the connector” and not a lunch-specific recommender:
 
 ```text
-proven v2 path + preserved raw pages
-  -> offline SQLite sidecar
-  -> first venue/date/window evidence queries
-  -> produce a real Lunch Guide source bundle
-  -> render static Lunch Guide option entries from that bundle
+proven v2 path + preserved Julian/Alice raw pages
+  -> parallel offline SQLite evidence stores with explicit account attribution
+  -> first venue/date/window/cadence evidence queries
+  -> produce a real source bundle for a concrete Guide example
+  -> render static Guide option entries from that bundle
   -> add edits/corrections after the bundle shape is stable
 ```
 
@@ -68,7 +68,7 @@ These commands inspect environment/config shape only, redact sensitive values, a
 Implemented live v2 probe:
 
 ```bash
-swarm-cadence source probe --account julian --adapter v2 --format json --config ./.swarm-cadence.env --live
+swarm-cadence source probe --account julian --adapter v2 --format json --live
 ```
 
 The live v2 probe performs one read-only `GET /v2/users/self/checkins` request
@@ -78,7 +78,7 @@ no evidence database or fixtures.
 Implemented raw v2 preservation:
 
 ```bash
-swarm-cadence raw fetch --account julian --adapter v2 --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250
+swarm-cadence raw fetch --account julian --adapter v2 --limit 250
 ```
 
 This command performs exactly one v2 check-ins request, defaults to `limit=250`,
@@ -88,8 +88,8 @@ adjacent manifest, and does not write SQLite.
 Implemented offline v2 SQLite import:
 
 ```bash
-swarm-cadence db import-raw --db data/swarm-cadence.sqlite --raw-dir data/raw/v2/checkins
-swarm-cadence db stats --db data/swarm-cadence.sqlite
+swarm-cadence db import-raw --account julian
+swarm-cadence db stats --account julian
 ```
 
 The importer performs no network calls, verifies raw SHA256 against adjacent
@@ -141,21 +141,21 @@ This surface may use ad hoc SQL for investigation. It should be read-only by def
 
 Purpose: provide bounded grounding for Robut and future Guides.
 
-Early target commands are provisional but should aim at the Lunch Guide source bundle:
+Early target commands are provisional but should expose reusable evidence facts that a Guide source bundle can consume:
 
 ```bash
 swarm-cadence source probe --account julian --format json
 swarm-cadence ingest fixture --account julian --source ./fixtures/julian-checkins.json --db ./.tmp/swarm.sqlite
-swarm-cadence query visits --account julian --venue-id VENUE_ID --since 2y --format json
-swarm-cadence query lapses --account julian --since 2y --min-visits 3 --format json
-swarm-cadence evidence lunch --account julian --near home --format json
+swarm-cadence query visits --account julian --venue-id VENUE_ID --from 2024-01-01 --format json
+swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --hour-from 11 --hour-to 14 --format json
+swarm-cadence evidence window --account julian --date 2026-04-27 --hour-from 11 --hour-to 14 --format json
 ```
 
-The `evidence lunch` output is a builder-facing source bundle for the human-facing Lunch Guide. It should return options, support, uncertainty, source trails, and visible joins — not one final “best lunch.”
+Guide-specific bundle shaping happens above the reusable query layer. It should consume venue support, cadence, recency, uncertainty, and source trails — not hide a final “best” answer in `swarm-cadence`.
 
-## Lunch Guide source bundle requirements
+## Concrete Guide source bundle requirements
 
-The first real bundle should support `Lunch Guide Source Bundle v0` and `Lunch Guide v0`.
+The first real bundle can use `Lunch Guide Source Bundle v0` and `Lunch Guide v0` as acceptance-test artifacts.
 
 Required fields:
 
@@ -207,17 +207,46 @@ Meaning-changing records require human authority:
 
 Raw check-ins stay untouched. Edits/corrections apply visibly to future bundles and Guides.
 
+### Time semantics
+
+Most Almanac-style pattern questions should be interpreted in the check-in's
+experienced local time, not in a single caller-supplied timezone. For example,
+an 08:00 hike in Hong Kong should count as a morning hike because it was morning
+where the check-in happened. Likewise, “check-ins on 23 Dec” should normally
+mean check-ins whose local calendar date was 23 Dec. This local-context lens
+applies to hour-of-day, meal-window, weekday/weekend, day/month grouping, and
+similar pattern facts.
+
+Absolute instant slicing remains useful when explicitly requested, but it should
+be separate from the default Almanac lens and named explicitly as UTC/instant
+behavior. Normal query flags should not all repeat “local”; local check-in
+calendar/time is the documented default, while UTC variants should say UTC in
+the flag or command name. Fuzzy time concepts like “lunch” or “morning” should
+belong to the LLM/Almanac layer as choices over explicit date/hour windows, not
+as hidden presets inside the low-level evidence CLI. Future query work should decide how
+to resolve experienced timezone from the fields we actually see:
+`venue.timeZone`, with check-in `timeZoneOffset` as supporting/fallback evidence.
+Do not add inference or audit machinery for missing timezone edge cases unless
+missing data shows up as a real problem in actual outputs; a small amount of
+missing or uncertain history is acceptable.
+
+The sidecar should retain UTC `createdAt` as the canonical instant/provenance,
+but materialize experienced local-time fields during import when timezone
+evidence is available. This keeps timezone math in one inspectable ingest seam
+and lets queries/almanacs read local date/hour/weekday facts without repeatedly
+recomputing timezone behavior at runtime.
+
 ## Recommended next slices
 
 1. **Evidence queries over imported v2 data**
-   - venue visit support, first/last seen, date ranges, and lunch-window filters;
-   - explicit account scope and freshness;
-   - source trails that reproduce the supporting rows without printing raw payloads.
-2. **Emit first `lunch` source bundle**
-   - use the v0 bundle shape;
+   - current first slice: venue visit support, first/last seen, date ranges, explicit single-account scope, and source trails that reproduce supporting rows without printing raw payloads;
+   - add explicit date/hour filters and generic cadence comparison facts (baseline vs recent support, last seen, lapse age);
+   - later multi-account extension: explicit joint/family scopes, never implicit blending.
+2. **Emit first source bundle for a concrete Guide example**
+   - use the v0 Lunch artifacts as an acceptance test, while keeping the query layer generic;
    - include source trails and uncertainty;
    - avoid scoring or recommendations until fields are stable.
-3. **Generate static Lunch Guide entries**
+3. **Generate static Guide entries**
    - generate Markdown/HTML option entries from the bundle;
    - show lenses and why options move.
 4. **Add edit/correction storage**
@@ -244,8 +273,8 @@ Raw check-ins stay untouched. Edits/corrections apply visibly to future bundles 
 A first implementation slice succeeds if it can:
 
 - use preserved v2 evidence without live network calls;
-- produce a small real Lunch Guide source bundle;
-- render a static Lunch Guide from that bundle;
+- produce a small real Guide source bundle from reusable evidence queries;
+- render a static Guide from that bundle;
 - show every option’s source trail;
 - distinguish raw evidence, derived observation, proposed interpretation, and human edit;
 - list missing queries/fields for the next slice.

@@ -70,14 +70,22 @@ final class SourceProbeTests: XCTestCase {
         XCTAssertFalse(rendered.contains("dry-secret-token"))
     }
 
-    func testConfigFileCanProvideInputsWithoutLeakingValues() throws {
+    func testJSONConfigFileCanProvideInputsWithoutLeakingValues() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let config = directory.appendingPathComponent("probe.env")
+        let config = directory.appendingPathComponent("config.json")
         try """
-        SWARM_CADENCE_ALICE_V2_ACCESS_TOKEN=alice-secret-token
-        SWARM_CADENCE_ALICE_V2_CLIENT_ID=alice-client-id
+        {
+          "accounts": {
+            "alice": {
+              "v2": {
+                "access_token": "alice-secret-token",
+                "client_id": "alice-client-id"
+              }
+            }
+          }
+        }
         """.write(to: config, atomically: true, encoding: .utf8)
 
         var rendered = ""
@@ -98,6 +106,46 @@ final class SourceProbeTests: XCTestCase {
         XCTAssertFalse(rendered.contains("alice-secret-token"))
         XCTAssertFalse(rendered.contains("alice-client-id"))
         XCTAssertTrue(rendered.contains("\"source\" : \"config_file\""))
+    }
+
+    func testDefaultApplicationSupportJSONConfigIsUsedWhenPresent() throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let appSupport = home
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("swarm-cadence", isDirectory: true)
+        try FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
+        let config = appSupport.appendingPathComponent("config.json")
+        try """
+        {
+          "accounts": {
+            "julian": {
+              "v2": {
+                "access_token": "default-config-token"
+              }
+            }
+          }
+        }
+        """.write(to: config, atomically: true, encoding: .utf8)
+
+        var rendered = ""
+        let exitCode = SwarmCadenceCommand.run(
+            arguments: [
+                "source", "probe",
+                "--account", "julian",
+                "--adapter", "v2",
+                "--format", "json"
+            ],
+            environment: ["HOME": home.path],
+            output: { rendered = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exitCode, 0)
+        XCTAssertTrue(rendered.contains("\"status\" : \"ready_for_live_probe\""))
+        XCTAssertTrue(rendered.contains("\"source\" : \"config_file\""))
+        XCTAssertFalse(rendered.contains("default-config-token"))
     }
 
     func testPlaceholderValuesDoNotSatisfyRequiredInputs() {
@@ -220,9 +268,17 @@ final class SourceProbeTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let config = directory.appendingPathComponent("probe.env")
+        let config = directory.appendingPathComponent("config.json")
         try """
-        SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN=config-live-token
+        {
+          "accounts": {
+            "julian": {
+              "v2": {
+                "access_token": "config-live-token"
+              }
+            }
+          }
+        }
         """.write(to: config, atomically: true, encoding: .utf8)
 
         let transport = CapturingTransport(
