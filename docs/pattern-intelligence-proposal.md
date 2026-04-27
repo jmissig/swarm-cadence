@@ -49,7 +49,11 @@ Implementation rule of thumb:
 
 ## Current state
 
-The repo now has a minimal Swift Package CLI with dry `source probe` commands and an explicit live v2 source probe. `AGENTS.md` carries durable architecture guidance; schema, ingest, normalized SQLite evidence, and Lunch Guide source bundles are still not implemented.
+The repo now has a minimal Swift Package CLI with dry `source probe` commands,
+an explicit live v2 source probe, and conservative one-request raw v2
+preservation. `AGENTS.md` carries durable architecture guidance; schema,
+ingest, normalized SQLite evidence, and Lunch Guide source bundles are still
+not implemented.
 
 Implemented dry probe commands:
 
@@ -69,6 +73,16 @@ swarm-cadence source probe --account julian --adapter v2 --format json --config 
 The live v2 probe performs one read-only `GET /v2/users/self/checkins` request
 with `limit=1`, reports viability/status and sample field coverage, and writes
 no evidence database or fixtures.
+
+Implemented raw v2 preservation:
+
+```bash
+swarm-cadence raw fetch --account julian --adapter v2 --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 25
+```
+
+This command performs exactly one v2 check-ins request, defaults to `limit=25`,
+fails above `limit=100`, writes one unmodified raw JSON response and one
+adjacent manifest, and does not write SQLite.
 
 The proposal below should guide the first real slice without encouraging a broad connector build.
 

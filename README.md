@@ -3,8 +3,9 @@
 `swarm-cadence` is a small local-first CLI for preserving and querying
 Foursquare Swarm check-in history as private evidence for OpenClaw/Robut.
 
-The first slice is intentionally narrow: it validates local configuration and
-can perform one explicit read-only v2 source probe. It does not ingest data,
+The first slices are intentionally narrow: the CLI validates local
+configuration, can perform one explicit read-only v2 source probe, and can
+preserve one conservative raw v2 check-ins response. It does not ingest data,
 write an evidence database, or make lunch recommendations.
 
 The CLI uses a tiny dependency-free parser for this first offline slice.
@@ -81,6 +82,33 @@ The JSON result reports whether the source path is usable (`success`,
 `network_error`) and, on success, whether the returned sample includes useful
 fields: check-in id, `createdAt`, venue id/name, lat/lng, categories, photos,
 and count/date hints. Tokens and secrets are redacted from output and errors.
+
+## Raw v2 Preservation
+
+After the live v2 probe succeeds, preserve one raw response explicitly:
+
+```bash
+swift run swarm-cadence raw fetch \
+  --account julian \
+  --adapter v2 \
+  --config ./.swarm-cadence.env \
+  --out data/raw/v2/checkins \
+  --limit 25
+```
+
+This performs exactly one `GET /v2/users/self/checkins` request. There is no
+pagination loop and no backfill. The default `--limit` is `25`; the command
+fails above the hard max of `100` per invocation.
+
+`--out` is required. The command writes:
+
+- one `*.raw.json` file containing the unmodified Foursquare response bytes;
+- one adjacent `*.manifest.json` file with redacted request metadata, HTTP/API
+  status, returned/total counts when parseable, byte count, and SHA256.
+
+Console output is a concise redacted summary: raw file path, manifest path,
+bytes, status, returned count, and total count when parseable. Tokens are not
+printed. `data/` is git-ignored; do not commit raw check-in data.
 
 ## What Julian Needs To Do Next
 

@@ -13,8 +13,13 @@ Short active backlog only. Durable architecture and constraints live in `AGENTS.
   - Performs one read-only `GET /v2/users/self/checkins` request with `limit=1`.
   - Redacts credentials and sensitive source details.
   - Reports source viability plus sample field coverage for check-in id, timestamp, venue id/name, lat/lng, categories, photos, and count/date hints.
+- [x] Add conservative raw preservation for the proven v2 path.
+  - `swarm-cadence raw fetch --account julian --adapter v2 --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 25`
+  - Performs exactly one read-only `GET /v2/users/self/checkins` request per invocation.
+  - Defaults to `limit=25` and fails above the hard max of `100`.
+  - Writes one unmodified `*.raw.json` response plus one redacted adjacent manifest; no SQLite writes.
 - [ ] Use the live v2 probe result to choose the next source path.
-  - If v2 succeeds, build the smallest raw-preservation + normalized SQLite slice around v2.
+  - If v2 succeeds, build the smallest normalized SQLite slice around preserved v2 raw files.
   - If v2 is gated, unauthorized, or payment-required, implement the narrow live `historysearch` fallback.
   - Keep export/import available for bootstrap/backfill/reconciliation.
 - [ ] Create a fixture/minimal-ingest path for enough Julian check-in data to exercise the lunch scenario.

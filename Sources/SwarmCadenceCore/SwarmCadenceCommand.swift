@@ -33,6 +33,19 @@ public enum SwarmCadenceCommand {
                     )
                 output(try Formatter.render(result, format: options.format))
                 return 0
+            case let .rawFetch(options):
+                let config = try options.configPath.map(DotenvConfig.load(path:)) ?? [:]
+                let result = try RawFetch.fetch(
+                    account: options.account,
+                    adapter: options.adapter,
+                    config: config,
+                    environment: environment,
+                    outputDirectory: options.outputDirectory,
+                    limit: options.limit,
+                    transport: liveTransport
+                )
+                output(try Formatter.render(result, format: options.format))
+                return 0
             }
         } catch let error as CLIError {
             errorOutput(error.message)
@@ -48,14 +61,17 @@ public enum SwarmCadenceCommand {
 
     Usage:
       swarm-cadence source probe --account <label> --adapter <v2|historysearch> [--format <human|json>] [--config <path>] [--live]
+      swarm-cadence raw fetch --account <label> --adapter v2 --out <dir> [--limit <1...100>] [--format <human|json>] [--config <path>]
 
     Source probe is dry config validation by default. Pass --live to perform the explicit minimal read-only v2 checkins probe.
+    Raw fetch performs exactly one conservative v2 checkins request and writes one raw JSON response plus an adjacent manifest.
     """
 }
 
 enum Invocation {
     case help
     case sourceProbe(SourceProbeOptions)
+    case rawFetch(RawFetchOptions)
 
     init(arguments: [String]) throws {
         if arguments.isEmpty || arguments == ["--help"] || arguments == ["-h"] {
@@ -63,11 +79,18 @@ enum Invocation {
             return
         }
 
-        guard arguments.count >= 2, arguments[0] == "source", arguments[1] == "probe" else {
+        guard arguments.count >= 2 else {
             throw CLIError("unsupported command. Run `swarm-cadence --help`.")
         }
 
-        self = .sourceProbe(try SourceProbeOptions(arguments: Array(arguments.dropFirst(2))))
+        switch (arguments[0], arguments[1]) {
+        case ("source", "probe"):
+            self = .sourceProbe(try SourceProbeOptions(arguments: Array(arguments.dropFirst(2))))
+        case ("raw", "fetch"):
+            self = .rawFetch(try RawFetchOptions(arguments: Array(arguments.dropFirst(2))))
+        default:
+            throw CLIError("unsupported command. Run `swarm-cadence --help`.")
+        }
     }
 }
 
@@ -103,6 +126,62 @@ struct SourceProbeOptions {
     }
 }
 
+struct RawFetchOptions {
+    let account: String
+    let adapter: SourceAdapter
+    let format: OutputFormat
+    let configPath: String?
+    let outputDirectory: String
+    let limit: Int
+
+    init(arguments: [String]) throws {
+        var parser = OptionParser(arguments: arguments)
+
+        let account = parser.value(for: "--account")
+        var format = try OutputFormat(rawValue: parser.value(for: "--format") ?? "human")
+            .orThrow("unsupported --format. Use `human` or `json`.")
+
+        if parser.consumeFlag("--json") {
+            guard format == .human else {
+                throw CLIError("use either `--json` or `--format json`, not both.")
+            }
+            format = .json
+        }
+
+        self.account = try AccountLabel.validate(account)
+        self.adapter = try SourceAdapter(rawValue: parser.value(for: "--adapter") ?? "v2")
+            .orThrow("unsupported --adapter. Use `v2`.")
+        guard self.adapter == .v2 else {
+            throw CLIError("raw fetch is currently implemented only for --adapter v2.")
+        }
+        self.format = format
+        self.configPath = parser.value(for: "--config")
+        self.outputDirectory = try parser.value(for: "--out")
+            .orThrow("missing required --out <dir>.")
+        guard !self.outputDirectory.isEmpty else {
+            throw CLIError("missing required --out <dir>.")
+        }
+
+        if let rawLimit = parser.value(for: "--limit") {
+            guard let parsedLimit = Int(rawLimit) else {
+                throw CLIError("--limit must be an integer between 1 and \(RawFetch.hardLimit).")
+            }
+            self.limit = parsedLimit
+        } else {
+            self.limit = RawFetch.defaultLimit
+        }
+
+        guard self.limit >= 1 else {
+            throw CLIError("--limit must be at least 1.")
+        }
+        guard self.limit <= RawFetch.hardLimit else {
+            throw CLIError("--limit \(self.limit) exceeds the hard max of \(RawFetch.hardLimit) per invocation.")
+        }
+
+        try parser.finish()
+    }
+}
+
 struct OptionParser {
     private var values: [String: String] = [:]
     private var flags: Set<String> = []
@@ -116,7 +195,7 @@ struct OptionParser {
             case "--json", "--live":
                 flags.insert(argument)
                 index += 1
-            case "--account", "--adapter", "--format", "--config":
+            case "--account", "--adapter", "--format", "--config", "--out", "--limit":
                 guard index + 1 < arguments.count else {
                     unknown.append(argument)
                     index += 1
@@ -141,7 +220,7 @@ struct OptionParser {
 
     func finish() throws {
         if let first = unknown.first {
-            if ["--account", "--adapter", "--format", "--config"].contains(first) {
+            if ["--account", "--adapter", "--format", "--config", "--out", "--limit"].contains(first) {
                 throw CLIError("missing value for \(first).")
             }
             throw CLIError("unknown argument: \(first).")
@@ -155,6 +234,19 @@ struct OptionParser {
 
 enum Formatter {
     static func render(_ result: SourceProbeResult, format: OutputFormat) throws -> String {
+        switch format {
+        case .human:
+            return renderHuman(result)
+        case .json:
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+            let data = try encoder.encode(result)
+            return String(decoding: data, as: UTF8.self)
+        }
+    }
+
+    static func render(_ result: RawFetchResult, format: OutputFormat) throws -> String {
         switch format {
         case .human:
             return renderHuman(result)
@@ -199,6 +291,32 @@ enum Formatter {
 
         lines.append("next actions:")
         lines.append(contentsOf: result.nextActions.map { "  - \($0)" })
+        return lines.joined(separator: "\n")
+    }
+
+    private static func renderHuman(_ result: RawFetchResult) -> String {
+        var lines: [String] = [
+            "raw fetch",
+            "account: \(result.account)",
+            "adapter: \(result.adapter.rawValue)",
+            "status: \(result.status.rawValue)",
+            "raw_file: \(result.rawFilePath)",
+            "manifest_file: \(result.manifestFilePath)",
+            "bytes: \(result.bytes)",
+            "http_status: \(result.httpStatusCode)"
+        ]
+
+        if let apiMetaCode = result.apiMetaCode {
+            lines.append("api_meta_code: \(apiMetaCode)")
+        }
+        if let returnedCount = result.returnedCount {
+            lines.append("returned_count: \(returnedCount)")
+        }
+        if let totalCount = result.totalCount {
+            lines.append("total_count: \(totalCount)")
+        }
+
+        lines.append("network: one request performed")
         return lines.joined(separator: "\n")
     }
 }

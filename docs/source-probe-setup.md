@@ -10,6 +10,11 @@ write an evidence database, or validate whether a token/session still works.
 The explicit `--live --adapter v2` mode performs one minimal read-only
 Foursquare v2 check-in-history request. No other adapter has a live probe yet.
 
+The separate `raw fetch --adapter v2` command preserves one raw response after
+the live v2 path has already been proven. It is intentionally conservative: one
+request per invocation, small default limit, no pagination loop, and no SQLite
+write.
+
 ## Current command
 
 ```bash
@@ -63,6 +68,43 @@ state. Output reports status and field coverage only. Possible live statuses:
 On success, JSON includes field coverage for check-in id, `createdAt`, venue
 id/name, lat/lng, categories, photos, returned count, total count when present,
 and the sample timestamp. Raw payloads are not printed or saved.
+
+## Raw v2 preservation command
+
+Run only after a live v2 source probe succeeds:
+
+```bash
+swift run swarm-cadence raw fetch \
+  --account julian \
+  --adapter v2 \
+  --format json \
+  --config ./.swarm-cadence.env \
+  --out data/raw/v2/checkins \
+  --limit 25
+```
+
+This performs exactly one read-only request:
+
+```text
+GET https://api.foursquare.com/v2/users/self/checkins?limit=<1...100>&v=<api-version>&oauth_token=<redacted>
+```
+
+Safety boundary:
+
+- default `--limit` is `25`;
+- hard max is `100`; larger values fail before any network request;
+- no pagination, cursor, or broad backfill exists in this slice;
+- `--out` is required and one raw JSON response is written there;
+- raw files are named with a UTC timestamp, adapter, account, check-ins marker,
+  page marker, and limit;
+- an adjacent manifest records endpoint, adapter, account, limit, API version,
+  fetched timestamp, HTTP status, v2 `meta.code` when parseable, returned/total
+  counts when parseable, bytes, and SHA256;
+- raw response bytes are not altered when written as `*.raw.json`;
+- tokens, cookies, OAuth params, and raw payloads are not printed.
+
+Use `data/raw/v2/checkins` for local manual runs. `data/` is git-ignored and
+raw check-in payloads must not be committed.
 
 ## v2 OAuth path
 
@@ -161,11 +203,11 @@ work must preserve attribution from the first row onward.
 
 ## Next implementation checkpoint
 
-Now that the v2 live probe exists, use its result to choose the next source
-slice:
+Now that the v2 live probe and conservative raw preservation exist, use the
+saved raw files to choose the next source slice:
 
-- If live v2 returns `success` with useful field coverage, build the first raw
-  preservation and SQLite evidence slice around v2.
+- If live v2 returns `success` with useful field coverage, build the first
+  normalized SQLite evidence slice around preserved v2 raw files.
 - If live v2 returns `payment_required`, `unauthorized`, or durable `blocked`,
   implement the narrow live `historysearch` fallback.
 - Keep export/import available for bootstrap, backfill, and reconciliation.
