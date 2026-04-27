@@ -43,7 +43,6 @@ safely as possible.
 
 5. **Build an evidence packet**
    - Compose generic query results into a small builder-facing evidence packet for one concrete Guide/Almanac experiment.
-     concrete Guide/Almanac experiment.
    - Lunch is an acceptance-test example, not the center of the tool.
    - Include account scope, freshness/coverage, explicit windows/geography,
      support counts, uncertainty, source trails, and caveats.
@@ -93,8 +92,27 @@ safely as possible.
   - This lets “coffee near San Carlos” return coffee-shop evidence across nearby localities instead of generic lunch/restaurant rows.
   - It is still factual Foursquare category evidence, not a fuzzy cuisine/preference model.
 
+- [ ] Add an ingest/update loop suitable for cron.
+  - Goal shape should resemble `protect-cadence`: safe to run every couple of hours without manual babysitting.
+  - Add a command like `ingest update` (or similar) that fetches new v2 pages, preserves raw responses/manifests, imports them, and exits cleanly when there is nothing new.
+  - Track and expose freshness plainly: `last_ingested_at` / `last_imported_at`, `latest_checkin_at`, and `oldest_checkin_at`.
+  - Include freshness in `db stats` and evidence packets so users can see what the evidence is current through.
+  - Keep this local-first/read-only with respect to Swarm/Foursquare; no write-back or hidden background daemon.
+
+- [ ] Add a tool VERSION and include it in provenance.
+  - Add a repo `VERSION` file like other local tools.
+  - Surface the version in CLI output where provenance matters, especially evidence packets.
+  - Include git SHA/build info when available, but keep `VERSION` as the stable human/tool contract.
+
+- [ ] Add interactive first-run auth/setup, aping the `protect-cadence` shape.
+  - Provide a guided setup path for creating the local Application Support config without hand-editing JSON.
+  - Check whether a usable Swarm/Foursquare token/config already exists, explain what is missing, and avoid printing secrets.
+  - Keep non-interactive/config-file paths for cron and automation.
+  - First-run setup should make it obvious where raw files, SQLite, config, and logs/freshness state will live.
+
 - [ ] Inspect first evidence packets and decide the next evidence gap.
-  - Candidate next gaps: better `--near-place` / named-area resolution, broader category/cuisine matching, venue reconciliation/aliases, or a thin human-readable packet rendering.
+  - Candidate next gaps: better `--near-place` / named-area resolution, venue reconciliation/aliases, multiple ranking views (nearest vs strongest support vs stale/revisit), category-audit/debug output, or a thin human-readable packet rendering.
+  - Normal packets should include selected caller-supplied categories, but not dump every excluded category by default; deeper category-selection audit belongs in debug/review flows.
   - Keep lunch/coffee as acceptance tests, not product scope.
 
 ## Recently completed
