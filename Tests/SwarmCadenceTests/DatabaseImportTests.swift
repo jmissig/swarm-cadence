@@ -440,7 +440,7 @@ final class DatabaseImportTests: XCTestCase {
             errorOutput: { _ in }
         )
         XCTAssertEqual(categoryExit, 0)
-        XCTAssertTrue(categoryOutput.contains("\"category_name\" : \"Coffee Shop\""))
+        XCTAssertTrue(categoryOutput.contains("\"category_names\" : ["))
         XCTAssertTrue(categoryOutput.contains("Coffee Shop"))
         XCTAssertTrue(categoryOutput.contains("\"total_matching_venues\" : 1"))
     }
@@ -854,7 +854,7 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertTrue(output.contains("\"target_window\""))
         XCTAssertTrue(output.contains("\"geography\""))
         XCTAssertTrue(output.contains("factual venue-location filters"))
-        XCTAssertTrue(output.contains("\"category_name\" : \"Coffee Shop\""))
+        XCTAssertTrue(output.contains("\"category_names\" : ["))
         XCTAssertTrue(output.contains("\"venue_support\""))
         XCTAssertTrue(output.contains("\"cadence_comparison\""))
         XCTAssertTrue(output.contains("Cafe Example"))

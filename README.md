@@ -232,7 +232,9 @@ swift run swarm-cadence evidence packet \
   --near-lat 37.5072 \
   --near-lng -122.2605 \
   --radius-meters 7000 \
-  --category "Coffee Shop" \
+  --category "Mexican Restaurant" \
+  --category "Pizzeria" \
+  --category "Sandwich Spot" \
   --baseline-from 2024-01-01 \
   --recent-from 2026-01-01 \
   --format json
@@ -242,7 +244,7 @@ swift run swarm-cadence evidence packet \
 a drill-down descriptor for reproducing the supporting visit rows. `query venues`
 and `query compare` can also be bounded by factual Foursquare venue location
 fields (`--locality`, `--region`, `--postal-code`, `--country-code`), category
-name (`--category "Coffee Shop"`), and/or explicit map distance using
+names (repeat `--category`, OR semantics), and/or explicit map distance using
 `--near-lat`, `--near-lng`, and `--radius-meters`.
 The distance options must be used together, and matching rows include
 `distance_meters` as evidence.

@@ -134,7 +134,7 @@ public enum SwarmCadenceCommand {
                     region: options.region,
                     postalCode: options.postalCode,
                     countryCode: options.countryCode,
-                    categoryName: options.categoryName,
+                    categoryNames: options.categoryNames,
                     nearLatitude: options.nearLatitude,
                     nearLongitude: options.nearLongitude,
                     radiusMeters: options.radiusMeters,
@@ -171,7 +171,7 @@ public enum SwarmCadenceCommand {
                     region: options.region,
                     postalCode: options.postalCode,
                     countryCode: options.countryCode,
-                    categoryName: options.categoryName,
+                    categoryNames: options.categoryNames,
                     nearLatitude: options.nearLatitude,
                     nearLongitude: options.nearLongitude,
                     radiusMeters: options.radiusMeters,
@@ -202,7 +202,7 @@ public enum SwarmCadenceCommand {
                     region: options.region,
                     postalCode: options.postalCode,
                     countryCode: options.countryCode,
-                    categoryName: options.categoryName,
+                    categoryNames: options.categoryNames,
                     nearLatitude: options.nearLatitude,
                     nearLongitude: options.nearLongitude,
                     radiusMeters: options.radiusMeters,
@@ -597,7 +597,7 @@ struct QueryVenuesOptions {
     let region: String?
     let postalCode: String?
     let countryCode: String?
-    let categoryName: String?
+    let categoryNames: [String]
     let nearLatitude: Double?
     let nearLongitude: Double?
     let radiusMeters: Double?
@@ -616,7 +616,7 @@ struct QueryVenuesOptions {
         self.region = parsed.region
         self.postalCode = parsed.postalCode
         self.countryCode = parsed.countryCode
-        self.categoryName = parsed.categoryName
+        self.categoryNames = parsed.categoryNames
         self.nearLatitude = parsed.nearLatitude
         self.nearLongitude = parsed.nearLongitude
         self.radiusMeters = parsed.radiusMeters
@@ -635,7 +635,7 @@ struct QueryVenuesOptions {
             postalCode: postalCode,
             countryCode: countryCode
         )
-        try SwarmDatabase.validateCategoryOptions(categoryName)
+        try SwarmDatabase.validateCategoryOptions(categoryNames)
         try SwarmDatabase.validateGeoOptions(
             nearLatitude: nearLatitude,
             nearLongitude: nearLongitude,
@@ -698,7 +698,7 @@ struct QueryCompareOptions {
     let region: String?
     let postalCode: String?
     let countryCode: String?
-    let categoryName: String?
+    let categoryNames: [String]
     let nearLatitude: Double?
     let nearLongitude: Double?
     let radiusMeters: Double?
@@ -726,7 +726,7 @@ struct QueryCompareOptions {
         self.region = parsed.region
         self.postalCode = parsed.postalCode
         self.countryCode = parsed.countryCode
-        self.categoryName = parsed.categoryName
+        self.categoryNames = parsed.categoryNames
         self.nearLatitude = parsed.nearLatitude
         self.nearLongitude = parsed.nearLongitude
         self.radiusMeters = parsed.radiusMeters
@@ -754,7 +754,7 @@ struct QueryCompareOptions {
             postalCode: postalCode,
             countryCode: countryCode
         )
-        try SwarmDatabase.validateCategoryOptions(categoryName)
+        try SwarmDatabase.validateCategoryOptions(categoryNames)
         try SwarmDatabase.validateGeoOptions(
             nearLatitude: nearLatitude,
             nearLongitude: nearLongitude,
@@ -805,7 +805,7 @@ struct EvidencePacketOptions {
     let region: String?
     let postalCode: String?
     let countryCode: String?
-    let categoryName: String?
+    let categoryNames: [String]
     let nearLatitude: Double?
     let nearLongitude: Double?
     let radiusMeters: Double?
@@ -837,7 +837,7 @@ struct EvidencePacketOptions {
         self.region = parsed.region
         self.postalCode = parsed.postalCode
         self.countryCode = parsed.countryCode
-        self.categoryName = parsed.categoryName
+        self.categoryNames = parsed.categoryNames
         self.nearLatitude = parsed.nearLatitude
         self.nearLongitude = parsed.nearLongitude
         self.radiusMeters = parsed.radiusMeters
@@ -964,7 +964,7 @@ private struct QueryVenuesArguments: ParsableArguments {
     @Option var region: String?
     @Option(name: .customLong("postal-code")) var postalCode: String?
     @Option(name: .customLong("country-code")) var countryCode: String?
-    @Option(name: .customLong("category")) var categoryName: String?
+    @Option(name: .customLong("category")) var categoryNames: [String] = []
     @Option(name: .customLong("near-lat")) var nearLatitude: Double?
     @Option(name: .customLong("near-lng")) var nearLongitude: Double?
     @Option(name: .customLong("radius-meters")) var radiusMeters: Double?
@@ -1003,7 +1003,7 @@ private struct QueryCompareArguments: ParsableArguments {
     @Option var region: String?
     @Option(name: .customLong("postal-code")) var postalCode: String?
     @Option(name: .customLong("country-code")) var countryCode: String?
-    @Option(name: .customLong("category")) var categoryName: String?
+    @Option(name: .customLong("category")) var categoryNames: [String] = []
     @Option(name: .customLong("near-lat")) var nearLatitude: Double?
     @Option(name: .customLong("near-lng")) var nearLongitude: Double?
     @Option(name: .customLong("radius-meters")) var radiusMeters: Double?
@@ -1039,7 +1039,7 @@ private struct EvidencePacketArguments: ParsableArguments {
     @Option var region: String?
     @Option(name: .customLong("postal-code")) var postalCode: String?
     @Option(name: .customLong("country-code")) var countryCode: String?
-    @Option(name: .customLong("category")) var categoryName: String?
+    @Option(name: .customLong("category")) var categoryNames: [String] = []
     @Option(name: .customLong("near-lat")) var nearLatitude: Double?
     @Option(name: .customLong("near-lng")) var nearLongitude: Double?
     @Option(name: .customLong("radius-meters")) var radiusMeters: Double?

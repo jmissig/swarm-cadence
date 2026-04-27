@@ -11,7 +11,7 @@ public struct EvidenceGeography: Codable, Equatable {
     public let region: String?
     public let postalCode: String?
     public let countryCode: String?
-    public let categoryName: String?
+    public let categoryNames: [String]
     public let nearLatitude: Double?
     public let nearLongitude: Double?
     public let radiusMeters: Double?
@@ -113,7 +113,7 @@ public extension SwarmDatabase {
         region: String? = nil,
         postalCode: String? = nil,
         countryCode: String? = nil,
-        categoryName: String? = nil,
+        categoryNames: [String] = [],
         nearLatitude: Double? = nil,
         nearLongitude: Double? = nil,
         radiusMeters: Double? = nil,
@@ -135,7 +135,7 @@ public extension SwarmDatabase {
             limit: limit
         )
         try validatePlaceOptions(locality: locality, region: region, postalCode: postalCode, countryCode: countryCode)
-        try validateCategoryOptions(categoryName)
+        try validateCategoryOptions(categoryNames)
         try validateGeoOptions(nearLatitude: nearLatitude, nearLongitude: nearLongitude, radiusMeters: radiusMeters)
 
         let venues = try queryVenues(
@@ -147,7 +147,7 @@ public extension SwarmDatabase {
             region: region,
             postalCode: postalCode,
             countryCode: countryCode,
-            categoryName: categoryName,
+            categoryNames: categoryNames,
             nearLatitude: nearLatitude,
             nearLongitude: nearLongitude,
             radiusMeters: radiusMeters,
@@ -167,7 +167,7 @@ public extension SwarmDatabase {
             region: region,
             postalCode: postalCode,
             countryCode: countryCode,
-            categoryName: categoryName,
+            categoryNames: categoryNames,
             nearLatitude: nearLatitude,
             nearLongitude: nearLongitude,
             radiusMeters: radiusMeters,
@@ -187,7 +187,7 @@ public extension SwarmDatabase {
                 region: region,
                 postalCode: postalCode,
                 countryCode: countryCode,
-                categoryName: categoryName,
+                categoryNames: categoryNames,
                 nearLatitude: nearLatitude,
                 nearLongitude: nearLongitude,
                 radiusMeters: radiusMeters,

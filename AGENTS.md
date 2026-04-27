@@ -89,7 +89,7 @@ The repository is now a Swift Package Manager project with:
 - aggregate-only `db stats`;
 - account-scoped `query venues` and `query visits` over the imported SQLite sidecar, including factual local-calendar filters (`--date`, `--hour-from`, `--hour-to`);
 - venue geography filters from factual Foursquare location fields (`locality`, `region`, `postal_code`, `country_code`) and explicit map-distance primitives (`--near-lat`, `--near-lng`, `--radius-meters`), with distance returned as evidence;
-- `query categories` for inspecting known category names, plus first factual category filter `--category <name>` for intent lanes like Coffee Shop, threaded through venue, compare, and evidence packet queries;
+- `query categories` for inspecting known category names, plus repeatable factual category filters `--category <name>` for caller-chosen intent lanes, threaded through venue, compare, and evidence packet queries;
 - import-time local-time sidecar fields for visits when raw timezone evidence is available (`local_date`, `local_hour`, `local_weekday_iso`, timezone id/offset), while retaining UTC `createdAt` as canonical provenance;
 - generic venue cadence comparisons over explicit baseline/recent windows (`query compare`) for active/lapsed/rotation evidence;
 - generic builder-facing `evidence window` packets over explicit date/hour filters, without fuzzy meal/time labels in the CLI;

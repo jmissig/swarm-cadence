@@ -89,7 +89,7 @@ safely as possible.
   - It avoids ranking, recommendation prose, correction state, open-now data, and cross-source joins.
 
 - [x] Add first category/intent-lane filter.
-  - Added `query categories` to list known database category names and exact case-insensitive `--category <name>` to `query venues`, `query compare`, and `evidence packet`.
+  - Added `query categories` to list known database category names and repeatable exact case-insensitive `--category <name>` filters to `query venues`, `query compare`, and `evidence packet`.
   - This lets “coffee near San Carlos” return coffee-shop evidence across nearby localities instead of generic lunch/restaurant rows.
   - It is still factual Foursquare category evidence, not a fuzzy cuisine/preference model.
 

@@ -22,7 +22,7 @@ public struct QueryDateFilters: Codable, Equatable {
     public let region: String?
     public let postalCode: String?
     public let countryCode: String?
-    public let categoryName: String?
+    public let categoryNames: [String]
     public let nearLatitude: Double?
     public let nearLongitude: Double?
     public let radiusMeters: Double?
@@ -139,7 +139,7 @@ public struct QueryCompareFilters: Codable, Equatable {
     public let region: String?
     public let postalCode: String?
     public let countryCode: String?
-    public let categoryName: String?
+    public let categoryNames: [String]
     public let nearLatitude: Double?
     public let nearLongitude: Double?
     public let radiusMeters: Double?
@@ -267,7 +267,7 @@ public extension SwarmDatabase {
         region: String? = nil,
         postalCode: String? = nil,
         countryCode: String? = nil,
-        categoryName: String? = nil,
+        categoryNames: [String] = [],
         nearLatitude: Double? = nil,
         nearLongitude: Double? = nil,
         radiusMeters: Double? = nil,
@@ -281,13 +281,14 @@ public extension SwarmDatabase {
         try validateDateWindow(fromCreatedAt: fromCreatedAt, toCreatedAt: toCreatedAt)
         try validateCalendarFilters(date: date, hourFrom: hourFrom, hourTo: hourTo)
         try validatePlaceFilters(locality: locality, region: region, postalCode: postalCode, countryCode: countryCode)
-        try validateCategoryFilter(categoryName)
+        let categoryNames = try validateCategoryFilter(categoryNames)
         try validateGeoFilters(nearLatitude: nearLatitude, nearLongitude: nearLongitude, radiusMeters: radiusMeters)
 
         let dbQueue = try openReadOnlyDatabase(path: dbPath)
 
         return try dbQueue.read { db in
             registerDistanceFunction(db)
+            let categoryNamesJSON = try categoryFilterJSON(categoryNames)
             let total = try Int.fetchOne(
                 db,
                 sql: """
@@ -311,7 +312,7 @@ public extension SwarmDatabase {
                           FROM checkin_categories cc
                           JOIN categories cat ON cat.category_id = cc.category_id
                           WHERE cc.checkin_id = c.checkin_id
-                            AND lower(cat.name) = lower(?)
+                            AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
                       ))
                       AND (? IS NULL OR (v.lat IS NOT NULL AND v.lng IS NOT NULL AND distance_meters(v.lat, v.lng, ?, ?) <= ?))
                     GROUP BY c.venue_id
@@ -328,7 +329,7 @@ public extension SwarmDatabase {
                     region, region,
                     postalCode, postalCode,
                     countryCode, countryCode,
-                    categoryName, categoryName,
+                    categoryNamesJSON, categoryNamesJSON,
                     radiusMeters, nearLatitude, nearLongitude, radiusMeters
                 ]
             ) ?? 0
@@ -367,7 +368,7 @@ public extension SwarmDatabase {
                       FROM checkin_categories cc
                       JOIN categories cat ON cat.category_id = cc.category_id
                       WHERE cc.checkin_id = c.checkin_id
-                        AND lower(cat.name) = lower(?)
+                        AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
                   ))
                   AND (? IS NULL OR (v.lat IS NOT NULL AND v.lng IS NOT NULL AND distance_meters(v.lat, v.lng, ?, ?) <= ?))
                 GROUP BY v.venue_id, v.name, v.lat, v.lng, v.locality, v.region, v.postal_code, v.country_code
@@ -386,7 +387,7 @@ public extension SwarmDatabase {
                     region, region,
                     postalCode, postalCode,
                     countryCode, countryCode,
-                    categoryName, categoryName,
+                    categoryNamesJSON, categoryNamesJSON,
                     radiusMeters, nearLatitude, nearLongitude, radiusMeters,
                     radiusMeters,
                     limit
@@ -412,7 +413,7 @@ public extension SwarmDatabase {
                     firstCreatedAtISO8601: firstCreatedAt.map(queryISO8601String(timestamp:)),
                     lastCreatedAt: lastCreatedAt,
                     lastCreatedAtISO8601: lastCreatedAt.map(queryISO8601String(timestamp:)),
-                    categories: try categoryNames(
+                    categories: try supportingCategoryNames(
                         db: db,
                         account: account,
                         venueID: venueID,
@@ -451,7 +452,7 @@ public extension SwarmDatabase {
                     region: region,
                     postalCode: postalCode,
                     countryCode: countryCode,
-                    categoryName: categoryName,
+                    categoryNames: categoryNames,
                     nearLatitude: nearLatitude,
                     nearLongitude: nearLongitude,
                     radiusMeters: radiusMeters,
@@ -572,7 +573,7 @@ public extension SwarmDatabase {
                     venueName: row["venue_name"],
                     latitude: row["lat"],
                     longitude: row["lng"],
-                    categories: try categoryNames(
+                    categories: try supportingCategoryNames(
                         db: db,
                         account: account,
                         venueID: rowVenueID,
@@ -624,7 +625,7 @@ public extension SwarmDatabase {
         region: String? = nil,
         postalCode: String? = nil,
         countryCode: String? = nil,
-        categoryName: String? = nil,
+        categoryNames: [String] = [],
         nearLatitude: Double? = nil,
         nearLongitude: Double? = nil,
         radiusMeters: Double? = nil,
@@ -640,7 +641,7 @@ public extension SwarmDatabase {
         try validateDateWindow(fromCreatedAt: recentFromCreatedAt, toCreatedAt: recentToCreatedAt)
         try validateCalendarFilters(date: nil, hourFrom: hourFrom, hourTo: hourTo)
         try validatePlaceFilters(locality: locality, region: region, postalCode: postalCode, countryCode: countryCode)
-        try validateCategoryFilter(categoryName)
+        let categoryNames = try validateCategoryFilter(categoryNames)
         try validateGeoFilters(nearLatitude: nearLatitude, nearLongitude: nearLongitude, radiusMeters: radiusMeters)
         guard recentFromCreatedAt >= baselineFromCreatedAt else {
             throw CLIError("--recent-from must be greater than or equal to --baseline-from.")
@@ -653,6 +654,7 @@ public extension SwarmDatabase {
 
         return try dbQueue.read { db in
             registerDistanceFunction(db)
+            let categoryNamesJSON = try categoryFilterJSON(categoryNames)
             let effectiveAsOf = try asOfCreatedAt ?? Int.fetchOne(
                 db,
                 sql: """
@@ -702,7 +704,7 @@ public extension SwarmDatabase {
                           FROM checkin_categories cc
                           JOIN categories cat ON cat.category_id = cc.category_id
                           WHERE cc.checkin_id = c.checkin_id
-                            AND lower(cat.name) = lower(?)
+                            AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
                       ))
                       AND (? IS NULL OR EXISTS (
                           SELECT 1 FROM venues v
@@ -725,7 +727,7 @@ public extension SwarmDatabase {
                     region, region,
                     postalCode, postalCode,
                     countryCode, countryCode,
-                    categoryName, categoryName,
+                    categoryNamesJSON, categoryNamesJSON,
                     radiusMeters, nearLatitude, nearLongitude, radiusMeters,
                     minBaselineVisits
                 ]
@@ -771,7 +773,7 @@ public extension SwarmDatabase {
                       FROM checkin_categories cc
                       JOIN categories cat ON cat.category_id = cc.category_id
                       WHERE cc.checkin_id = c.checkin_id
-                        AND lower(cat.name) = lower(?)
+                        AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
                   ))
                   AND (? IS NULL OR (v.lat IS NOT NULL AND v.lng IS NOT NULL AND distance_meters(v.lat, v.lng, ?, ?) <= ?))
                 GROUP BY v.venue_id, v.name, v.lat, v.lng, v.locality, v.region, v.postal_code, v.country_code
@@ -793,7 +795,7 @@ public extension SwarmDatabase {
                     region, region,
                     postalCode, postalCode,
                     countryCode, countryCode,
-                    categoryName, categoryName,
+                    categoryNamesJSON, categoryNamesJSON,
                     radiusMeters, nearLatitude, nearLongitude, radiusMeters,
                     minBaselineVisits,
                     radiusMeters,
@@ -827,7 +829,7 @@ public extension SwarmDatabase {
                     lastCreatedAt: lastCreatedAt,
                     lastCreatedAtISO8601: lastCreatedAt.map(queryISO8601String(timestamp:)),
                     daysSinceLastVisit: daysSinceLastVisit,
-                    categories: try categoryNames(
+                    categories: try supportingCategoryNames(
                         db: db,
                         account: account,
                         venueID: venueID,
@@ -870,7 +872,7 @@ public extension SwarmDatabase {
                     region: region,
                     postalCode: postalCode,
                     countryCode: countryCode,
-                    categoryName: categoryName,
+                    categoryNames: categoryNames,
                     nearLatitude: nearLatitude,
                     nearLongitude: nearLongitude,
                     radiusMeters: radiusMeters,
@@ -905,8 +907,8 @@ public extension SwarmDatabase {
         try validatePlaceFilters(locality: locality, region: region, postalCode: postalCode, countryCode: countryCode)
     }
 
-    static func validateCategoryOptions(_ categoryName: String?) throws {
-        try validateCategoryFilter(categoryName)
+    static func validateCategoryOptions(_ categoryNames: [String]) throws {
+        _ = try validateCategoryFilter(categoryNames)
     }
 
     static func validateGeoOptions(
@@ -965,10 +967,20 @@ private func validatePlaceFilters(locality: String?, region: String?, postalCode
     }
 }
 
-private func validateCategoryFilter(_ categoryName: String?) throws {
-    if let categoryName, categoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        throw CLIError("--category must not be empty.")
+private func validateCategoryFilter(_ categoryNames: [String]) throws -> [String] {
+    try categoryNames.map { categoryName in
+        let trimmed = categoryName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            throw CLIError("--category must not be empty.")
+        }
+        return trimmed
     }
+}
+
+private func categoryFilterJSON(_ categoryNames: [String]) throws -> String? {
+    guard !categoryNames.isEmpty else { return nil }
+    let data = try JSONEncoder().encode(categoryNames)
+    return String(decoding: data, as: UTF8.self)
 }
 
 private func validateGeoFilters(nearLatitude: Double?, nearLongitude: Double?, radiusMeters: Double?) throws {
@@ -1040,7 +1052,7 @@ private func validateDateWindow(fromCreatedAt: Int?, toCreatedAt: Int?) throws {
     }
 }
 
-private func categoryNames(
+private func supportingCategoryNames(
     db: Database,
     account: String,
     venueID: String?,
