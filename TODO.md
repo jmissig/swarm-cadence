@@ -110,8 +110,14 @@ safely as possible.
   - Keep non-interactive/config-file paths for cron and automation.
   - First-run setup should make it obvious where raw files, SQLite, config, and logs/freshness state will live.
 
+- [ ] Add explicit sorting / multiple evidence views.
+  - Current near-radius venue rows sort by distance first, so “top” means nearest, not strongest evidence.
+  - Add explicit sort labels/options such as `nearest`, `strongest`, `recent`, and `stale` rather than overloading one order.
+  - Evidence packets should label their ordering honestly and may include multiple views instead of one ambiguous list.
+  - Default can remain nearest when `--near-*` is present, but support-count and recency/staleness views should be easy to request.
+
 - [ ] Inspect first evidence packets and decide the next evidence gap.
-  - Candidate next gaps: better `--near-place` / named-area resolution, venue reconciliation/aliases, multiple ranking views (nearest vs strongest support vs stale/revisit), category-audit/debug output, or a thin human-readable packet rendering.
+  - Candidate next gaps: better `--near-place` / named-area resolution, venue reconciliation/aliases, category-audit/debug output, or a thin human-readable packet rendering.
   - Normal packets should include selected caller-supplied categories, but not dump every excluded category by default; deeper category-selection audit belongs in debug/review flows.
   - Keep lunch/coffee as acceptance tests, not product scope.
 
