@@ -32,6 +32,9 @@ public enum SwarmCadenceCommand {
             case .help:
                 output(Self.helpText)
                 return 0
+            case .version:
+                output(SwarmCadenceVersion.current)
+                return 0
             case let .sourceProbe(options):
                 let config = try ConfigFile.loadOptional(path: options.configPath, environment: environment)
                 let result = options.live
@@ -251,9 +254,10 @@ public enum SwarmCadenceCommand {
     }
 
     public static let helpText = """
-    swarm-cadence
+    swarm-cadence \(SwarmCadenceVersion.current)
 
     Usage:
+      swarm-cadence --version
       swarm-cadence source probe --account <label> --adapter <v2|historysearch> [--format <human|json>] [--config <path>] [--live]
       swarm-cadence raw fetch --account <label> --adapter v2 [--out <dir>] [--limit <1...250>] [--offset <n>] [--format <human|json>] [--config <path>]
       swarm-cadence raw fetch-pages --account <label> --adapter v2 [--out <dir>] [--limit <1...250>] [--start-offset <n>] --pages <1...200> [--delay-ms <n>] [--format <human|json>] [--config <path>]
@@ -280,6 +284,7 @@ public enum SwarmCadenceCommand {
 
 enum Invocation {
     case help
+    case version
     case sourceProbe(SourceProbeOptions)
     case rawFetch(RawFetchOptions)
     case rawFetchPages(RawFetchPagesOptions)
@@ -298,6 +303,10 @@ enum Invocation {
     init(arguments: [String]) throws {
         if arguments.isEmpty || arguments == ["--help"] || arguments == ["-h"] {
             self = .help
+            return
+        }
+        if arguments == ["--version"] {
+            self = .version
             return
         }
 
@@ -1605,6 +1614,7 @@ enum Formatter {
         var lines: [String] = [
             "evidence window",
             "schema: \(result.schema)",
+            "tool_version: \(result.toolVersion)",
             "account: \(result.account)",
             "date: \(result.window.date)",
             "hour_from: \(result.window.hourFrom.map(String.init) ?? "unspecified")",
@@ -1622,6 +1632,7 @@ enum Formatter {
         var lines: [String] = [
             "evidence packet",
             "schema: \(result.schema)",
+            "tool_version: \(result.toolVersion)",
             "account: \(result.account)",
             "date: \(result.targetWindow.date)",
             "hour_from: \(result.targetWindow.hourFrom.map(String.init) ?? "unspecified")",

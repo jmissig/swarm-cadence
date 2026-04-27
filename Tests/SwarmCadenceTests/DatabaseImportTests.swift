@@ -907,6 +907,7 @@ final class DatabaseImportTests: XCTestCase {
 
         XCTAssertEqual(exit, 0)
         XCTAssertTrue(output.contains("\"schema\" : \"swarm_experimental_packet\""))
+        XCTAssertTrue(output.contains("\"tool_version\" : \"\(SwarmCadenceVersion.current)\""))
         XCTAssertTrue(output.contains("\"command\" : \"evidence packet\""))
         XCTAssertTrue(output.contains("\"target_window\""))
         XCTAssertTrue(output.contains("\"geography\""))

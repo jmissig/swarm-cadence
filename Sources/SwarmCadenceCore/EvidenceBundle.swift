@@ -31,6 +31,7 @@ public struct EvidenceSourceCoverage: Codable, Equatable {
 
 public struct EvidenceWindowPacket: Codable, Equatable {
     public let schema: String
+    public let toolVersion: String
     public let generatedAt: String
     public let command: String
     public let account: String
@@ -45,6 +46,7 @@ public struct EvidenceWindowPacket: Codable, Equatable {
 
 public struct EvidencePacket: Codable, Equatable {
     public let schema: String
+    public let toolVersion: String
     public let generatedAt: String
     public let command: String
     public let account: String
@@ -93,6 +95,7 @@ public extension SwarmDatabase {
 
         return EvidenceWindowPacket(
             schema: "swarm_window_evidence_packet.v0",
+            toolVersion: SwarmCadenceVersion.current,
             generatedAt: evidenceISO8601String(generatedAt),
             command: "evidence window",
             account: venues.account,
@@ -181,6 +184,7 @@ public extension SwarmDatabase {
 
         return EvidencePacket(
             schema: "swarm_experimental_packet",
+            toolVersion: SwarmCadenceVersion.current,
             generatedAt: evidenceISO8601String(generatedAt),
             command: "evidence packet",
             account: venues.account,

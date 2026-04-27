@@ -37,6 +37,20 @@ mkdir -p .tmp/home .build/clang-module-cache
 HOME=$PWD/.tmp/home CLANG_MODULE_CACHE_PATH=$PWD/.build/clang-module-cache swift test --disable-sandbox
 ```
 
+
+## Version
+
+`VERSION` is the stable human/tool version contract. Build, release, and test
+targets run `make sync-version`, which copies `VERSION` into the compiled CLI
+constant used by:
+
+```bash
+swift run swarm-cadence --version
+```
+
+The same version appears in top-level help and evidence packet provenance as
+`tool_version`.
+
 ## Configuration
 
 The normal config location is:

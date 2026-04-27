@@ -100,10 +100,11 @@ safely as possible.
   - `db stats` and evidence packets now include freshness fields.
   - This remains v2-only, local-first, read-only with respect to Swarm/Foursquare, and does not add a daemon.
 
-- [ ] Add a tool VERSION and include it in provenance.
-  - Add a repo `VERSION` file like other local tools.
-  - Surface the version in CLI output where provenance matters, especially evidence packets.
-  - Include git SHA/build info when available, but keep `VERSION` as the stable human/tool contract.
+- [x] Add a tool VERSION and include it in provenance.
+  - Added repo `VERSION` and Makefile `sync-version` like other local tools.
+  - `swarm-cadence --version` prints the synced version, and top-level help shows it.
+  - Evidence packets include `tool_version` in JSON and human output.
+  - Future build metadata/git SHA can be added later without changing `VERSION` as the stable human/tool contract.
 
 - [ ] Add interactive first-run auth/setup, aping the `protect-cadence` shape.
   - Provide a guided setup path for creating the local Application Support config without hand-editing JSON.

@@ -3,6 +3,37 @@ import XCTest
 @testable import SwarmCadenceCore
 
 final class SourceProbeTests: XCTestCase {
+
+    func testCLIVersionComesFromSyncedVersionFile() throws {
+        var output = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: ["--version"],
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+        let versionPath = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("VERSION")
+        let versionFile = try String(contentsOf: versionPath, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertEqual(output, SwarmCadenceVersion.current)
+        XCTAssertEqual(output, versionFile)
+    }
+
+    func testCLIHelpIncludesVersion() {
+        var output = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: ["--help"],
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertTrue(output.contains("swarm-cadence \(SwarmCadenceVersion.current)"))
+        XCTAssertTrue(output.contains("swarm-cadence --version"))
+    }
+
     func testV2ProbeReportsExternalSetupWhenTokenMissing() {
         let result = SourceProbe.probe(
             account: "julian",

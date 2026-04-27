@@ -4,16 +4,23 @@ APP_SUPPORT_DIR ?= $(HOME)/Library/Application Support/swarm-cadence
 PREFIX ?= $(HOME)
 BINDIR ?= $(PREFIX)/bin
 PRODUCT ?= swarm-cadence
+VERSION_FILE := VERSION
+VERSION_SYNC_FILE := Sources/SwarmCadenceCore/SwarmCadenceVersion.swift
+VERSION := $(shell tr -d '\n' < $(VERSION_FILE))
 
-.PHONY: build release test clean show-defaults install install-config-example
+.PHONY: build release test clean show-defaults install install-config-example sync-version
 
-build:
+sync-version:
+	@test -f "$(VERSION_FILE)" || (echo "Missing $(VERSION_FILE)" && exit 1)
+	python3 -c 'from pathlib import Path; import re; version = Path("$(VERSION_FILE)").read_text().strip() or "0.0.0"; path = Path("$(VERSION_SYNC_FILE)"); text = path.read_text(); text, count = re.subn(r"// VERSION-SYNC-START\n.*?\n    // VERSION-SYNC-END", "// VERSION-SYNC-START\n    public static let current = \"%s\"\n    // VERSION-SYNC-END" % version, text, count=1, flags=re.S); assert count == 1, "version marker not found"; path.write_text(text)'
+
+build: sync-version
 	$(SWIFT) build
 
-release:
+release: sync-version
 	$(SWIFT) build -c release
 
-test:
+test: sync-version
 	$(SWIFT) test
 
 clean:
