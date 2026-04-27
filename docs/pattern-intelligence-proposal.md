@@ -77,11 +77,11 @@ no evidence database or fixtures.
 Implemented raw v2 preservation:
 
 ```bash
-swarm-cadence raw fetch --account julian --adapter v2 --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 100
+swarm-cadence raw fetch --account julian --adapter v2 --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250
 ```
 
-This command performs exactly one v2 check-ins request, defaults to `limit=100`,
-fails above `limit=100`, writes one unmodified raw JSON response and one
+This command performs exactly one v2 check-ins request, defaults to `limit=250`,
+fails above `limit=250`, writes one unmodified raw JSON response and one
 adjacent manifest, and does not write SQLite.
 
 The proposal below should guide the first real slice without encouraging a broad connector build.
@@ -289,4 +289,4 @@ First `source probe` should answer:
 4. What fields are present/missing/source-specific?
 5. Are secrets redacted and source/account provenance preserved in JSON output?
 
-If v2 works, use `limit=100` as the largest documented conservative page size and test at least two offset pages before building broad backfill. If live evidence later proves a larger accepted cap, update the raw-fetch hard max deliberately. If v2 fails, test `historysearch` against a logged-in session and compare fields against export/takeout.
+If v2 works, use `limit=250` as the largest documented conservative page size and test at least two offset pages before building broad backfill. If live evidence later proves a larger accepted cap, update the raw-fetch hard max deliberately. If v2 fails, test `historysearch` against a logged-in session and compare fields against export/takeout.

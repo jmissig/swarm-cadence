@@ -49,7 +49,7 @@ final class RawFetchTests: XCTestCase {
                 "--account", "julian",
                 "--adapter", "v2",
                 "--out", "/tmp/raw-fetch-unused",
-                "--limit", "101"
+                "--limit", "251"
             ],
             environment: [
                 "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"
@@ -61,7 +61,7 @@ final class RawFetchTests: XCTestCase {
 
         XCTAssertEqual(exitCode, 2)
         XCTAssertEqual(transport.requests.count, 0)
-        XCTAssertTrue(error.contains("hard max of 100"))
+        XCTAssertTrue(error.contains("hard max of 250"))
         XCTAssertFalse(error.contains("raw-secret-token"))
     }
 
@@ -139,7 +139,7 @@ final class RawFetchTests: XCTestCase {
         XCTAssertFalse(String(data: manifestData, encoding: .utf8)?.contains("raw-secret-token") ?? true)
     }
 
-    func testRawFetchDefaultsToLimit100AndRequiresExplicitOutputDirectory() throws {
+    func testRawFetchDefaultsToLimit250AndRequiresExplicitOutputDirectory() throws {
         var missingOutError = ""
         let missingOutExit = SwarmCadenceCommand.run(
             arguments: [
@@ -178,7 +178,7 @@ final class RawFetchTests: XCTestCase {
         let components = requestURL.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
         let queryItems = Dictionary(uniqueKeysWithValues: (components?.queryItems ?? []).map { ($0.name, $0.value ?? "") })
         XCTAssertEqual(defaultLimitExit, 0)
-        XCTAssertEqual(queryItems["limit"], "100")
+        XCTAssertEqual(queryItems["limit"], "250")
     }
 
     private var successBody: Data {

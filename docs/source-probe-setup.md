@@ -80,22 +80,21 @@ swift run swarm-cadence raw fetch \
   --format json \
   --config ./.swarm-cadence.env \
   --out data/raw/v2/checkins \
-  --limit 100
+  --limit 250
 ```
 
 This performs exactly one read-only request:
 
 ```text
-GET https://api.foursquare.com/v2/users/self/checkins?limit=<1...100>&v=<api-version>&oauth_token=<redacted>
+GET https://api.foursquare.com/v2/users/self/checkins?limit=<1...250>&v=<api-version>&oauth_token=<redacted>
 ```
 
 Safety boundary:
 
-- default `--limit` is `100`;
-- hard max is `100`; larger values fail before any network request;
-- current public Foursquare docs list `limit` and `offset` for this endpoint but
-  do not publish a max there; the Postman mirror lists `limit` as up to 100, so
-  this command uses 100 as the largest conservative page size;
+- default `--limit` is `250`;
+- hard max is `250`; larger values fail before any network request;
+- current Get User Checkins docs identify `250` as the endpoint limit, so this
+  command uses 250 as the largest documented page size;
 - no pagination, cursor, or broad backfill exists in this slice;
 - `--out` is required and one raw JSON response is written there;
 - raw files are named with a UTC timestamp, adapter, account, check-ins marker,
