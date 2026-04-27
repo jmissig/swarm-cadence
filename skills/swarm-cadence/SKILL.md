@@ -15,6 +15,7 @@ Local, read-only evidence tool for Foursquare Swarm check-in history. Use it whe
 
 - Read/query local evidence first; do not write to Swarm/Foursquare.
 - Keep `--account` explicit (`julian`, `alice`, or a configured label). Do not silently blend accounts.
+- When account scope is unclear or multiple people are possible, run `swarm-cadence source status --format json` first, then use an explicit `--account`.
 - Treat check-ins as evidence of visits, not proof of preference.
 - Keep facts separate from inference; surface uncertainty and stale data.
 - Use explicit windows, categories, and geography. Do not invent fuzzy filters inside the CLI.
@@ -33,6 +34,7 @@ Default local paths:
 ## Core commands
 
 ```bash
+swarm-cadence source status --format json
 swarm-cadence auth status --account julian --format json
 swarm-cadence db stats --account julian --format json
 swarm-cadence query categories --account julian --format json
@@ -109,7 +111,7 @@ Evidence packets include labeled views (`strongest`, `recent`, `stale`, and `nea
 
 ## Typical answer workflow
 
-1. Pick account and scope.
+1. Pick account and scope. If unclear, run `source status` first.
 2. Check `db stats` / packet freshness.
 3. For place-type questions, run `query categories` and select explicit categories.
 4. Choose geography semantics (`locality` vs anchor/radius).

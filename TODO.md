@@ -56,6 +56,10 @@ safely as possible.
 
 ## Now
 
+- [x] Add source/account readiness discovery.
+  - Implemented `source status [--account <label>]` for account-scope discovery before Robut/LLMs choose an explicit `--account`.
+  - It reports config presence, configured accounts, safe v2/historysearch readiness booleans, default raw/SQLite paths, and local evidence availability without network calls, SQLite queries, raw payload reads, or secret output.
+
 - [x] Add official export/takeout import as an audit/completeness backstop.
   - Implemented `db import-files --account <label> --path <dir>`.
   - Export files are indexed in `raw_files` with adapter `export`.

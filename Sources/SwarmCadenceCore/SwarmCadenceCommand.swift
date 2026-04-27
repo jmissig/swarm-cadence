@@ -99,6 +99,14 @@ public enum SwarmCadenceCommand {
                     )
                 output(try Formatter.render(result, format: options.format))
                 return 0
+            case let .sourceStatus(options):
+                let result = try SourceStatus.status(
+                    account: options.account,
+                    configPath: options.configPath,
+                    environment: environment
+                )
+                output(try Formatter.render(result, format: options.format))
+                return 0
             case let .rawFetch(options):
                 let config = try ConfigFile.loadOptional(path: options.configPath, environment: environment)
                 let result = try RawFetch.fetch(
@@ -310,6 +318,7 @@ public enum SwarmCadenceCommand {
       swarm-cadence auth login [--account <label>] [--config <path>] [--format <human|json>] [--access-token <token>]
       swarm-cadence auth clear --account <label> [--config <path>] --force [--format <human|json>]
       swarm-cadence setup [--account <label>] [--config <path>] [--format <human|json>] [--access-token <token>]  # alias for auth login
+      swarm-cadence source status [--account <label>] [--format <human|json>] [--config <path>]
       swarm-cadence source probe --account <label> --adapter <v2|historysearch> [--format <human|json>] [--config <path>] [--live]
       swarm-cadence raw fetch --account <label> --adapter v2 [--out <dir>] [--limit <1...250>] [--offset <n>] [--format <human|json>] [--config <path>]
       swarm-cadence raw fetch-pages --account <label> --adapter v2 [--out <dir>] [--limit <1...250>] [--start-offset <n>] --pages <1...200> [--delay-ms <n>] [--format <human|json>] [--config <path>]
@@ -327,6 +336,7 @@ public enum SwarmCadenceCommand {
 
     Defaults live under ~/Library/Application Support/swarm-cadence: config.json plus per-account raw archives and SQLite DBs under accounts/<label>/.
     Auth login guides first-run v2 token/OAuth config without printing tokens or client secrets; when --account is omitted in human mode, it prompts for an account label. `setup` is a compatibility alias for `auth login`.
+    Source status lists configured accounts and local evidence paths without querying SQLite, reading raw payloads, or performing network calls.
     Source probe is dry config validation by default. Pass --live to perform the explicit minimal read-only v2 checkins probe.
     Raw fetch performs exactly one conservative v2 checkins request and writes one raw JSON response plus an adjacent manifest.
     Ingest update is cron-friendly v2 collection: fetch bounded recent pages, preserve raw files, import after each successful page, and report factual freshness.
@@ -340,6 +350,7 @@ enum Invocation {
     case version
     case setup(SetupOptions)
     case auth(AuthOptions)
+    case sourceStatus(SourceStatusOptions)
     case sourceProbe(SourceProbeOptions)
     case rawFetch(RawFetchOptions)
     case rawFetchPages(RawFetchPagesOptions)
@@ -386,6 +397,8 @@ enum Invocation {
         switch (arguments[0], arguments[1]) {
         case ("auth", _):
             self = .auth(try AuthOptions(parsed: Self.parse(AuthArguments.self, Array(arguments.dropFirst()))))
+        case ("source", "status"):
+            self = .sourceStatus(try SourceStatusOptions(parsed: Self.parse(SourceStatusArguments.self, Array(arguments.dropFirst(2)))))
         case ("source", "probe"):
             self = .sourceProbe(try SourceProbeOptions(parsed: Self.parse(SourceProbeArguments.self, Array(arguments.dropFirst(2)))))
         case ("raw", "fetch"):
@@ -535,6 +548,18 @@ struct AuthOptions {
         if action != .clear, force {
             throw CLIError("auth \(action.rawValue) does not accept --force.")
         }
+    }
+}
+
+struct SourceStatusOptions {
+    let account: String?
+    let format: OutputFormat
+    let configPath: String?
+
+    fileprivate init(parsed: SourceStatusArguments) throws {
+        self.account = try parsed.account.map(AccountLabel.validate)
+        self.format = try parseFormat(format: parsed.format, json: parsed.json)
+        self.configPath = parsed.config
     }
 }
 
@@ -1124,7 +1149,15 @@ private struct AuthArguments: ParsableArguments {
     @Flag var json = false
 }
 
-private struct SourceProbeArguments: ParsableArguments {    @Option var account: String?
+private struct SourceStatusArguments: ParsableArguments {
+    @Option var account: String?
+    @Option var format = "human"
+    @Option var config: String?
+    @Flag var json = false
+}
+
+private struct SourceProbeArguments: ParsableArguments {
+    @Option var account: String?
     @Option var adapter = "v2"
     @Option var format = "human"
     @Option var config: String?
@@ -1347,6 +1380,15 @@ enum Formatter {
         }
     }
 
+    static func render(_ result: SourceStatusResult, format: OutputFormat) throws -> String {
+        switch format {
+        case .human:
+            return renderHuman(result)
+        case .json:
+            return try renderJSON(result)
+        }
+    }
+
     static func render(_ result: RawFetchResult, format: OutputFormat) throws -> String {
         switch format {
         case .human:
@@ -1521,6 +1563,24 @@ enum Formatter {
 
         lines.append("next actions:")
         lines.append(contentsOf: result.nextActions.map { "  - \($0)" })
+        return lines.joined(separator: "\n")
+    }
+
+    private static func renderHuman(_ result: SourceStatusResult) -> String {
+        var lines: [String] = [
+            "source status: \(result.status)",
+            result.message,
+            "config: \(result.configPath) (\(result.configExists ? "exists" : "missing"))",
+            "accounts: \(result.accountCount)",
+            "network: not performed"
+        ]
+
+        for account in result.accounts {
+            lines.append("- \(account.label): v2=\(account.v2AccessTokenPresent ? "token_present" : "not_configured"), historysearch=\(account.historysearchConfigured ? "configured" : "not_configured"), local_evidence=\(account.localEvidenceAvailable ? "yes" : "no")")
+            lines.append("  raw_v2: \(account.defaultRawV2Path) (\(account.defaultRawV2PathExists ? "exists" : "missing"))")
+            lines.append("  sqlite: \(account.defaultSqliteDbPath) (\(account.defaultSqliteDbPathExists ? "exists" : "missing"))")
+        }
+
         return lines.joined(separator: "\n")
     }
 

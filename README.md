@@ -5,6 +5,7 @@ Foursquare Swarm check-in history as private evidence for OpenClaw/Robut.
 
 It currently supports:
 
+- source/account readiness discovery without network or payload reads;
 - explicit source probes for Foursquare v2 and Swarm web `historysearch` config;
 - cron-friendly bounded v2 ingest updates that preserve raw pages and import them locally;
 - one-request and explicit multi-page raw v2 check-in response preservation;
@@ -110,6 +111,23 @@ The config has separate `accounts.julian` and `accounts.alice` sections. Each
 account has its own v2/historysearch credentials, raw provenance, and imported
 SQLite rows. Joint/family queries should be explicitly scoped; there is no silent
 Julian/Alice blending.
+
+## Source Status
+
+Use source status to discover configured account scopes and local evidence paths
+without testing credentials or reading evidence:
+
+```bash
+swift run swarm-cadence source status --format json
+swift run swarm-cadence source status --account julian --format json
+```
+
+`source status` succeeds even when the config file is missing or has no accounts;
+in that case it returns an empty account list. For each account it reports
+whether v2 and `historysearch` inputs are present, whether the default raw v2
+directory and SQLite DB path exist, and whether local evidence appears available
+from those paths. It does not query SQLite, read raw payloads, call Foursquare,
+or print tokens/cookies/session values.
 
 ## Source Probe
 
