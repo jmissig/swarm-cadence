@@ -203,6 +203,7 @@ public enum SwarmCadenceCommand {
                     nearLatitude: options.nearLatitude,
                     nearLongitude: options.nearLongitude,
                     radiusMeters: options.radiusMeters,
+                    sort: options.sort,
                     limit: options.limit
                 )
                 output(try Formatter.render(result, format: options.format))
@@ -240,6 +241,7 @@ public enum SwarmCadenceCommand {
                     nearLatitude: options.nearLatitude,
                     nearLongitude: options.nearLongitude,
                     radiusMeters: options.radiusMeters,
+                    sort: options.sort,
                     minBaselineVisits: options.minBaselineVisits,
                     limit: options.limit
                 )
@@ -317,9 +319,9 @@ public enum SwarmCadenceCommand {
       swarm-cadence db stats --account <label> [--db <path>] [--format <human|json>]
       swarm-cadence audit overlap --account <label> --path <foursquare-export-dir> [--raw-dir <v2-raw-dir>] [--examples <n>] [--format <human|json>]
       swarm-cadence query categories --account <label> [--db <path>] [--limit <1...250>] [--format <human|json>]
-      swarm-cadence query venues --account <label> [--db <path>] [--date <YYYY-MM-DD>] [--hour-from <0...23>] [--hour-to <0...23>] [--from <time>] [--to <time>] [--locality <name>] [--region <code>] [--postal-code <code>] [--country-code <code>] [--category <name>] [--near-lat <lat> --near-lng <lng> --radius-meters <m>] [--limit <1...250>] [--format <human|json>]
+      swarm-cadence query venues --account <label> [--db <path>] [--date <YYYY-MM-DD>] [--hour-from <0...23>] [--hour-to <0...23>] [--from <time>] [--to <time>] [--locality <name>] [--region <code>] [--postal-code <code>] [--country-code <code>] [--category <name>] [--near-lat <lat> --near-lng <lng> --radius-meters <m>] [--sort <nearest|strongest|recent|stale>] [--limit <1...250>] [--format <human|json>]
       swarm-cadence query visits --account <label> [--db <path>] [--venue-id <id>] [--date <YYYY-MM-DD>] [--hour-from <0...23>] [--hour-to <0...23>] [--from <time>] [--to <time>] [--limit <1...250>] [--format <human|json>]
-      swarm-cadence query compare --account <label> --baseline-from <time> --recent-from <time> [--db <path>] [--baseline-to <time>] [--recent-to <time>] [--as-of <time>] [--hour-from <0...23>] [--hour-to <0...23>] [--locality <name>] [--region <code>] [--postal-code <code>] [--country-code <code>] [--category <name>] [--near-lat <lat> --near-lng <lng> --radius-meters <m>] [--min-baseline-visits <n>] [--limit <1...250>] [--format <human|json>]
+      swarm-cadence query compare --account <label> --baseline-from <time> --recent-from <time> [--db <path>] [--baseline-to <time>] [--recent-to <time>] [--as-of <time>] [--hour-from <0...23>] [--hour-to <0...23>] [--locality <name>] [--region <code>] [--postal-code <code>] [--country-code <code>] [--category <name>] [--near-lat <lat> --near-lng <lng> --radius-meters <m>] [--sort <nearest|strongest|recent|stale>] [--min-baseline-visits <n>] [--limit <1...250>] [--format <human|json>]
       swarm-cadence evidence window --account <label> --date <YYYY-MM-DD> [--hour-from <0...23>] [--hour-to <0...23>] [--db <path>] [--limit <1...250>] [--format <human|json>]
       swarm-cadence evidence packet --account <label> --date <YYYY-MM-DD> --baseline-from <time> --recent-from <time> [--db <path>] [--baseline-to <time>] [--recent-to <time>] [--as-of <time>] [--hour-from <0...23>] [--hour-to <0...23>] [--locality <name>] [--region <code>] [--postal-code <code>] [--country-code <code>] [--category <name>] [--near-lat <lat> --near-lng <lng> --radius-meters <m>] [--min-baseline-visits <n>] [--limit <1...250>] [--format <human|json>]
 
@@ -809,6 +811,7 @@ struct QueryVenuesOptions {
     let nearLatitude: Double?
     let nearLongitude: Double?
     let radiusMeters: Double?
+    let sort: EvidenceSort?
     let limit: Int
 
     fileprivate init(parsed: QueryVenuesArguments) throws {
@@ -828,6 +831,7 @@ struct QueryVenuesOptions {
         self.nearLatitude = parsed.nearLatitude
         self.nearLongitude = parsed.nearLongitude
         self.radiusMeters = parsed.radiusMeters
+        self.sort = try SwarmDatabase.parseEvidenceSort(parsed.sort)
         self.limit = parsed.limit
         try SwarmDatabase.validateQueryOptions(
             fromCreatedAt: fromCreatedAt,
@@ -849,6 +853,9 @@ struct QueryVenuesOptions {
             nearLongitude: nearLongitude,
             radiusMeters: radiusMeters
         )
+        if sort == .nearest && radiusMeters == nil {
+            throw CLIError("--sort nearest requires --near-lat, --near-lng, and --radius-meters.")
+        }
     }
 }
 
@@ -910,6 +917,7 @@ struct QueryCompareOptions {
     let nearLatitude: Double?
     let nearLongitude: Double?
     let radiusMeters: Double?
+    let sort: EvidenceSort?
     let minBaselineVisits: Int
     let limit: Int
 
@@ -938,6 +946,7 @@ struct QueryCompareOptions {
         self.nearLatitude = parsed.nearLatitude
         self.nearLongitude = parsed.nearLongitude
         self.radiusMeters = parsed.radiusMeters
+        self.sort = try SwarmDatabase.parseEvidenceSort(parsed.sort)
         self.minBaselineVisits = parsed.minBaselineVisits
         self.limit = parsed.limit
         try SwarmDatabase.validateQueryOptions(
@@ -968,6 +977,9 @@ struct QueryCompareOptions {
             nearLongitude: nearLongitude,
             radiusMeters: radiusMeters
         )
+        if sort == .nearest && radiusMeters == nil {
+            throw CLIError("--sort nearest requires --near-lat, --near-lng, and --radius-meters.")
+        }
     }
 }
 
@@ -1081,6 +1093,7 @@ struct EvidencePacketOptions {
             limit: limit
         )
         try SwarmDatabase.validatePlaceOptions(locality: locality, region: region, postalCode: postalCode, countryCode: countryCode)
+        try SwarmDatabase.validateCategoryOptions(categoryNames)
         try SwarmDatabase.validateGeoOptions(nearLatitude: nearLatitude, nearLongitude: nearLongitude, radiusMeters: radiusMeters)
     }
 }
@@ -1215,6 +1228,7 @@ private struct QueryVenuesArguments: ParsableArguments {
     @Option(name: .customLong("near-lat")) var nearLatitude: Double?
     @Option(name: .customLong("near-lng")) var nearLongitude: Double?
     @Option(name: .customLong("radius-meters")) var radiusMeters: Double?
+    @Option var sort: String?
     @Option var limit = SwarmDatabase.queryDefaultLimit
     @Option var format = "human"
     @Flag var json = false
@@ -1254,6 +1268,7 @@ private struct QueryCompareArguments: ParsableArguments {
     @Option(name: .customLong("near-lat")) var nearLatitude: Double?
     @Option(name: .customLong("near-lng")) var nearLongitude: Double?
     @Option(name: .customLong("radius-meters")) var radiusMeters: Double?
+    @Option var sort: String?
     @Option(name: .customLong("min-baseline-visits")) var minBaselineVisits = 1
     @Option var limit = SwarmDatabase.queryDefaultLimit
     @Option var format = "human"
@@ -1731,6 +1746,8 @@ enum Formatter {
             "query venues",
             "account: \(result.account)",
             "db: \(result.dbPath)",
+            "sort: \(result.sort.rawValue)",
+            "order: \(result.orderLabel)",
             "total_matching_venues: \(result.totalMatchingVenues)",
             "returned_venues: \(result.returnedVenues)"
         ]
@@ -1780,6 +1797,8 @@ enum Formatter {
             "account: \(result.account)",
             "db: \(result.dbPath)",
             "compare_by: \(result.compareBy)",
+            "sort: \(result.sort.rawValue)",
+            "order: \(result.orderLabel)",
             "total_matching_venues: \(result.totalMatchingVenues)",
             "returned_venues: \(result.returnedVenues)"
         ]
@@ -1826,13 +1845,18 @@ enum Formatter {
             "hour_from: \(result.targetWindow.hourFrom.map(String.init) ?? "unspecified")",
             "hour_to: \(result.targetWindow.hourTo.map(String.init) ?? "unspecified")",
             "geography: \(result.geography.semantics)",
-            "venue_support: \(result.venueSupport.returnedVenues)/\(result.venueSupport.totalMatchingVenues)",
-            "cadence_comparison: \(result.cadenceComparison.returnedVenues)/\(result.cadenceComparison.totalMatchingVenues)"
+            "views: \(result.views.map { $0.label.rawValue }.joined(separator: ", "))"
         ]
-        for venue in result.venueSupport.venues {
-            lines.append("- \(venue.name ?? venue.venueID): visits=\(venue.visitCount) venue_id=\(venue.venueID)")
-            if let distanceMeters = venue.distanceMeters {
-                lines.append("  distance_meters: \(Int(distanceMeters.rounded()))")
+        for view in result.views {
+            lines.append("view: \(view.label.rawValue)")
+            lines.append("  order: \(view.orderLabel)")
+            lines.append("  venue_support: \(view.venueSupport.returnedVenues)/\(view.venueSupport.totalMatchingVenues)")
+            lines.append("  cadence_comparison: \(view.cadenceComparison.returnedVenues)/\(view.cadenceComparison.totalMatchingVenues)")
+            for venue in view.venueSupport.venues {
+                lines.append("  - \(venue.name ?? venue.venueID): visits=\(venue.visitCount) venue_id=\(venue.venueID)")
+                if let distanceMeters = venue.distanceMeters {
+                    lines.append("    distance_meters: \(Int(distanceMeters.rounded()))")
+                }
             }
         }
         return lines.joined(separator: "\n")

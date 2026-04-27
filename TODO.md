@@ -122,11 +122,12 @@ safely as possible.
   - Include guidance for LLM category selection: run `query categories`, choose explicit categories for the task, pass repeated `--category`, and surface selected categories in answers.
   - Keep human-facing answers in Guide/Almanac language; do not expose repo jargon unless debugging.
 
-- [ ] Add explicit sorting / multiple evidence views.
+- [x] Add explicit sorting / multiple evidence views.
   - Current near-radius venue rows sort by distance first, so “top” means nearest, not strongest evidence.
-  - Add explicit sort labels/options such as `nearest`, `strongest`, `recent`, and `stale` rather than overloading one order.
-  - Evidence packets should label their ordering honestly and may include multiple views instead of one ambiguous list.
-  - Default can remain nearest when `--near-*` is present, but support-count and recency/staleness views should be easy to request.
+  - Added explicit `--sort nearest|strongest|recent|stale` to `query venues` and `query compare`.
+  - JSON filters/results and human output include the effective sort and order label.
+  - Defaults remain nearest with geometry filters, strongest for non-geo venue support, and stale for non-geo compare output.
+  - Evidence packets now emit labeled views (`strongest`, `recent`, `stale`, plus `nearest` when geometry filters are present) instead of one ambiguous candidate list.
 
 - [ ] Inspect first evidence packets and decide the next evidence gap.
   - Candidate next gaps: better `--near-place` / named-area resolution, venue reconciliation/aliases, category-audit/debug output, or a thin human-readable packet rendering.

@@ -445,6 +445,68 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertTrue(categoryOutput.contains("\"total_matching_venues\" : 1"))
     }
 
+    func testCLIQueryVenuesSupportsExplicitSortOrders() throws {
+        let directory = try makeTemporaryDirectory()
+        let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
+        try FileManager.default.createDirectory(at: rawDirectory, withIntermediateDirectories: true)
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+
+        try writeRawPair(
+            rawDirectory: rawDirectory,
+            baseName: "fixture-v2-julian-sort-offset0-limit250",
+            rawBody: sortRawBody
+        )
+
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["db", "import-raw", "--account", "julian", "--db", dbURL.path, "--raw-dir", rawDirectory.path],
+            output: { _ in },
+            errorOutput: { _ in }
+        ), 0)
+
+        var strongestOutput = ""
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["query", "venues", "--account", "julian", "--db", dbURL.path, "--sort", "strongest", "--format", "json"],
+            output: { strongestOutput = $0 },
+            errorOutput: { _ in }
+        ), 0)
+        XCTAssertTrue(strongestOutput.contains("\"sort\" : \"strongest\""))
+        XCTAssertTrue(strongestOutput.contains("\"order_label\" : \"strongest visit support first\""))
+        assertOutput(strongestOutput, containsValuesInOrder: ["Strong Cafe", "Stale Diner", "Recent Bar"])
+
+        var recentOutput = ""
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["query", "venues", "--account", "julian", "--db", dbURL.path, "--sort", "recent", "--format", "json"],
+            output: { recentOutput = $0 },
+            errorOutput: { _ in }
+        ), 0)
+        assertOutput(recentOutput, containsValuesInOrder: ["Recent Bar", "Strong Cafe", "Stale Diner"])
+
+        var staleOutput = ""
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["query", "venues", "--account", "julian", "--db", dbURL.path, "--sort", "stale", "--format", "json"],
+            output: { staleOutput = $0 },
+            errorOutput: { _ in }
+        ), 0)
+        assertOutput(staleOutput, containsValuesInOrder: ["Stale Diner", "Strong Cafe", "Recent Bar"])
+
+        var nearestOutput = ""
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: [
+                "query", "venues",
+                "--account", "julian",
+                "--db", dbURL.path,
+                "--near-lat", "37.1001",
+                "--near-lng", "-122.2001",
+                "--radius-meters", "20000",
+                "--format", "json"
+            ],
+            output: { nearestOutput = $0 },
+            errorOutput: { _ in }
+        ), 0)
+        XCTAssertTrue(nearestOutput.contains("\"sort\" : \"nearest\""))
+        assertOutput(nearestOutput, containsValuesInOrder: ["Recent Bar", "Stale Diner", "Strong Cafe"])
+    }
+
     func testCLIQueryRejectsPartialAndInvalidGeoFiltersBeforeReadingDB() throws {
         var partialErrorOutput = ""
         let partialExit = SwarmCadenceCommand.run(
@@ -477,10 +539,42 @@ final class DatabaseImportTests: XCTestCase {
             errorOutput: { invalidErrorOutput = $0 }
         )
 
+        var nearestWithoutGeoErrorOutput = ""
+        let nearestWithoutGeoExit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "venues",
+                "--account", "julian",
+                "--db", "/tmp/does-not-matter.sqlite",
+                "--sort", "nearest",
+                "--format", "json"
+            ],
+            output: { _ in },
+            errorOutput: { nearestWithoutGeoErrorOutput = $0 }
+        )
+
+        var compareNearestWithoutGeoErrorOutput = ""
+        let compareNearestWithoutGeoExit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "compare",
+                "--account", "julian",
+                "--db", "/tmp/does-not-matter.sqlite",
+                "--baseline-from", "2020-01-01",
+                "--recent-from", "2023-01-01",
+                "--sort", "nearest",
+                "--format", "json"
+            ],
+            output: { _ in },
+            errorOutput: { compareNearestWithoutGeoErrorOutput = $0 }
+        )
+
         XCTAssertEqual(partialExit, 2)
         XCTAssertTrue(partialErrorOutput.contains("--near-lat, --near-lng, and --radius-meters must be used together"))
         XCTAssertEqual(invalidExit, 2)
         XCTAssertTrue(invalidErrorOutput.contains("--near-lat must be between -90 and 90"))
+        XCTAssertEqual(nearestWithoutGeoExit, 2)
+        XCTAssertTrue(nearestWithoutGeoErrorOutput.contains("--sort nearest requires --near-lat, --near-lng, and --radius-meters"))
+        XCTAssertEqual(compareNearestWithoutGeoExit, 2)
+        XCTAssertTrue(compareNearestWithoutGeoErrorOutput.contains("--sort nearest requires --near-lat, --near-lng, and --radius-meters"))
     }
 
     func testCLIQueryRejectsInvalidDateWindowBeforeReadingDB() throws {
@@ -797,12 +891,57 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertEqual(exit, 0)
         XCTAssertTrue(output.contains("\"command\" : \"query compare\""))
         XCTAssertTrue(output.contains("\"compare_by\" : \"venue\""))
+        XCTAssertTrue(output.contains("\"sort\" : \"stale\""))
+        XCTAssertTrue(output.contains("\"order_label\" : \"stale or lapsed evidence first\""))
         XCTAssertTrue(output.contains("\"Lapsed Diner\""))
         XCTAssertTrue(output.contains("\"baseline_visit_count\" : 2"))
         XCTAssertTrue(output.contains("\"recent_visit_count\" : 0"))
         XCTAssertTrue(output.contains("\"previous_visit_count\" : 2"))
         XCTAssertTrue(output.contains("\"days_since_last_visit\""))
         XCTAssertTrue(output.contains("\"drill_down\""))
+        assertOutput(output, containsValuesInOrder: ["Lapsed Diner", "Current Cafe"])
+
+        var recentOutput = ""
+        let recentExit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "compare",
+                "--account", "julian",
+                "--db", dbURL.path,
+                "--baseline-from", "2020-01-01",
+                "--recent-from", "2023-01-01",
+                "--as-of", "2023-11-14T22:13:20Z",
+                "--min-baseline-visits", "2",
+                "--sort", "recent",
+                "--format", "json"
+            ],
+            output: { recentOutput = $0 },
+            errorOutput: { _ in }
+        )
+        XCTAssertEqual(recentExit, 0)
+        XCTAssertTrue(recentOutput.contains("\"sort\" : \"recent\""))
+        assertOutput(recentOutput, containsValuesInOrder: ["Current Cafe", "Lapsed Diner"])
+
+        var nearestOutput = ""
+        let nearestExit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "compare",
+                "--account", "julian",
+                "--db", dbURL.path,
+                "--baseline-from", "2020-01-01",
+                "--recent-from", "2023-01-01",
+                "--as-of", "2023-11-14T22:13:20Z",
+                "--min-baseline-visits", "2",
+                "--near-lat", "37.1",
+                "--near-lng", "-122.2",
+                "--radius-meters", "30000",
+                "--format", "json"
+            ],
+            output: { nearestOutput = $0 },
+            errorOutput: { _ in }
+        )
+        XCTAssertEqual(nearestExit, 0)
+        XCTAssertTrue(nearestOutput.contains("\"sort\" : \"nearest\""))
+        assertOutput(nearestOutput, containsValuesInOrder: ["Current Cafe", "Lapsed Diner"])
         XCTAssertFalse(output.contains("best lunch"))
     }
 
@@ -913,6 +1052,11 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertTrue(output.contains("\"geography\""))
         XCTAssertTrue(output.contains("factual venue-location filters"))
         XCTAssertTrue(output.contains("\"category_names\" : ["))
+        XCTAssertTrue(output.contains("\"views\" : ["))
+        XCTAssertTrue(output.contains("\"label\" : \"strongest\""))
+        XCTAssertTrue(output.contains("\"label\" : \"recent\""))
+        XCTAssertTrue(output.contains("\"label\" : \"stale\""))
+        XCTAssertFalse(output.contains("\"label\" : \"nearest\""))
         XCTAssertTrue(output.contains("\"venue_support\""))
         XCTAssertTrue(output.contains("\"cadence_comparison\""))
         XCTAssertTrue(output.contains("Cafe Example"))
@@ -920,6 +1064,56 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertFalse(output.contains("best lunch"))
         XCTAssertFalse(output.contains("open_now"))
         XCTAssertFalse(output.contains("external_context"))
+    }
+
+    func testCLIEvidencePacketIncludesNearestViewWhenNearFiltersArePresent() throws {
+        let directory = try makeTemporaryDirectory()
+        let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
+        try FileManager.default.createDirectory(at: rawDirectory, withIntermediateDirectories: true)
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+
+        try writeRawPair(
+            rawDirectory: rawDirectory,
+            baseName: "fixture-v2-julian-sort-offset0-limit250",
+            rawBody: sortRawBody
+        )
+
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["db", "import-raw", "--account", "julian", "--db", dbURL.path, "--raw-dir", rawDirectory.path],
+            output: { _ in },
+            errorOutput: { _ in }
+        ), 0)
+
+        var output = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: [
+                "evidence", "packet",
+                "--account", "julian",
+                "--db", dbURL.path,
+                "--date", "2026-04-27",
+                "--hour-from", "11",
+                "--hour-to", "14",
+                "--near-lat", "37.1001",
+                "--near-lng", "-122.2001",
+                "--radius-meters", "20000",
+                "--baseline-from", "2020-01-01",
+                "--recent-from", "2023-01-01",
+                "--format", "json"
+            ],
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertTrue(output.contains("\"views\" : ["))
+        assertOutput(output, containsValuesInOrder: [
+            "\"label\" : \"strongest\"",
+            "\"label\" : \"recent\"",
+            "\"label\" : \"stale\"",
+            "\"label\" : \"nearest\""
+        ])
+        XCTAssertTrue(output.contains("\"order_label\" : \"nearest evidence first\""))
+        XCTAssertFalse(output.contains("best lunch"))
     }
 
     func testCLIEvidenceWindowRequiresDate() throws {
@@ -1162,6 +1356,93 @@ final class DatabaseImportTests: XCTestCase {
         """.data(using: .utf8)!
     }
 
+    private var sortRawBody: Data {
+        """
+        {
+          "meta": { "code": 200 },
+          "response": {
+            "checkins": {
+              "count": 6,
+              "items": [
+                {
+                  "id": "strong-1",
+                  "createdAt": 1700000000,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-strong",
+                    "name": "Strong Cafe",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "lat": 37.2, "lng": -122.2 },
+                    "categories": [{ "id": "cat-cafe", "name": "Coffee Shop" }]
+                  }
+                },
+                {
+                  "id": "strong-2",
+                  "createdAt": 1700000100,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-strong",
+                    "name": "Strong Cafe",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "lat": 37.2, "lng": -122.2 },
+                    "categories": [{ "id": "cat-cafe", "name": "Coffee Shop" }]
+                  }
+                },
+                {
+                  "id": "strong-3",
+                  "createdAt": 1700000200,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-strong",
+                    "name": "Strong Cafe",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "lat": 37.2, "lng": -122.2 },
+                    "categories": [{ "id": "cat-cafe", "name": "Coffee Shop" }]
+                  }
+                },
+                {
+                  "id": "recent-1",
+                  "createdAt": 1700001000,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-recent",
+                    "name": "Recent Bar",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "lat": 37.1001, "lng": -122.2001 },
+                    "categories": [{ "id": "cat-bar", "name": "Bar" }]
+                  }
+                },
+                {
+                  "id": "stale-1",
+                  "createdAt": 1600000000,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-stale",
+                    "name": "Stale Diner",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "lat": 37.15, "lng": -122.25 },
+                    "categories": [{ "id": "cat-diner", "name": "Diner" }]
+                  }
+                },
+                {
+                  "id": "stale-2",
+                  "createdAt": 1600000100,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-stale",
+                    "name": "Stale Diner",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "lat": 37.15, "lng": -122.25 },
+                    "categories": [{ "id": "cat-diner", "name": "Diner" }]
+                  }
+                }
+              ]
+            }
+          }
+        }
+        """.data(using: .utf8)!
+    }
+
 
     private var aliceRawBody: Data {        String(decoding: rawBody, as: UTF8.self)
             .replacingOccurrences(of: "checkin-1", with: "alice-checkin-1")
@@ -1216,6 +1497,22 @@ final class DatabaseImportTests: XCTestCase {
 
     private func escapedJSONPath(_ path: String) -> String {
         path.replacingOccurrences(of: "/", with: "\\/")
+    }
+
+    private func assertOutput(
+        _ output: String,
+        containsValuesInOrder values: [String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        var searchStart = output.startIndex
+        for value in values {
+            guard let range = output.range(of: value, range: searchStart..<output.endIndex) else {
+                XCTFail("Expected output to contain \(value) after previous ordered values.", file: file, line: line)
+                return
+            }
+            searchStart = range.upperBound
+        }
     }
 
     private func makeTemporaryDirectory() throws -> URL {

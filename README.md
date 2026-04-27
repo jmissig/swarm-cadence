@@ -257,6 +257,8 @@ Query aggregate venue support from the per-account SQLite sidecar:
 swift run swarm-cadence query categories --account julian --format json
 swift run swarm-cadence query venues --account julian --format json
 swift run swarm-cadence query venues --account julian --from 2024-01-01 --to 2024-12-31 --limit 50
+swift run swarm-cadence query venues --account julian --sort strongest --format json
+swift run swarm-cadence query venues --account julian --sort recent --format json
 
 # "in San Mateo" — factual Foursquare venue locality fields
 swift run swarm-cadence query venues --account julian --locality "San Mateo" --region CA --country-code US --format json
@@ -288,6 +290,8 @@ rotation changes; interpretation belongs above the CLI:
 
 ```bash
 swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --hour-from 11 --hour-to 14 --locality "San Mateo" --region CA --format json
+swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --sort stale --format json
+swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --sort recent --format json
 ```
 
 Build a generic evidence packet over an explicit date/hour window for an LLM or
@@ -318,9 +322,18 @@ swift run swarm-cadence evidence packet \
   --format json
 ```
 
-`query categories` lists the known category names for an account, ordered by supporting check-ins. `query venues` returns visit counts, first/last seen timestamps, categories, and
-a drill-down descriptor for reproducing the supporting visit rows. `query venues`
-and `query compare` can also be bounded by factual Foursquare venue location
+`query categories` lists the known category names for an account, ordered by
+supporting check-ins. `query venues` returns visit counts, first/last seen
+timestamps, categories, the selected evidence sort, and a drill-down descriptor
+for reproducing the supporting visit rows. `query venues` and `query compare`
+accept `--sort nearest|strongest|recent|stale` and include the effective sort
+and order label in JSON and human output. With distance filters, the default is
+`nearest`; without distance filters, `query venues` defaults to `strongest` and
+`query compare` defaults to `stale`, preserving the earlier effective ordering
+while making it explicit. `--sort nearest` requires `--near-lat`, `--near-lng`,
+and `--radius-meters`.
+
+`query venues` and `query compare` can also be bounded by factual Foursquare venue location
 fields (`--locality`, `--region`, `--postal-code`, `--country-code`), category
 names (repeat `--category`, OR semantics), and/or explicit map distance using
 `--near-lat`, `--near-lng`, and `--radius-meters`.
@@ -334,10 +347,12 @@ refinement, not the default meaning of “near.” Future `--near-place`/`--area
 work should make that anchor resolution inspectable instead of hiding it.
 
 `evidence packet` is an experimental evidence packet, not a durable public
-API contract. It emits `swarm_experimental_packet`, composed from existing venue
-support and cadence comparison queries. It includes the target window, explicit
+API contract. It emits `swarm_experimental_packet` with labeled evidence views
+over the same explicit filters: `strongest`, `recent`, `stale`, and `nearest`
+when distance filters are present. Each view contains venue support and cadence
+comparison facts ordered by that label. It includes the target window, explicit
 geography semantics, source coverage, nested query results, sources, caveats, and
-drill-down descriptors. It deliberately avoids ranking, recommendation prose,
+drill-down descriptors. It deliberately avoids hidden scoring, recommendation prose,
 correction state, open-now data, and cross-source joins.
 
 `query visits`

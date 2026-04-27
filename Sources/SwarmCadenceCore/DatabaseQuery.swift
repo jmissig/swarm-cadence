@@ -1,6 +1,26 @@
 import Foundation
 import GRDB
 
+public enum EvidenceSort: String, Codable, Equatable, CaseIterable {
+    case nearest
+    case strongest
+    case recent
+    case stale
+
+    public var orderLabel: String {
+        switch self {
+        case .nearest:
+            return "nearest evidence first"
+        case .strongest:
+            return "strongest visit support first"
+        case .recent:
+            return "most recently visited first"
+        case .stale:
+            return "stale or lapsed evidence first"
+        }
+    }
+}
+
 public struct QueryDateBound: Codable, Equatable {
     public let unix: Int
     public let iso8601: String
@@ -26,6 +46,8 @@ public struct QueryDateFilters: Codable, Equatable {
     public let nearLatitude: Double?
     public let nearLongitude: Double?
     public let radiusMeters: Double?
+    public let sort: EvidenceSort
+    public let orderLabel: String
     public let limit: Int
 }
 
@@ -109,6 +131,8 @@ public struct QueryVenuesResult: Codable, Equatable {
     public let command: String
     public let account: String
     public let dbPath: String
+    public let sort: EvidenceSort
+    public let orderLabel: String
     public let filters: QueryDateFilters
     public let totalMatchingVenues: Int
     public let returnedVenues: Int
@@ -143,6 +167,8 @@ public struct QueryCompareFilters: Codable, Equatable {
     public let nearLatitude: Double?
     public let nearLongitude: Double?
     public let radiusMeters: Double?
+    public let sort: EvidenceSort
+    public let orderLabel: String
     public let limit: Int
 }
 
@@ -174,6 +200,8 @@ public struct QueryCompareResult: Codable, Equatable {
     public let account: String
     public let dbPath: String
     public let compareBy: String
+    public let sort: EvidenceSort
+    public let orderLabel: String
     public let filters: QueryCompareFilters
     public let totalMatchingVenues: Int
     public let returnedVenues: Int
@@ -271,6 +299,7 @@ public extension SwarmDatabase {
         nearLatitude: Double? = nil,
         nearLongitude: Double? = nil,
         radiusMeters: Double? = nil,
+        sort requestedSort: EvidenceSort? = nil,
         limit: Int = queryDefaultLimit
     ) throws -> QueryVenuesResult {
         guard !dbPath.isEmpty else {
@@ -283,6 +312,7 @@ public extension SwarmDatabase {
         try validatePlaceFilters(locality: locality, region: region, postalCode: postalCode, countryCode: countryCode)
         let categoryNames = try validateCategoryFilter(categoryNames)
         try validateGeoFilters(nearLatitude: nearLatitude, nearLongitude: nearLongitude, radiusMeters: radiusMeters)
+        let sort = try effectiveSort(requestedSort, hasGeoFilter: radiusMeters != nil, defaultWithoutGeo: .strongest)
 
         let dbQueue = try openReadOnlyDatabase(path: dbPath)
 
@@ -334,6 +364,7 @@ public extension SwarmDatabase {
                 ]
             ) ?? 0
 
+            let orderClause = venueOrderClause(sort)
             let rows = try Row.fetchAll(
                 db,
                 sql: """
@@ -372,7 +403,7 @@ public extension SwarmDatabase {
                   ))
                   AND (? IS NULL OR (v.lat IS NOT NULL AND v.lng IS NOT NULL AND distance_meters(v.lat, v.lng, ?, ?) <= ?))
                 GROUP BY v.venue_id, v.name, v.lat, v.lng, v.locality, v.region, v.postal_code, v.country_code
-                ORDER BY CASE WHEN ? IS NULL THEN 0 ELSE distance_meters END ASC, visit_count DESC, last_created_at DESC, COALESCE(v.name, '') ASC
+                ORDER BY \(orderClause)
                 LIMIT ?
                 """,
                 arguments: [
@@ -389,7 +420,6 @@ public extension SwarmDatabase {
                     countryCode, countryCode,
                     categoryNamesJSON, categoryNamesJSON,
                     radiusMeters, nearLatitude, nearLongitude, radiusMeters,
-                    radiusMeters,
                     limit
                 ]
             )
@@ -442,6 +472,8 @@ public extension SwarmDatabase {
                 command: "query venues",
                 account: account,
                 dbPath: dbPath,
+                sort: sort,
+                orderLabel: sort.orderLabel,
                 filters: QueryDateFilters(
                     fromCreatedAt: fromCreatedAt.map(queryDateBound(timestamp:)),
                     toCreatedAt: toCreatedAt.map(queryDateBound(timestamp:)),
@@ -456,6 +488,8 @@ public extension SwarmDatabase {
                     nearLatitude: nearLatitude,
                     nearLongitude: nearLongitude,
                     radiusMeters: radiusMeters,
+                    sort: sort,
+                    orderLabel: sort.orderLabel,
                     limit: limit
                 ),
                 totalMatchingVenues: total,
@@ -629,6 +663,7 @@ public extension SwarmDatabase {
         nearLatitude: Double? = nil,
         nearLongitude: Double? = nil,
         radiusMeters: Double? = nil,
+        sort requestedSort: EvidenceSort? = nil,
         minBaselineVisits: Int = 1,
         limit: Int = queryDefaultLimit
     ) throws -> QueryCompareResult {
@@ -643,6 +678,7 @@ public extension SwarmDatabase {
         try validatePlaceFilters(locality: locality, region: region, postalCode: postalCode, countryCode: countryCode)
         let categoryNames = try validateCategoryFilter(categoryNames)
         try validateGeoFilters(nearLatitude: nearLatitude, nearLongitude: nearLongitude, radiusMeters: radiusMeters)
+        let sort = try effectiveSort(requestedSort, hasGeoFilter: radiusMeters != nil, defaultWithoutGeo: .stale)
         guard recentFromCreatedAt >= baselineFromCreatedAt else {
             throw CLIError("--recent-from must be greater than or equal to --baseline-from.")
         }
@@ -733,6 +769,7 @@ public extension SwarmDatabase {
                 ]
             ) ?? 0
 
+            let orderClause = compareOrderClause(sort)
             let rows = try Row.fetchAll(
                 db,
                 sql: """
@@ -778,7 +815,7 @@ public extension SwarmDatabase {
                   AND (? IS NULL OR (v.lat IS NOT NULL AND v.lng IS NOT NULL AND distance_meters(v.lat, v.lng, ?, ?) <= ?))
                 GROUP BY v.venue_id, v.name, v.lat, v.lng, v.locality, v.region, v.postal_code, v.country_code
                 HAVING baseline_visit_count >= ?
-                ORDER BY CASE WHEN ? IS NULL THEN 0 ELSE distance_meters END ASC, recent_visit_count ASC, last_created_at ASC, baseline_visit_count DESC, COALESCE(v.name, '') ASC
+                ORDER BY \(orderClause)
                 LIMIT ?
                 """,
                 arguments: [
@@ -798,7 +835,6 @@ public extension SwarmDatabase {
                     categoryNamesJSON, categoryNamesJSON,
                     radiusMeters, nearLatitude, nearLongitude, radiusMeters,
                     minBaselineVisits,
-                    radiusMeters,
                     limit
                 ]
             )
@@ -859,6 +895,8 @@ public extension SwarmDatabase {
                 account: account,
                 dbPath: dbPath,
                 compareBy: "venue",
+                sort: sort,
+                orderLabel: sort.orderLabel,
                 filters: QueryCompareFilters(
                     baselineFromCreatedAt: queryDateBound(timestamp: baselineFromCreatedAt),
                     baselineToCreatedAt: baselineToCreatedAt.map(queryDateBound(timestamp:)),
@@ -876,6 +914,8 @@ public extension SwarmDatabase {
                     nearLatitude: nearLatitude,
                     nearLongitude: nearLongitude,
                     radiusMeters: radiusMeters,
+                    sort: sort,
+                    orderLabel: sort.orderLabel,
                     limit: limit
                 ),
                 totalMatchingVenues: total,
@@ -917,6 +957,18 @@ public extension SwarmDatabase {
         radiusMeters: Double?
     ) throws {
         try validateGeoFilters(nearLatitude: nearLatitude, nearLongitude: nearLongitude, radiusMeters: radiusMeters)
+    }
+
+    static func parseEvidenceSort(_ rawValue: String?, optionName: String = "--sort") throws -> EvidenceSort? {
+        guard let rawValue else { return nil }
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else {
+            throw CLIError("\(optionName) must not be empty.")
+        }
+        guard let sort = EvidenceSort(rawValue: value) else {
+            throw CLIError("unsupported \(optionName). Use `nearest`, `strongest`, `recent`, or `stale`.")
+        }
+        return sort
     }
 
     static func parseQueryTimestamp(_ rawValue: String?, optionName: String) throws -> Int? {
@@ -991,6 +1043,44 @@ private func validateGeoFilters(nearLatitude: Double?, nearLongitude: Double?, r
     guard (-90...90).contains(nearLatitude) else { throw CLIError("--near-lat must be between -90 and 90.") }
     guard (-180...180).contains(nearLongitude) else { throw CLIError("--near-lng must be between -180 and 180.") }
     guard radiusMeters > 0 else { throw CLIError("--radius-meters must be greater than 0.") }
+}
+
+private func effectiveSort(
+    _ requestedSort: EvidenceSort?,
+    hasGeoFilter: Bool,
+    defaultWithoutGeo: EvidenceSort
+) throws -> EvidenceSort {
+    let sort = requestedSort ?? (hasGeoFilter ? .nearest : defaultWithoutGeo)
+    if sort == .nearest && !hasGeoFilter {
+        throw CLIError("--sort nearest requires --near-lat, --near-lng, and --radius-meters.")
+    }
+    return sort
+}
+
+private func venueOrderClause(_ sort: EvidenceSort) -> String {
+    switch sort {
+    case .nearest:
+        return "distance_meters ASC, visit_count DESC, last_created_at DESC, COALESCE(v.name, '') ASC"
+    case .strongest:
+        return "visit_count DESC, last_created_at DESC, COALESCE(v.name, '') ASC"
+    case .recent:
+        return "last_created_at DESC, visit_count DESC, COALESCE(v.name, '') ASC"
+    case .stale:
+        return "last_created_at ASC, visit_count DESC, COALESCE(v.name, '') ASC"
+    }
+}
+
+private func compareOrderClause(_ sort: EvidenceSort) -> String {
+    switch sort {
+    case .nearest:
+        return "distance_meters ASC, recent_visit_count ASC, last_created_at ASC, baseline_visit_count DESC, COALESCE(v.name, '') ASC"
+    case .strongest:
+        return "baseline_visit_count DESC, recent_visit_count DESC, last_created_at DESC, COALESCE(v.name, '') ASC"
+    case .recent:
+        return "recent_visit_count DESC, last_created_at DESC, baseline_visit_count DESC, COALESCE(v.name, '') ASC"
+    case .stale:
+        return "recent_visit_count ASC, last_created_at ASC, baseline_visit_count DESC, COALESCE(v.name, '') ASC"
+    }
 }
 
 private func registerDistanceFunction(_ db: Database) {

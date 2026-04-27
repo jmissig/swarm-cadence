@@ -53,10 +53,16 @@ public struct EvidencePacket: Codable, Equatable {
     public let targetWindow: EvidenceWindow
     public let geography: EvidenceGeography
     public let sourceCoverage: EvidenceSourceCoverage
-    public let venueSupport: QueryVenuesResult
-    public let cadenceComparison: QueryCompareResult
+    public let views: [EvidencePacketView]
     public let sources: [EvidenceSource]
     public let caveats: [String]
+}
+
+public struct EvidencePacketView: Codable, Equatable {
+    public let label: EvidenceSort
+    public let orderLabel: String
+    public let venueSupport: QueryVenuesResult
+    public let cadenceComparison: QueryCompareResult
 }
 
 public struct EvidenceSource: Codable, Equatable {
@@ -144,50 +150,63 @@ public extension SwarmDatabase {
         try validateCategoryOptions(categoryNames)
         try validateGeoOptions(nearLatitude: nearLatitude, nearLongitude: nearLongitude, radiusMeters: radiusMeters)
 
-        let venues = try queryVenues(
-            dbPath: dbPath,
-            account: account,
-            hourFrom: hourFrom,
-            hourTo: hourTo,
-            locality: locality,
-            region: region,
-            postalCode: postalCode,
-            countryCode: countryCode,
-            categoryNames: categoryNames,
-            nearLatitude: nearLatitude,
-            nearLongitude: nearLongitude,
-            radiusMeters: radiusMeters,
-            limit: limit
-        )
-        let compare = try queryCompare(
-            dbPath: dbPath,
-            account: account,
-            baselineFromCreatedAt: baselineFromCreatedAt,
-            baselineToCreatedAt: baselineToCreatedAt,
-            recentFromCreatedAt: recentFromCreatedAt,
-            recentToCreatedAt: recentToCreatedAt,
-            asOfCreatedAt: asOfCreatedAt,
-            hourFrom: hourFrom,
-            hourTo: hourTo,
-            locality: locality,
-            region: region,
-            postalCode: postalCode,
-            countryCode: countryCode,
-            categoryNames: categoryNames,
-            nearLatitude: nearLatitude,
-            nearLongitude: nearLongitude,
-            radiusMeters: radiusMeters,
-            minBaselineVisits: minBaselineVisits,
-            limit: limit
-        )
+        let viewSorts = evidencePacketViewSorts(hasGeoFilter: radiusMeters != nil)
+        let views = try viewSorts.map { sort in
+            let venues = try queryVenues(
+                dbPath: dbPath,
+                account: account,
+                hourFrom: hourFrom,
+                hourTo: hourTo,
+                locality: locality,
+                region: region,
+                postalCode: postalCode,
+                countryCode: countryCode,
+                categoryNames: categoryNames,
+                nearLatitude: nearLatitude,
+                nearLongitude: nearLongitude,
+                radiusMeters: radiusMeters,
+                sort: sort,
+                limit: limit
+            )
+            let compare = try queryCompare(
+                dbPath: dbPath,
+                account: account,
+                baselineFromCreatedAt: baselineFromCreatedAt,
+                baselineToCreatedAt: baselineToCreatedAt,
+                recentFromCreatedAt: recentFromCreatedAt,
+                recentToCreatedAt: recentToCreatedAt,
+                asOfCreatedAt: asOfCreatedAt,
+                hourFrom: hourFrom,
+                hourTo: hourTo,
+                locality: locality,
+                region: region,
+                postalCode: postalCode,
+                countryCode: countryCode,
+                categoryNames: categoryNames,
+                nearLatitude: nearLatitude,
+                nearLongitude: nearLongitude,
+                radiusMeters: radiusMeters,
+                sort: sort,
+                minBaselineVisits: minBaselineVisits,
+                limit: limit
+            )
+            return EvidencePacketView(
+                label: sort,
+                orderLabel: sort.orderLabel,
+                venueSupport: venues,
+                cadenceComparison: compare
+            )
+        }
         let stats = try SwarmDatabase.stats(dbPath: dbPath, account: account)
+        let fallbackAccount = try AccountLabel.validate(account)
+        let packetAccount = views.first?.venueSupport.account ?? fallbackAccount
 
         return EvidencePacket(
             schema: "swarm_experimental_packet",
             toolVersion: SwarmCadenceVersion.current,
             generatedAt: evidenceISO8601String(generatedAt),
             command: "evidence packet",
-            account: venues.account,
+            account: packetAccount,
             targetWindow: EvidenceWindow(date: date, hourFrom: hourFrom, hourTo: hourTo),
             geography: EvidenceGeography(
                 locality: locality,
@@ -201,9 +220,8 @@ public extension SwarmDatabase {
                 semantics: evidenceGeographySemantics(locality: locality, region: region, postalCode: postalCode, countryCode: countryCode, radiusMeters: radiusMeters)
             ),
             sourceCoverage: evidenceSourceCoverage(dbPath: dbPath, stats: stats),
-            venueSupport: venues,
-            cadenceComparison: compare,
-            sources: swarmSources(account: venues.account),
+            views: views,
+            sources: swarmSources(account: packetAccount),
             caveats: evidencePacketCaveats
         )
     }
@@ -216,11 +234,16 @@ private let windowCaveats = [
 
 private let evidencePacketCaveats = [
     "This is an evidence packet, not a recommendation or ranked answer.",
+    "Views are explicit evidence orderings over the same filters, not hidden scores.",
     "Check-ins are evidence of visits, not proof of preference.",
     "The target window records caller intent; venue support is computed from historical visits matching the explicit filters.",
     "Locality filters mean in-place; near-place semantics should use an anchor/radius or future named area resolver.",
     "No corrections, open-now data, weather, calendar, Paprika, or other cross-source context is joined in this packet."
 ]
+
+private func evidencePacketViewSorts(hasGeoFilter: Bool) -> [EvidenceSort] {
+    hasGeoFilter ? [.strongest, .recent, .stale, .nearest] : [.strongest, .recent, .stale]
+}
 
 private func evidenceSourceCoverage(dbPath: String, stats: DatabaseStatsResult) -> EvidenceSourceCoverage {
     EvidenceSourceCoverage(
