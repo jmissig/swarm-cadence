@@ -8,10 +8,15 @@ Short active backlog only. Durable architecture and constraints live in `AGENTS.
   - `swarm-cadence source probe --account julian --adapter v2 --format json`
   - `swarm-cadence source probe --account julian --adapter historysearch --format json`
   - No network calls; reports `external_setup_required`; redacts configured values.
-- [ ] Implement the explicit live credential probe after Julian completes external setup.
-  - Determine whether v2 OAuth, Swarm web historysearch, or export/import is the viable initial source path.
-  - Redact credentials and sensitive source details.
-  - Report available fields: check-in IDs, venue IDs, categories, lat/lng, timestamps, account identity, date range, count.
+- [x] Implement the explicit live v2 credential probe after Julian completes external setup.
+  - `swarm-cadence source probe --account julian --adapter v2 --format json --config ./.swarm-cadence.env --live`
+  - Performs one read-only `GET /v2/users/self/checkins` request with `limit=1`.
+  - Redacts credentials and sensitive source details.
+  - Reports source viability plus sample field coverage for check-in id, timestamp, venue id/name, lat/lng, categories, photos, and count/date hints.
+- [ ] Use the live v2 probe result to choose the next source path.
+  - If v2 succeeds, build the smallest raw-preservation + normalized SQLite slice around v2.
+  - If v2 is gated, unauthorized, or payment-required, implement the narrow live `historysearch` fallback.
+  - Keep export/import available for bootstrap/backfill/reconciliation.
 - [ ] Create a fixture/minimal-ingest path for enough Julian check-in data to exercise the lunch scenario.
   - Use repo-local fixture/temp DB paths.
   - Mark fixture/placeholder fields explicitly.

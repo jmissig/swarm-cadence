@@ -4,6 +4,7 @@ public enum SwarmCadenceCommand {
     public static func run(
         arguments: [String],
         environment: [String: String] = ProcessInfo.processInfo.environment,
+        liveTransport: ProbeHTTPTransport = URLSessionProbeHTTPTransport(),
         output: (String) -> Void = { print($0) },
         errorOutput: (String) -> Void = { fputs($0 + "\n", stderr) }
     ) -> Int {
@@ -16,12 +17,20 @@ public enum SwarmCadenceCommand {
                 return 0
             case let .sourceProbe(options):
                 let config = try options.configPath.map(DotenvConfig.load(path:)) ?? [:]
-                let result = SourceProbe.probe(
-                    account: options.account,
-                    adapter: options.adapter,
-                    environment: environment,
-                    config: config
-                )
+                let result = options.live
+                    ? SourceProbe.liveProbe(
+                        account: options.account,
+                        adapter: options.adapter,
+                        environment: environment,
+                        config: config,
+                        transport: liveTransport
+                    )
+                    : SourceProbe.probe(
+                        account: options.account,
+                        adapter: options.adapter,
+                        environment: environment,
+                        config: config
+                    )
                 output(try Formatter.render(result, format: options.format))
                 return 0
             }
@@ -38,9 +47,9 @@ public enum SwarmCadenceCommand {
     swarm-cadence
 
     Usage:
-      swarm-cadence source probe --account <label> --adapter <v2|historysearch> [--format <human|json>] [--config <path>]
+      swarm-cadence source probe --account <label> --adapter <v2|historysearch> [--format <human|json>] [--config <path>] [--live]
 
-    This first source probe is dry config validation only. It does not call Foursquare or Swarm.
+    Source probe is dry config validation by default. Pass --live to perform the explicit minimal read-only v2 checkins probe.
     """
 }
 
@@ -67,6 +76,7 @@ struct SourceProbeOptions {
     let adapter: SourceAdapter
     let format: OutputFormat
     let configPath: String?
+    let live: Bool
 
     init(arguments: [String]) throws {
         var parser = OptionParser(arguments: arguments)
@@ -87,6 +97,7 @@ struct SourceProbeOptions {
             .orThrow("unsupported --adapter. Use `v2` or `historysearch`.")
         self.format = format
         self.configPath = parser.value(for: "--config")
+        self.live = parser.consumeFlag("--live")
 
         try parser.finish()
     }
@@ -102,7 +113,7 @@ struct OptionParser {
         while index < arguments.count {
             let argument = arguments[index]
             switch argument {
-            case "--json":
+            case "--json", "--live":
                 flags.insert(argument)
                 index += 1
             case "--account", "--adapter", "--format", "--config":
@@ -158,12 +169,28 @@ enum Formatter {
 
     private static func renderHuman(_ result: SourceProbeResult) -> String {
         var lines: [String] = [
-            "source probe (dry config validation)",
+            result.probeKind == "dry_config_validation" ? "source probe (dry config validation)" : "source probe (\(result.probeKind))",
             "account: \(result.account)",
             "adapter: \(result.adapter.rawValue)",
             "status: \(result.status.rawValue)",
-            "network: not performed"
+            "network: \(result.networkPerformed ? "performed" : "not performed")"
         ]
+
+        if let liveProbe = result.liveProbe {
+            lines.append("endpoint: \(liveProbe.endpoint)")
+            if let httpStatusCode = liveProbe.httpStatusCode {
+                lines.append("http_status: \(httpStatusCode)")
+            }
+            if let coverage = liveProbe.fieldCoverage {
+                lines.append("field coverage:")
+                lines.append("  - checkin id: \(coverage.checkinID ? "present" : "missing")")
+                lines.append("  - createdAt: \(coverage.createdAt ? "present" : "missing")")
+                lines.append("  - venue id/name: \(coverage.venueID && coverage.venueName ? "present" : "partial_or_missing")")
+                lines.append("  - lat/lng: \(coverage.latitude && coverage.longitude ? "present" : "partial_or_missing")")
+                lines.append("  - categories: \(coverage.categories ? "present" : "missing")")
+                lines.append("  - photos: \(coverage.photosPresent ? "present" : "not_present")")
+            }
+        }
 
         if !result.requiredMissing.isEmpty {
             lines.append("missing required inputs:")

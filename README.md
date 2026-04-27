@@ -3,8 +3,8 @@
 `swarm-cadence` is a small local-first CLI for preserving and querying
 Foursquare Swarm check-in history as private evidence for OpenClaw/Robut.
 
-The first slice is intentionally narrow: it only validates local configuration
-for future source probes. It does not call Foursquare or Swarm, ingest data,
+The first slice is intentionally narrow: it validates local configuration and
+can perform one explicit read-only v2 source probe. It does not ingest data,
 write an evidence database, or make lunch recommendations.
 
 The CLI uses a tiny dependency-free parser for this first offline slice.
@@ -28,7 +28,7 @@ HOME=$PWD/.tmp/home CLANG_MODULE_CACHE_PATH=$PWD/.build/clang-module-cache swift
 
 ## Dry Source Probe
 
-The implemented command is:
+The default command is dry config validation:
 
 ```bash
 swift run swarm-cadence source probe --account julian --adapter v2 --format json
@@ -58,6 +58,30 @@ swift run swarm-cadence source probe \
 Do not commit real tokens, cookies, browser-session ids, OAuth params, or local
 config files. The checked-in example contains placeholders only.
 
+## Live v2 Source Probe
+
+After storing a real v2 OAuth token outside git, run the live probe explicitly:
+
+```bash
+swift run swarm-cadence source probe \
+  --account julian \
+  --adapter v2 \
+  --format json \
+  --config ./.swarm-cadence.env \
+  --live
+```
+
+`--live` performs one read-only request to
+`GET https://api.foursquare.com/v2/users/self/checkins` with `limit=1` and a v2
+API version parameter. It does not ingest, backfill, persist raw payloads, or
+write a database.
+
+The JSON result reports whether the source path is usable (`success`,
+`unauthorized`, `payment_required`, `blocked`, `schema_unexpected`, or
+`network_error`) and, on success, whether the returned sample includes useful
+fields: check-in id, `createdAt`, venue id/name, lat/lng, categories, photos,
+and count/date hints. Tokens and secrets are redacted from output and errors.
+
 ## What Julian Needs To Do Next
 
 To continue with the preferred v2 OAuth path:
@@ -86,9 +110,9 @@ To prepare the fallback Swarm web `historysearch` path:
 4. Store `SWARM_CADENCE_JULIAN_HISTORYSEARCH_COOKIE` only if the future live
    probe proves a cookie is required.
 
-After this setup, the next implementation step is a separate live credential
-probe that tests read-only access with minimal limits, redacts all errors, and
-captures only sanitized fixtures.
+After this setup, use the live v2 probe above to decide whether v2 OAuth is the
+first viable source path. If v2 returns `payment_required`, `unauthorized`, or
+another blocked status, prepare the narrow `historysearch` fallback instead.
 
 See [docs/source-probe-setup.md](docs/source-probe-setup.md) for the detailed
 setup contract and safety boundary.

@@ -49,7 +49,7 @@ Implementation rule of thumb:
 
 ## Current state
 
-The repo now has a minimal Swift Package CLI with a dry `source probe` command. `AGENTS.md` carries durable architecture guidance; schema, ingest, normalized SQLite evidence, and Lunch Guide source bundles are still not implemented.
+The repo now has a minimal Swift Package CLI with dry `source probe` commands and an explicit live v2 source probe. `AGENTS.md` carries durable architecture guidance; schema, ingest, normalized SQLite evidence, and Lunch Guide source bundles are still not implemented.
 
 Implemented dry probe commands:
 
@@ -59,6 +59,16 @@ swarm-cadence source probe --account julian --adapter historysearch --format jso
 ```
 
 These commands inspect environment/config shape only, redact sensitive values, and report `network_performed: false`. They intentionally stop at `external_setup_required` until Julian provides v2 OAuth token material or Swarm web `historysearch` session material outside git.
+
+Implemented live v2 probe:
+
+```bash
+swarm-cadence source probe --account julian --adapter v2 --format json --config ./.swarm-cadence.env --live
+```
+
+The live v2 probe performs one read-only `GET /v2/users/self/checkins` request
+with `limit=1`, reports viability/status and sample field coverage, and writes
+no evidence database or fixtures.
 
 The proposal below should guide the first real slice without encouraging a broad connector build.
 
