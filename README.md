@@ -93,12 +93,15 @@ swift run swarm-cadence raw fetch \
   --adapter v2 \
   --config ./.swarm-cadence.env \
   --out data/raw/v2/checkins \
-  --limit 25
+  --limit 100
 ```
 
 This performs exactly one `GET /v2/users/self/checkins` request. There is no
-pagination loop and no backfill. The default `--limit` is `25`; the command
-fails above the hard max of `100` per invocation.
+pagination loop and no backfill. The default `--limit` is `100`; the command
+fails above the hard max of `100` per invocation. Current public Foursquare docs
+do not publish the v2 check-ins maximum, but the Postman mirror for this endpoint
+lists `limit` as up to 100, so this uses the largest documented conservative page
+size until live evidence proves otherwise.
 
 `--out` is required. The command writes:
 

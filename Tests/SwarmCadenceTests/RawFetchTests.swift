@@ -139,7 +139,7 @@ final class RawFetchTests: XCTestCase {
         XCTAssertFalse(String(data: manifestData, encoding: .utf8)?.contains("raw-secret-token") ?? true)
     }
 
-    func testRawFetchDefaultsToLimit25AndRequiresExplicitOutputDirectory() throws {
+    func testRawFetchDefaultsToLimit100AndRequiresExplicitOutputDirectory() throws {
         var missingOutError = ""
         let missingOutExit = SwarmCadenceCommand.run(
             arguments: [
@@ -178,7 +178,7 @@ final class RawFetchTests: XCTestCase {
         let components = requestURL.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
         let queryItems = Dictionary(uniqueKeysWithValues: (components?.queryItems ?? []).map { ($0.name, $0.value ?? "") })
         XCTAssertEqual(defaultLimitExit, 0)
-        XCTAssertEqual(queryItems["limit"], "25")
+        XCTAssertEqual(queryItems["limit"], "100")
     }
 
     private var successBody: Data {

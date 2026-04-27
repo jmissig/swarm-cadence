@@ -45,7 +45,7 @@ public struct RawFetchManifest: Codable, Equatable {
 }
 
 public enum RawFetch {
-    public static let defaultLimit = 25
+    public static let defaultLimit = 100
     public static let hardLimit = 100
     static let pageMarker = "page1"
 
