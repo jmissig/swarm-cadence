@@ -16,7 +16,7 @@ Short active backlog only. Durable architecture and constraints live in `AGENTS.
 - [x] Add conservative raw preservation for the proven v2 path.
   - `swarm-cadence raw fetch --account julian --adapter v2 --config ./.swarm-cadence.env --out data/raw/v2/checkins --limit 250`
   - Performs exactly one read-only `GET /v2/users/self/checkins` request per invocation.
-  - Defaults to `limit=250` and fails above the hard max of `100`.
+  - Defaults to `limit=250` and fails above the hard max of `250`.
   - Writes one unmodified `*.raw.json` response plus one redacted adjacent manifest; no SQLite writes.
 - [ ] Use the live v2 probe result to choose the next source path.
   - If v2 succeeds, build the smallest normalized SQLite slice around preserved v2 raw files.

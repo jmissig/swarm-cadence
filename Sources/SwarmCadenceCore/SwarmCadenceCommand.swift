@@ -61,7 +61,7 @@ public enum SwarmCadenceCommand {
 
     Usage:
       swarm-cadence source probe --account <label> --adapter <v2|historysearch> [--format <human|json>] [--config <path>] [--live]
-      swarm-cadence raw fetch --account <label> --adapter v2 --out <dir> [--limit <1...100>] [--format <human|json>] [--config <path>]
+      swarm-cadence raw fetch --account <label> --adapter v2 --out <dir> [--limit <1...250>] [--format <human|json>] [--config <path>]
 
     Source probe is dry config validation by default. Pass --live to perform the explicit minimal read-only v2 checkins probe.
     Raw fetch performs exactly one conservative v2 checkins request and writes one raw JSON response plus an adjacent manifest.
