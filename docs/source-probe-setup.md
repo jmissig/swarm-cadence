@@ -251,6 +251,15 @@ swift run swarm-cadence query compare --account julian --baseline-from 2024-01-0
 swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --area peninsula --format json
 ```
 
+For active/lapsed evidence, use the same explicit windows through `query lapses`.
+It surfaces support counts, days since last visit, observed gaps, source
+freshness, categories, geography, and drill-downs; it does not assert that a
+venue was abandoned or is preferred:
+
+```bash
+swift run swarm-cadence query lapses --account julian --baseline-from 2018-01-01 --recent-from 2024-01-01 --min-baseline-visits 10 --area peninsula --format json
+```
+
 For factual venue time/cadence rollups, use `query cadence`. It returns support
 counts, first/last seen, local-hour buckets, ISO weekday buckets,
 weekday/weekend counts, observed gap days, freshness, and visit drill-downs; it

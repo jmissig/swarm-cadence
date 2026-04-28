@@ -115,6 +115,8 @@ localities.
 
 Use `query cadence` when the answer needs venue-level time patterns: first/last seen, local-hour buckets, ISO weekday buckets, weekday/weekend counts, observed gaps, freshness, and visit drill-downs. These are descriptive facts, not meal labels or recommendations.
 
+Use `query lapses` when the answer is specifically about active/lapsed venue evidence across baseline/recent windows. It is a factual wrapper over comparison evidence: support counts, days since last visit, observed gaps, freshness, geography, categories, and drill-downs. Do not translate lapse evidence into “disliked,” “abandoned,” “favorite,” or a hidden recommendation without clearly adding Robut-level caveats above the tool output.
+
 Evidence packets include labeled views (`strongest`, `recent`, `stale`, and `nearest` when geography is present). Use the view labels when explaining results; do not describe a list as “best” unless you add your own caveated human judgment above the evidence.
 
 ---
@@ -125,7 +127,7 @@ Evidence packets include labeled views (`strongest`, `recent`, `stale`, and `nea
 2. Check `db stats` / packet freshness.
 3. For place-type questions, run `query categories` and select explicit categories.
 4. Choose geography semantics (`locality`, named `area`, or anchor/radius).
-5. Run `evidence packet` for multi-view evidence, `query cadence` for venue time-pattern rollups, or lower-level `query venues` / `query compare` for narrower debugging.
+5. Run `evidence packet` for multi-view evidence, `query cadence` for venue time-pattern rollups, `query lapses` for active/lapsed comparison evidence, or lower-level `query venues` / `query compare` for narrower debugging.
 6. Answer in human terms:
    - summarize the most relevant evidence views
    - mention freshness and selected categories/geography

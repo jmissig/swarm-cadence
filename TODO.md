@@ -148,12 +148,12 @@ safely as possible.
   - Output includes requested/resolved geography definitions, semantics, and effective primitive filters or area-locality selectors.
   - Kept named areas as transparent query expansion / geography evidence, not recommendation logic.
 
-- [ ] Add clearer active/lapsed evidence outputs once cadence/geography are stable.
-  - `query compare` already supports some baseline/recent comparison, but Almanac/Guide work wants a more direct reusable evidence shape.
-  - The tool may say “historically strong, absent recently” or “recently active”; it must not infer “disliked,” “abandoned,” or “favorite” as a final judgment.
-  - Possible command shape:
+- [x] Add clearer active/lapsed evidence outputs once cadence/geography are stable.
+  - Added `query lapses` as a thin evidence-shaped wrapper over the comparison substrate.
+  - `query compare` / `query lapses` now include source freshness and observed gap-day facts alongside support counts, first/last seen, comparison windows, categories, geography, and drill-downs.
+  - Example command:
     - `query lapses --account julian --baseline-from 2018-01-01 --recent-from 2024-01-01 --min-baseline-visits 10 --format json`
-  - Include support counts, first/last seen, age/gap, comparison windows, categories, geography, and drill-downs.
+  - The tool may say “historically strong, absent recently” or “recently active”; it must not infer “disliked,” “abandoned,” or “favorite” as a final judgment.
 
 - [ ] Add venue reconciliation / alias support as an evidence-identity slice.
   - Motivation: repeated brands or renamed/duplicate venues such as Blue Bottle / Starbucks-style rows can distort support counts.

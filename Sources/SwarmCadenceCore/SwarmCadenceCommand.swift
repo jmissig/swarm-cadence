@@ -139,6 +139,7 @@ private struct SwarmCadenceCLI: ParsableCommand {
           swarm-cadence ingest --account julian --adapter v2
           swarm-cadence query visits --account julian --date 2026-03-25
           swarm-cadence query compare --account julian --baseline-from 2026-03-01 --recent-from 2026-04-01
+          swarm-cadence query lapses --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01
           swarm-cadence evidence packet --account julian --date 2026-03-25 --baseline-from 2026-03-01 --recent-from 2026-04-01
 
         Defaults live under ~/Library/Application Support/swarm-cadence: config.json
@@ -539,7 +540,7 @@ private struct QueryCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "query",
         abstract: "Read evidence rows and descriptive rollups.",
-        subcommands: [QueryCategoriesCommand.self, QueryVenuesCommand.self, QueryVisitsCommand.self, QueryCadenceCommand.self, QueryCompareCommand.self]
+        subcommands: [QueryCategoriesCommand.self, QueryVenuesCommand.self, QueryVisitsCommand.self, QueryCadenceCommand.self, QueryCompareCommand.self, QueryLapsesCommand.self]
     )
 }
 
@@ -698,6 +699,47 @@ private struct QueryCompareCommand: ParsableCommand {
             sort: options.sort,
             minBaselineVisits: options.minBaselineVisits,
             limit: options.limit
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct QueryLapsesCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "lapses",
+        abstract: "Expose active/lapsed venue evidence from explicit comparison windows."
+    )
+
+    @OptionGroup var arguments: QueryCompareArguments
+
+    mutating func run() throws {
+        let options = try QueryCompareOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let geography = try options.resolveGeography(environment: runtime.environment)
+        let result = try SwarmDatabase.queryCompare(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account,
+            baselineFromCreatedAt: options.baselineFromCreatedAt,
+            baselineToCreatedAt: options.baselineToCreatedAt,
+            recentFromCreatedAt: options.recentFromCreatedAt,
+            recentToCreatedAt: options.recentToCreatedAt,
+            asOfCreatedAt: options.asOfCreatedAt,
+            hourFrom: options.hourFrom,
+            hourTo: options.hourTo,
+            locality: geography.locality,
+            region: geography.region,
+            postalCode: geography.postalCode,
+            countryCode: geography.countryCode,
+            areaLocalities: geography.areaLocalities,
+            categoryNames: options.categoryNames,
+            nearLatitude: geography.nearLatitude,
+            nearLongitude: geography.nearLongitude,
+            radiusMeters: geography.radiusMeters,
+            geography: geography.geography,
+            sort: options.sort,
+            minBaselineVisits: options.minBaselineVisits,
+            limit: options.limit,
+            commandName: "query lapses"
         )
         runtime.output(try Formatter.render(result, format: options.format))
     }
@@ -2396,12 +2438,13 @@ enum Formatter {
 
     private static func renderHuman(_ result: QueryCompareResult) -> String {
         var lines: [String] = [
-            "query compare",
+            result.command,
             "account: \(result.account)",
             "db: \(result.dbPath)",
             "compare_by: \(result.compareBy)",
             "sort: \(result.sort.rawValue)",
             "order: \(result.orderLabel)",
+            "current_through: \(result.sourceCoverage.currentThroughISO8601 ?? "unknown")",
             "total_matching_venues: \(result.totalMatchingVenues)",
             "returned_venues: \(result.returnedVenues)"
         ]
@@ -2412,6 +2455,9 @@ enum Formatter {
             }
             if let days = venue.daysSinceLastVisit {
                 lines.append("  days_since_last_visit: \(days)")
+            }
+            if let maxGap = venue.gapDays.maxDays {
+                lines.append("  gap_days_max: \(maxGap)")
             }
             if !venue.categories.isEmpty {
                 lines.append("  categories: \(venue.categories.joined(separator: ", "))")

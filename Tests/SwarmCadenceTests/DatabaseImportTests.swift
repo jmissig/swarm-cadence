@@ -1056,6 +1056,9 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertTrue(output.contains("\"recent_visit_count\" : 0"))
         XCTAssertTrue(output.contains("\"previous_visit_count\" : 2"))
         XCTAssertTrue(output.contains("\"days_since_last_visit\""))
+        XCTAssertTrue(output.contains("\"gap_days\""))
+        XCTAssertTrue(output.contains("\"source_coverage\""))
+        XCTAssertTrue(output.contains("\"current_through_iso8601\" : \"2023-11-14T22:15:00Z\""))
         XCTAssertTrue(output.contains("\"drill_down\""))
         assertOutput(output, containsValuesInOrder: ["Lapsed Diner", "Current Cafe"])
 
@@ -1147,6 +1150,67 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertTrue(output.contains("\"locality\" : \"Redwood City\""))
         XCTAssertTrue(output.contains("any listed place selector"))
         XCTAssertTrue(output.contains("\"total_matching_venues\" : 2"))
+    }
+
+    func testCLIQueryLapsesWrapsCompareWithActiveLapsedEvidenceShape() throws {
+        let directory = try makeTemporaryDirectory()
+        let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
+        try FileManager.default.createDirectory(at: rawDirectory, withIntermediateDirectories: true)
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+        let configURL = try writeGeographyConfig(in: directory)
+
+        try writeRawPair(
+            rawDirectory: rawDirectory,
+            baseName: "fixture-v2-julian-lapses-offset0-limit250",
+            rawBody: compareRawBody
+        )
+
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["db", "import-raw", "--account", "julian", "--db", dbURL.path, "--raw-dir", rawDirectory.path],
+            output: { _ in },
+            errorOutput: { _ in }
+        ), 0)
+
+        var output = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "lapses",
+                "--account", "julian",
+                "--db", dbURL.path,
+                "--config", configURL.path,
+                "--near-place", "fixture-anchor",
+                "--radius-meters", "30000",
+                "--category", "Diner",
+                "--baseline-from", "2020-01-01",
+                "--recent-from", "2023-01-01",
+                "--as-of", "2023-11-14T22:13:20Z",
+                "--min-baseline-visits", "2",
+                "--format", "json"
+            ],
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertTrue(output.contains("\"command\" : \"query lapses\""))
+        XCTAssertTrue(output.contains("\"compare_by\" : \"venue\""))
+        XCTAssertTrue(output.contains("\"near_place\" : \"fixture-anchor\""))
+        XCTAssertTrue(output.contains("\"category_names\" : ["))
+        XCTAssertTrue(output.contains("\"Diner\""))
+        XCTAssertTrue(output.contains("\"source_coverage\""))
+        XCTAssertTrue(output.contains("\"baseline_visit_count\" : 2"))
+        XCTAssertTrue(output.contains("\"recent_visit_count\" : 0"))
+        XCTAssertTrue(output.contains("\"previous_visit_count\" : 2"))
+        XCTAssertTrue(output.contains("\"days_since_last_visit\""))
+        XCTAssertTrue(output.contains("\"gap_days\""))
+        XCTAssertTrue(output.contains("\"max_days\" : 365"))
+        XCTAssertTrue(output.contains("\"drill_down\""))
+        XCTAssertTrue(output.contains("\"total_matching_venues\" : 1"))
+        XCTAssertTrue(output.contains("\"Lapsed Diner\""))
+        XCTAssertFalse(output.contains("abandoned"))
+        XCTAssertFalse(output.contains("disliked"))
+        XCTAssertFalse(output.contains("favorite"))
+        XCTAssertFalse(output.contains("recommend"))
     }
 
     func testCLIQueryCadenceRendersVenueTimeRollups() throws {

@@ -334,6 +334,16 @@ swift run swarm-cadence query compare --account julian --baseline-from 2024-01-0
 swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --sort recent --format json
 ```
 
+Use `query lapses` when the caller specifically wants the active/lapsed evidence
+shape. It is intentionally a thin wrapper over the comparison substrate: the
+output remains factual support, freshness, gap, geography, category, and
+drill-down evidence, not a claim that a place is disliked or abandoned:
+
+```bash
+swift run swarm-cadence query lapses --account julian --baseline-from 2018-01-01 --recent-from 2024-01-01 --min-baseline-visits 10 --sort stale --format json
+swift run swarm-cadence query lapses --account julian --baseline-from 2018-01-01 --recent-from 2024-01-01 --area peninsula --category "Coffee Shop" --format json
+```
+
 Build a generic evidence envelope over an explicit date/hour window for an LLM or
 Almanac layer to interpret. This is a diagnostic/query shape, not a final Robut packet:
 

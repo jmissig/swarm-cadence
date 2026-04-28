@@ -255,6 +255,7 @@ public struct VenueComparisonEvidence: Codable, Equatable {
     public let lastCreatedAt: Int?
     public let lastCreatedAtISO8601: String?
     public let daysSinceLastVisit: Int?
+    public let gapDays: CadenceGapEvidence
     public let categories: [String]
     public let drillDown: EvidenceDrillDown
 }
@@ -269,6 +270,7 @@ public struct QueryCompareResult: Codable, Equatable {
     public let orderLabel: String
     public let geography: QueryGeography
     public let filters: QueryCompareFilters
+    public let sourceCoverage: DatabaseFreshness
     public let totalMatchingVenues: Int
     public let returnedVenues: Int
     public let venues: [VenueComparisonEvidence]
@@ -1056,7 +1058,8 @@ public extension SwarmDatabase {
         geography requestedGeography: QueryGeography? = nil,
         sort requestedSort: EvidenceSort? = nil,
         minBaselineVisits: Int = 1,
-        limit: Int = queryDefaultLimit
+        limit: Int = queryDefaultLimit,
+        commandName: String = "query compare"
     ) throws -> QueryCompareResult {
         guard !dbPath.isEmpty else {
             throw CLIError("missing required --db <path>.")
@@ -1095,6 +1098,7 @@ public extension SwarmDatabase {
             registerDistanceFunction(db)
             let categoryNamesJSON = try categoryFilterJSON(categoryNames)
             let areaLocalitiesJSON = try areaLocalitiesFilterJSON(areaLocalities)
+            let sourceCoverage = try freshness(db: db, account: account, adapter: nil)
             let effectiveAsOf = try asOfCreatedAt ?? Int.fetchOne(
                 db,
                 sql: """
@@ -1277,6 +1281,16 @@ public extension SwarmDatabase {
                     lastCreatedAt: lastCreatedAt,
                     lastCreatedAtISO8601: lastCreatedAt.map(queryISO8601String(timestamp:)),
                     daysSinceLastVisit: daysSinceLastVisit,
+                    gapDays: try cadenceGapDays(
+                        db: db,
+                        account: account,
+                        venueID: venueID,
+                        fromCreatedAt: baselineFromCreatedAt,
+                        toCreatedAt: baselineToCreatedAt,
+                        hourFrom: hourFrom,
+                        hourTo: hourTo,
+                        categoryNamesJSON: categoryNamesJSON
+                    ),
                     categories: try supportingCategoryNames(
                         db: db,
                         account: account,
@@ -1303,7 +1317,7 @@ public extension SwarmDatabase {
 
             return QueryCompareResult(
                 schemaVersion: 1,
-                command: "query compare",
+                command: commandName,
                 account: account,
                 dbPath: dbPath,
                 compareBy: "venue",
@@ -1332,6 +1346,7 @@ public extension SwarmDatabase {
                     orderLabel: sort.orderLabel,
                     limit: limit
                 ),
+                sourceCoverage: sourceCoverage,
                 totalMatchingVenues: total,
                 returnedVenues: venues.count,
                 venues: venues
