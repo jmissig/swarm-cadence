@@ -28,7 +28,7 @@ safely as possible.
 3. **Run first real evidence reads**
    - Run `db stats` to inspect coverage: raw files, checkins, venues,
      categories, oldest/latest timestamps.
-   - Run `query venues`, `query visits`, and `query compare` against real
+   - Run `query venues`, `query visits`, `query cadence`, and `query compare` against real
      imported data.
    - Capture what is missing before adding more cleverness: stale venues,
      category gaps, duplicate/renamed venues, sparse history, timezone gaps,
@@ -132,10 +132,56 @@ safely as possible.
   - Defaults remain nearest with geometry filters, strongest for non-geo venue support, and stale for non-geo compare output.
   - Experimental evidence envelopes now emit labeled views (`strongest`, `recent`, `stale`, plus `nearest` when geometry filters are present) instead of one ambiguous candidate list.
 
-- [ ] Inspect the first experimental evidence envelopes and decide the next missing reusable query/derived-observation gap.
-  - Candidate next gaps: better `--near-place` / named-area resolution, venue reconciliation/aliases, category-audit/debug output, or a thin human-readable packet rendering.
-  - Normal packets should include selected caller-supplied categories, but not dump every excluded category by default; deeper category-selection audit belongs in debug/review flows.
-  - Keep lunch/coffee as acceptance tests, not product scope.
+- [x] Add venue time/cadence rollups as the next small evidence-substrate slice.
+  - Implemented `query cadence` for factual venue-level time/cadence rollups over explicit venue/date/hour/geography/category/near-radius filters.
+  - Output includes stable venue identity, location/category fields, support counts, first/last seen, days since last visit, distinct local dates, local-hour buckets, ISO weekday buckets, weekday/weekend counts, simple observed gap-day facts, freshness, and `query visits` drill-downs.
+  - Kept this descriptive: no “lunch preference,” no best venue, no hidden current-era weighting, and no recommendation prose inside the CLI.
+
+- [ ] Add named geography / anchor presets after cadence rollups.
+  - Existing `--near-lat`, `--near-lng`, and `--radius-meters` are correct but too manual for repeat Almanac/Guide work.
+  - Preserve the existing semantic distinction: “in place” = factual locality/region/postal/country filters; “near place” = anchor/radius evidence that can include neighboring localities.
+  - Start with explicit local presets that have proven useful in Almanac work, for example `home`, `jackson-square`, `peninsula`, and maybe `ferry-building` if needed.
+  - Possible command shapes:
+    - `query venues --account julian --near-place jackson-square --radius-meters 900 --format json`
+    - `query venues --account julian --area peninsula --category "Coffee Shop" --format json`
+  - Keep named areas as transparent query expansion / geography evidence, not recommendation logic. Output should include the resolved anchor/area definition.
+
+- [ ] Add clearer active/lapsed evidence outputs once cadence/geography are stable.
+  - `query compare` already supports some baseline/recent comparison, but Almanac/Guide work wants a more direct reusable evidence shape.
+  - The tool may say “historically strong, absent recently” or “recently active”; it must not infer “disliked,” “abandoned,” or “favorite” as a final judgment.
+  - Possible command shape:
+    - `query lapses --account julian --baseline-from 2018-01-01 --recent-from 2024-01-01 --min-baseline-visits 10 --format json`
+  - Include support counts, first/last seen, age/gap, comparison windows, categories, geography, and drill-downs.
+
+- [ ] Add venue reconciliation / alias support as an evidence-identity slice.
+  - Motivation: repeated brands or renamed/duplicate venues such as Blue Bottle / Starbucks-style rows can distort support counts.
+  - This belongs in the tool because it affects entity identity, not Robut interpretation.
+  - Keep raw venues untouched; add normalized aliases/groups or correction-backed venue identity records with provenance.
+  - Output should make grouping visible so a future artifact can show whether a count is one Foursquare venue or a grouped canonical venue.
+
+- [ ] Add trip / travel-burst clustering after local Guide pieces are usable.
+  - Motivation: airports, hotels, ski trips, Hong Kong/Taiwan clusters, and other bursts should not contaminate ordinary local food/place suggestions.
+  - The tool can expose bounded travel clusters by country/locality/date gaps; Robut decides how to use them in Almanacs/Guides.
+  - Possible command shape:
+    - `query trips --account julian --country-code TW --gap-days 3 --include localities,categories,top-venues --format json`
+  - Keep this descriptive: dates, places, support, top venues/categories, and drill-downs; no travel-personality conclusions.
+
+- [ ] Consider transparent category groups later, only if exact category selection remains too repetitive.
+  - Exact `--category` filters and `query categories` remain the source of truth.
+  - Saved groups like `coffee-bakery` or `food-broad` could be useful if they are explicit caller/tool-defined sets, rendered in output, and not fuzzy hidden cuisine/preference models.
+  - Future output should show which concrete Foursquare categories were included.
+
+- [ ] Add correction/edit storage after the reusable source/derived-output shape is stable.
+  - Store scoped human corrections / approved overrides separately from raw evidence and derived observations.
+  - Examples: `convenience_not_preference`, `still_loved_lapsed`, `not_for_lunch`, `closed_or_renamed`, category override, join policy override.
+  - Include scope, proposer/source, approval state (`proposed`, `human_approved`, `human_authored`), created/updated time, and visible effect on future packets/answers.
+  - Do not allow LLM-written interpretations to become raw evidence or unmarked human preference.
+
+- [ ] Keep these explicit non-goals while adding the above.
+  - Do not add hidden “current-era weighted venue ranking” as a tool-owned score. Expose recent support, historical support, gaps, freshness, and sort modes instead.
+  - Do not add “convenience-risk” as tool truth. Expose features that let Robut say “this might be convenience” and ask for correction.
+  - Do not make `swarm-cadence` own open-now/current availability as core Swarm truth. Treat live/open data as a separate current-source join above or beside Swarm unless Foursquare metadata clearly supports a bounded factual field.
+  - Do not make the CLI own final Almanacs, Guides, evidence packets, or explorable interfaces. `swarm-cadence` provides stable source/derived pieces; Robut/LLM composes scenario meaning and human-facing artifacts.
 
 ## Recently completed
 

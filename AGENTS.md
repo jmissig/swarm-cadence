@@ -90,8 +90,9 @@ The repository is now a Swift Package Manager project with:
 - aggregate-only `db stats` with derived freshness fields (`last_fetched_at`, `last_imported_at`, and `current_through` as the latest imported check-in timestamp);
 - account-scoped `query venues` and `query visits` over the imported SQLite sidecar, including factual local-calendar filters (`--date`, `--hour-from`, `--hour-to`);
 - venue geography filters from factual Foursquare location fields (`locality`, `region`, `postal_code`, `country_code`) and explicit map-distance primitives (`--near-lat`, `--near-lng`, `--radius-meters`), with distance returned as evidence;
-- `query categories` for inspecting known category names, plus repeatable factual category filters `--category <name>` for caller-chosen intent lanes, threaded through venue, compare, and experimental evidence-envelope queries;
+- `query categories` for inspecting known category names, plus repeatable factual category filters `--category <name>` for caller-chosen intent lanes, threaded through venue, cadence, compare, and experimental evidence-envelope queries;
 - import-time local-time sidecar fields for visits when raw timezone evidence is available (`local_date`, `local_hour`, `local_weekday_iso`, timezone id/offset), while retaining UTC `createdAt` as canonical provenance;
+- factual venue time/cadence rollups (`query cadence`) over explicit venue/date/hour/geography/category filters, returning support counts, first/last seen, gaps, local-hour buckets, ISO weekday buckets, weekday/weekend counts, freshness, and visit drill-downs without recommendation labels;
 - generic venue cadence comparisons over explicit baseline/recent windows (`query compare`) for active/lapsed/rotation evidence;
 - generic builder-facing `evidence window` packets over explicit date/hour filters, without fuzzy meal/time labels in the CLI;
 - first experimental evidence envelope `evidence packet`, which composes venue support and cadence comparison facts with explicit target window, geography semantics, source coverage, sources, and caveats; its name/schema are provisional and not a durable API commitment and should not imply the CLI owns final packet composition;
@@ -114,6 +115,7 @@ swarm-cadence db stats --account julian --format json
 swarm-cadence db stats --account alice --format json
 swarm-cadence query venues --account julian --format json
 swarm-cadence query visits --account julian --venue-id <venue-id> --format json
+swarm-cadence query cadence --account julian --venue-id <venue-id> --from 2024-01-01 --format json
 ```
 
 Near-term critical path:
@@ -123,9 +125,9 @@ Near-term critical path:
 3. Add official export/takeout import as an audit/completeness backstop.
 4. Compare overlapping API vs export data by check-in id before trusting source semantics.
 5. Preserve export-only coordinate/timestamp breadcrumbs, but prefer API rows where both exist.
-6. Import and inspect real coverage with `db stats`, `query venues`, `query visits`, and `query compare`.
+6. Import and inspect real coverage with `db stats`, `query venues`, `query visits`, `query cadence`, and `query compare`.
 7. Use geography constraints in real Guide/Almanac reads, keeping “in <place>” and “near <place>” semantics distinct.
-8. Inspect first experimental evidence envelopes and decide the next reusable evidence gap: named-place/area resolution, category/cuisine filters, venue reconciliation, or human-readable Guide rendering above the CLI.
+8. Inspect first experimental evidence envelopes and decide the next reusable evidence gap: named-place/area resolution, active/lapsed evidence, venue reconciliation, or human-readable Guide rendering above the CLI.
 9. Add correction/derived model state only after source/derived outputs show what actually needs correcting.
 
 Keep raw files as source of truth and the SQLite DB rebuildable. Build generic cadence/evidence query tools before any recommendation-like or guide-specific surface. Preserve account separation throughout.

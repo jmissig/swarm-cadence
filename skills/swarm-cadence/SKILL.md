@@ -41,6 +41,7 @@ swarm-cadence ingest --account julian --adapter v2 --format json
 swarm-cadence query categories --account julian --format json
 swarm-cadence query venues --account julian --format json
 swarm-cadence query visits --account julian --venue-id <venue-id> --format json
+swarm-cadence query cadence --account julian --venue-id <venue-id> --from 2024-01-01 --format json
 swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --format json
 swarm-cadence evidence packet --account julian --date 2026-04-27 --baseline-from 2024-01-01 --recent-from 2026-01-01 --format json
 ```
@@ -95,7 +96,7 @@ Distance is evidence, not judgment. If using a hand-chosen anchor/radius, say th
 
 ## Evidence views and sorting
 
-`query venues` and `query compare` support:
+`query venues`, `query cadence`, and `query compare` support:
 
 ```bash
 --sort nearest|strongest|recent|stale
@@ -105,6 +106,8 @@ Distance is evidence, not judgment. If using a hand-chosen anchor/radius, say th
 - `strongest`: most visit support first
 - `recent`: most recently visited first
 - `stale`: stale/lapsed evidence first
+
+Use `query cadence` when the answer needs venue-level time patterns: first/last seen, local-hour buckets, ISO weekday buckets, weekday/weekend counts, observed gaps, freshness, and visit drill-downs. These are descriptive facts, not meal labels or recommendations.
 
 Evidence packets include labeled views (`strongest`, `recent`, `stale`, and `nearest` when geography is present). Use the view labels when explaining results; do not describe a list as “best” unless you add your own caveated human judgment above the evidence.
 
@@ -116,7 +119,7 @@ Evidence packets include labeled views (`strongest`, `recent`, `stale`, and `nea
 2. Check `db stats` / packet freshness.
 3. For place-type questions, run `query categories` and select explicit categories.
 4. Choose geography semantics (`locality` vs anchor/radius).
-5. Run `evidence packet` for multi-view evidence, or lower-level `query venues` / `query compare` for narrower debugging.
+5. Run `evidence packet` for multi-view evidence, `query cadence` for venue time-pattern rollups, or lower-level `query venues` / `query compare` for narrower debugging.
 6. Answer in human terms:
    - summarize the most relevant evidence views
    - mention freshness and selected categories/geography
