@@ -112,6 +112,12 @@ account has its own v2/historysearch credentials, raw provenance, and imported
 SQLite rows. Joint/family queries should be explicitly scoped; there is no silent
 Julian/Alice blending.
 
+Named geography presets also live in this config. Top-level `geographies.<name>`
+are shared; `accounts.<account>.geographies.<name>` override shared presets for
+that account. Supported kinds are `anchor` (`latitude`, `longitude`, optional
+`default_radius_meters`) and `area` (`localities` with factual locality/region/postal/country selectors).
+Do not commit real private coordinates; keep them in the local Application Support config.
+
 ## Source Status
 
 Use source status to discover configured account scopes and local evidence paths
@@ -284,6 +290,12 @@ swift run swarm-cadence query venues --account julian --locality "San Mateo" --r
 # "near San Carlos" — geometry around an anchor, allowing nearby cities too
 swift run swarm-cadence query venues --account julian --near-lat 37.5072 --near-lng -122.2605 --radius-meters 7000 --format json
 
+# named anchor preset — expands visibly to anchor/radius evidence
+swift run swarm-cadence query venues --account julian --near-place jackson-square --radius-meters 900 --format json
+
+# named factual area preset — OR expansion over listed locality selectors
+swift run swarm-cadence query venues --account julian --area peninsula --category "Coffee Shop" --format json
+
 # narrow/refine when intended: locality AND distance
 swift run swarm-cadence query venues --account julian --locality "San Mateo" --near-lat 37.563 --near-lng -122.325 --radius-meters 5000 --format json
 ```
@@ -308,6 +320,7 @@ recommendation prose:
 ```bash
 swift run swarm-cadence query cadence --account julian --venue-id <venue-id> --from 2024-01-01 --to 2026-04-28 --format json
 swift run swarm-cadence query cadence --account julian --locality "San Mateo" --hour-from 11 --hour-to 14 --limit 25 --format json
+swift run swarm-cadence query cadence --account julian --near-place jackson-square --hour-from 11 --hour-to 14 --limit 25 --format json
 ```
 
 Compare venue support across a broad baseline and a recent window. This is the
@@ -316,6 +329,7 @@ rotation changes; interpretation belongs above the CLI:
 
 ```bash
 swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --hour-from 11 --hour-to 14 --locality "San Mateo" --region CA --format json
+swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --area peninsula --format json
 swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --sort stale --format json
 swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --sort recent --format json
 ```
@@ -337,9 +351,8 @@ swift run swarm-cadence evidence packet \
   --date 2026-04-27 \
   --hour-from 11 \
   --hour-to 14 \
-  --near-lat 37.5072 \
-  --near-lng -122.2605 \
-  --radius-meters 7000 \
+  --near-place jackson-square \
+  --radius-meters 1200 \
   --category "Mexican Restaurant" \
   --category "Pizzeria" \
   --category "Sandwich Spot" \
@@ -364,24 +377,29 @@ while making it explicit. `--sort nearest` requires `--near-lat`, `--near-lng`,
 and `--radius-meters`.
 
 `query venues`, `query cadence`, and `query compare` can also be bounded by factual Foursquare venue location
-fields (`--locality`, `--region`, `--postal-code`, `--country-code`), category
-names (repeat `--category`, OR semantics), and/or explicit map distance using
-`--near-lat`, `--near-lng`, and `--radius-meters`.
+fields (`--locality`, `--region`, `--postal-code`, `--country-code`), named
+factual areas (`--area <name>`), category names (repeat `--category`, OR
+semantics), named anchors (`--near-place <name>`), and/or explicit map distance
+using `--near-lat`, `--near-lng`, and `--radius-meters`.
 The distance options must be used together, and matching rows include
 `distance_meters` as evidence.
 
 Place wording matters: use locality fields for **“in San Mateo”** style queries.
 For **“near San Carlos”**, use a geographic anchor/radius so nearby Redwood City
 or Belmont venues can still match. Combining locality and radius is an AND
-refinement, not the default meaning of “near.” Future `--near-place`/`--area`
-work should make that anchor resolution inspectable instead of hiding it.
+refinement, not the default meaning of “near.” Named `--near-place` presets load
+from config and expand to visible latitude/longitude/radius filters; named
+`--area` presets expand to a visible OR list of factual locality/region/postal/country
+selectors. Top-level JSON includes `geography.requested`, `geography.resolved`,
+and `geography.semantics`; nested `filters` still show the effective primitive
+filters or `area_localities`.
 
 `evidence packet` is an experimental evidence envelope, not a durable public
 API contract and not the final Robut-composed packet. It emits `swarm_experimental_packet` with labeled evidence views
 over the same explicit filters: `strongest`, `recent`, `stale`, and `nearest`
 when distance filters are present. Each view contains venue support and cadence
 comparison facts ordered by that label. It includes the target window, explicit
-geography semantics, source coverage, nested query results, sources, caveats, and
+geography semantics, requested/resolved named geography when used, source coverage, nested query results, sources, caveats, and
 drill-down descriptors. It deliberately avoids hidden scoring, recommendation prose,
 correction state, open-now data, and cross-source joins.
 

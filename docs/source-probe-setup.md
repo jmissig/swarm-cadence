@@ -225,6 +225,8 @@ swift run swarm-cadence query venues --account julian --format json
 swift run swarm-cadence query venues --account julian --from 2024-01-01 --to 2024-12-31 --limit 50
 swift run swarm-cadence query venues --account julian --locality "San Mateo" --region CA --country-code US --format json
 swift run swarm-cadence query venues --account julian --locality "San Mateo" --near-lat 37.563 --near-lng -122.325 --radius-meters 5000 --format json
+swift run swarm-cadence query venues --account julian --near-place jackson-square --radius-meters 900 --format json
+swift run swarm-cadence query venues --account julian --area peninsula --category "Coffee Shop" --format json
 ```
 
 Drill into supporting rows without printing raw payloads:
@@ -246,6 +248,7 @@ window. This returns venue-level support facts rather than recommendations:
 
 ```bash
 swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --hour-from 11 --hour-to 14 --locality "San Mateo" --region CA --format json
+swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --area peninsula --format json
 ```
 
 For factual venue time/cadence rollups, use `query cadence`. It returns support
@@ -256,6 +259,7 @@ does not assign meal labels or choose a recommended venue:
 ```bash
 swift run swarm-cadence query cadence --account julian --venue-id <venue-id> --from 2024-01-01 --to 2026-04-28 --format json
 swift run swarm-cadence query cadence --account julian --locality "San Mateo" --hour-from 11 --hour-to 14 --limit 25 --format json
+swift run swarm-cadence query cadence --account julian --near-place jackson-square --hour-from 11 --hour-to 14 --limit 25 --format json
 ```
 
 For builder-facing packets, use the same explicit window without adding fuzzy
@@ -271,6 +275,15 @@ optional explicit map-distance bounds with `--near-lat`, `--near-lng`, and
 `--radius-meters`. The distance options must be supplied together, and results
 include `distance_meters` as factual evidence rather than a hidden recommendation
 or place-name judgment.
+
+The same commands, plus `evidence packet`, also support config-defined named
+geography. `--near-place <name>` resolves an `anchor` preset to effective
+latitude/longitude/radius filters; `--radius-meters` may override the preset
+default. `--area <name>` resolves an `area` preset to an explicit OR list of
+factual locality selectors. JSON includes a top-level `geography` object with
+`requested`, `resolved`, and `semantics`; nested `filters` still show effective
+primitive filters or `area_localities`. This keeps “in place” as factual venue
+location filtering and “near place” as transparent anchor/radius evidence.
 
 Date bounds accept Unix timestamps, ISO8601 instants, or `YYYY-MM-DD` UTC dates.
 Date-only `--from` starts at UTC midnight; date-only `--to` includes the full UTC

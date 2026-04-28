@@ -445,6 +445,94 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertTrue(categoryOutput.contains("\"total_matching_venues\" : 1"))
     }
 
+    func testCLIQueryVenuesSupportsNamedNearPlace() throws {
+        let directory = try makeTemporaryDirectory()
+        let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
+        try FileManager.default.createDirectory(at: rawDirectory, withIntermediateDirectories: true)
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+        let configURL = try writeGeographyConfig(in: directory)
+
+        try writeRawPair(
+            rawDirectory: rawDirectory,
+            baseName: "fixture-v2-julian-named-near-offset0-limit250",
+            rawBody: rawBody
+        )
+
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["db", "import-raw", "--account", "julian", "--db", dbURL.path, "--raw-dir", rawDirectory.path],
+            output: { _ in },
+            errorOutput: { _ in }
+        ), 0)
+
+        var output = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "venues",
+                "--account", "julian",
+                "--db", dbURL.path,
+                "--config", configURL.path,
+                "--near-place", "fixture-anchor",
+                "--format", "json"
+            ],
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertTrue(output.contains("\"geography\""))
+        XCTAssertTrue(output.contains("\"near_place\" : \"fixture-anchor\""))
+        XCTAssertTrue(output.contains("\"scope\" : \"shared\""))
+        XCTAssertTrue(output.contains("\"kind\" : \"anchor\""))
+        XCTAssertTrue(output.contains("\"near_latitude\" : 37.1"))
+        XCTAssertTrue(output.contains("\"near_longitude\" : -122.2"))
+        XCTAssertTrue(output.contains("\"radius_meters\" : 100"))
+        XCTAssertTrue(output.contains("named anchor"))
+        XCTAssertTrue(output.contains("\"total_matching_venues\" : 1"))
+    }
+
+    func testCLIQueryCadenceSupportsNamedNearPlace() throws {
+        let directory = try makeTemporaryDirectory()
+        let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
+        try FileManager.default.createDirectory(at: rawDirectory, withIntermediateDirectories: true)
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+        let configURL = try writeGeographyConfig(in: directory)
+
+        try writeRawPair(
+            rawDirectory: rawDirectory,
+            baseName: "fixture-v2-julian-cadence-named-near-offset0-limit250",
+            rawBody: cadenceRawBody
+        )
+
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["db", "import-raw", "--account", "julian", "--db", dbURL.path, "--raw-dir", rawDirectory.path],
+            output: { _ in },
+            errorOutput: { _ in }
+        ), 0)
+
+        var output = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "cadence",
+                "--account", "julian",
+                "--db", dbURL.path,
+                "--config", configURL.path,
+                "--near-place", "fixture-anchor",
+                "--from", "2023-11-01",
+                "--to", "2023-11-30",
+                "--format", "json"
+            ],
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertTrue(output.contains("\"command\" : \"query cadence\""))
+        XCTAssertTrue(output.contains("\"near_place\" : \"fixture-anchor\""))
+        XCTAssertTrue(output.contains("\"radius_meters\" : 100"))
+        XCTAssertTrue(output.contains("\"Cadence Cafe\""))
+        XCTAssertFalse(output.contains("Other Cadence Venue"))
+    }
+
     func testCLIQueryVenuesSupportsExplicitSortOrders() throws {
         let directory = try makeTemporaryDirectory()
         let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
@@ -567,6 +655,68 @@ final class DatabaseImportTests: XCTestCase {
             errorOutput: { compareNearestWithoutGeoErrorOutput = $0 }
         )
 
+        var nearPlaceWithLatErrorOutput = ""
+        let nearPlaceWithLatExit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "venues",
+                "--account", "julian",
+                "--db", "/tmp/does-not-matter.sqlite",
+                "--near-place", "fixture-anchor",
+                "--near-lat", "37.1",
+                "--format", "json"
+            ],
+            output: { _ in },
+            errorOutput: { nearPlaceWithLatErrorOutput = $0 }
+        )
+
+        var areaWithLocalityErrorOutput = ""
+        let areaWithLocalityExit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "compare",
+                "--account", "julian",
+                "--db", "/tmp/does-not-matter.sqlite",
+                "--baseline-from", "2020-01-01",
+                "--recent-from", "2023-01-01",
+                "--area", "fixture-peninsula",
+                "--locality", "San Mateo",
+                "--format", "json"
+            ],
+            output: { _ in },
+            errorOutput: { areaWithLocalityErrorOutput = $0 }
+        )
+
+        var areaWithNearPlaceErrorOutput = ""
+        let areaWithNearPlaceExit = SwarmCadenceCommand.run(
+            arguments: [
+                "evidence", "packet",
+                "--account", "julian",
+                "--db", "/tmp/does-not-matter.sqlite",
+                "--date", "2026-04-27",
+                "--baseline-from", "2020-01-01",
+                "--recent-from", "2023-01-01",
+                "--area", "fixture-peninsula",
+                "--near-place", "fixture-anchor",
+                "--format", "json"
+            ],
+            output: { _ in },
+            errorOutput: { areaWithNearPlaceErrorOutput = $0 }
+        )
+
+        let noDefaultRadiusConfig = try writeGeographyConfig(in: makeTemporaryDirectory(), includeAnchorRadius: false)
+        var missingRadiusErrorOutput = ""
+        let missingRadiusExit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "cadence",
+                "--account", "julian",
+                "--db", "/tmp/does-not-matter.sqlite",
+                "--config", noDefaultRadiusConfig.path,
+                "--near-place", "fixture-anchor",
+                "--format", "json"
+            ],
+            output: { _ in },
+            errorOutput: { missingRadiusErrorOutput = $0 }
+        )
+
         XCTAssertEqual(partialExit, 2)
         XCTAssertTrue(partialErrorOutput.contains("--near-lat, --near-lng, and --radius-meters must be used together"))
         XCTAssertEqual(invalidExit, 2)
@@ -575,6 +725,14 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertTrue(nearestWithoutGeoErrorOutput.contains("--sort nearest requires --near-lat, --near-lng, and --radius-meters"))
         XCTAssertEqual(compareNearestWithoutGeoExit, 2)
         XCTAssertTrue(compareNearestWithoutGeoErrorOutput.contains("--sort nearest requires --near-lat, --near-lng, and --radius-meters"))
+        XCTAssertEqual(nearPlaceWithLatExit, 2)
+        XCTAssertTrue(nearPlaceWithLatErrorOutput.contains("--near-place cannot be combined with --near-lat or --near-lng"))
+        XCTAssertEqual(areaWithLocalityExit, 2)
+        XCTAssertTrue(areaWithLocalityErrorOutput.contains("--area cannot be combined with --locality"))
+        XCTAssertEqual(areaWithNearPlaceExit, 2)
+        XCTAssertTrue(areaWithNearPlaceErrorOutput.contains("--area cannot be combined with --near-place"))
+        XCTAssertEqual(missingRadiusExit, 2)
+        XCTAssertTrue(missingRadiusErrorOutput.contains("requires --radius-meters"))
     }
 
     func testCLIQueryRejectsInvalidDateWindowBeforeReadingDB() throws {
@@ -945,6 +1103,52 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertFalse(output.contains("best lunch"))
     }
 
+    func testCLIQueryCompareSupportsNamedArea() throws {
+        let directory = try makeTemporaryDirectory()
+        let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
+        try FileManager.default.createDirectory(at: rawDirectory, withIntermediateDirectories: true)
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+        let configURL = try writeGeographyConfig(in: directory)
+
+        try writeRawPair(
+            rawDirectory: rawDirectory,
+            baseName: "fixture-v2-julian-compare-area-offset0-limit250",
+            rawBody: compareRawBody
+        )
+
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["db", "import-raw", "--account", "julian", "--db", dbURL.path, "--raw-dir", rawDirectory.path],
+            output: { _ in },
+            errorOutput: { _ in }
+        ), 0)
+
+        var output = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "compare",
+                "--account", "julian",
+                "--db", dbURL.path,
+                "--config", configURL.path,
+                "--area", "fixture-peninsula",
+                "--baseline-from", "2020-01-01",
+                "--recent-from", "2023-01-01",
+                "--min-baseline-visits", "2",
+                "--format", "json"
+            ],
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertTrue(output.contains("\"area\" : \"fixture-peninsula\""))
+        XCTAssertTrue(output.contains("\"kind\" : \"area\""))
+        XCTAssertTrue(output.contains("\"area_localities\""))
+        XCTAssertTrue(output.contains("\"locality\" : \"San Mateo\""))
+        XCTAssertTrue(output.contains("\"locality\" : \"Redwood City\""))
+        XCTAssertTrue(output.contains("any listed place selector"))
+        XCTAssertTrue(output.contains("\"total_matching_venues\" : 2"))
+    }
+
     func testCLIQueryCadenceRendersVenueTimeRollups() throws {
         let directory = try makeTemporaryDirectory()
         let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
@@ -1201,6 +1405,53 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertFalse(output.contains("best lunch"))
     }
 
+    func testCLIEvidencePacketSupportsNamedNearPlace() throws {
+        let directory = try makeTemporaryDirectory()
+        let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
+        try FileManager.default.createDirectory(at: rawDirectory, withIntermediateDirectories: true)
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+        let configURL = try writeGeographyConfig(in: directory)
+
+        try writeRawPair(
+            rawDirectory: rawDirectory,
+            baseName: "fixture-v2-julian-sort-named-near-offset0-limit250",
+            rawBody: sortRawBody
+        )
+
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["db", "import-raw", "--account", "julian", "--db", dbURL.path, "--raw-dir", rawDirectory.path],
+            output: { _ in },
+            errorOutput: { _ in }
+        ), 0)
+
+        var output = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: [
+                "evidence", "packet",
+                "--account", "julian",
+                "--db", dbURL.path,
+                "--config", configURL.path,
+                "--date", "2026-04-27",
+                "--hour-from", "11",
+                "--hour-to", "14",
+                "--near-place", "fixture-anchor",
+                "--radius-meters", "20000",
+                "--baseline-from", "2020-01-01",
+                "--recent-from", "2023-01-01",
+                "--format", "json"
+            ],
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertTrue(output.contains("\"near_place\" : \"fixture-anchor\""))
+        XCTAssertTrue(output.contains("\"resolved\""))
+        XCTAssertTrue(output.contains("\"radius_meters\" : 20000"))
+        XCTAssertTrue(output.contains("named anchor"))
+        XCTAssertTrue(output.contains("\"label\" : \"nearest\""))
+    }
+
     func testCLIEvidenceWindowRequiresDate() throws {
         var errorOutput = ""
         let exit = SwarmCadenceCommand.run(
@@ -1394,7 +1645,7 @@ final class DatabaseImportTests: XCTestCase {
                     "id": "venue-lapsed",
                     "name": "Lapsed Diner",
                     "timeZone": "America/Los_Angeles",
-                    "location": { "lat": 37.2, "lng": -122.3 },
+                    "location": { "lat": 37.2, "lng": -122.3, "city": "Redwood City", "state": "CA", "cc": "US" },
                     "categories": [{ "id": "cat-diner", "name": "Diner" }]
                   }
                 },
@@ -1406,7 +1657,7 @@ final class DatabaseImportTests: XCTestCase {
                     "id": "venue-lapsed",
                     "name": "Lapsed Diner",
                     "timeZone": "America/Los_Angeles",
-                    "location": { "lat": 37.2, "lng": -122.3 },
+                    "location": { "lat": 37.2, "lng": -122.3, "city": "Redwood City", "state": "CA", "cc": "US" },
                     "categories": [{ "id": "cat-diner", "name": "Diner" }]
                   }
                 },
@@ -1418,7 +1669,7 @@ final class DatabaseImportTests: XCTestCase {
                     "id": "venue-current",
                     "name": "Current Cafe",
                     "timeZone": "America/Los_Angeles",
-                    "location": { "lat": 37.1, "lng": -122.2 },
+                    "location": { "lat": 37.1, "lng": -122.2, "city": "San Mateo", "state": "CA", "cc": "US" },
                     "categories": [{ "id": "cat-cafe", "name": "Coffee Shop" }]
                   }
                 },
@@ -1430,7 +1681,7 @@ final class DatabaseImportTests: XCTestCase {
                     "id": "venue-current",
                     "name": "Current Cafe",
                     "timeZone": "America/Los_Angeles",
-                    "location": { "lat": 37.1, "lng": -122.2 },
+                    "location": { "lat": 37.1, "lng": -122.2, "city": "San Mateo", "state": "CA", "cc": "US" },
                     "categories": [{ "id": "cat-cafe", "name": "Coffee Shop" }]
                   }
                 }
@@ -1612,6 +1863,47 @@ final class DatabaseImportTests: XCTestCase {
             .replacingOccurrences(of: "Cafe Example", with: "Alice Cafe Example")
             .replacingOccurrences(of: "cat-1", with: "alice-cat-1")
             .data(using: .utf8)!
+    }
+
+    private func writeGeographyConfig(in directory: URL, includeAnchorRadius: Bool = true) throws -> URL {
+        let radiusLine = includeAnchorRadius ? #"          "default_radius_meters": 100"# : #"          "display_name": "Fixture Anchor""#
+        let body = """
+        {
+          "geographies": {
+            "fixture-anchor": {
+              "kind": "anchor",
+              "display_name": "Fixture Anchor",
+              "latitude": 37.1,
+              "longitude": -122.2,
+        \(radiusLine)
+            },
+            "fixture-peninsula": {
+              "kind": "area",
+              "display_name": "Fixture Peninsula",
+              "localities": [
+                { "locality": "San Mateo", "region": "CA", "country_code": "US" },
+                { "locality": "Redwood City", "region": "CA", "country_code": "US" }
+              ]
+            }
+          },
+          "accounts": {
+            "alice": {
+              "geographies": {
+                "fixture-anchor": {
+                  "kind": "anchor",
+                  "display_name": "Alice Fixture Anchor",
+                  "latitude": 37.9,
+                  "longitude": -122.9,
+                  "default_radius_meters": 200
+                }
+              }
+            }
+          }
+        }
+        """
+        let url = directory.appendingPathComponent("geography-config.json")
+        try body.data(using: .utf8)!.write(to: url)
+        return url
     }
 
     private func writeRawPair(

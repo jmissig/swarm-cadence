@@ -574,6 +574,7 @@ private struct QueryVenuesCommand: ParsableCommand {
     mutating func run() throws {
         let options = try QueryVenuesOptions(parsed: arguments)
         let runtime = CommandRuntime.current
+        let geography = try options.resolveGeography(environment: runtime.environment)
         let result = try SwarmDatabase.queryVenues(
             dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
             account: options.account,
@@ -582,14 +583,16 @@ private struct QueryVenuesCommand: ParsableCommand {
             date: options.date,
             hourFrom: options.hourFrom,
             hourTo: options.hourTo,
-            locality: options.locality,
-            region: options.region,
-            postalCode: options.postalCode,
-            countryCode: options.countryCode,
+            locality: geography.locality,
+            region: geography.region,
+            postalCode: geography.postalCode,
+            countryCode: geography.countryCode,
+            areaLocalities: geography.areaLocalities,
             categoryNames: options.categoryNames,
-            nearLatitude: options.nearLatitude,
-            nearLongitude: options.nearLongitude,
-            radiusMeters: options.radiusMeters,
+            nearLatitude: geography.nearLatitude,
+            nearLongitude: geography.nearLongitude,
+            radiusMeters: geography.radiusMeters,
+            geography: geography.geography,
             sort: options.sort,
             limit: options.limit
         )
@@ -634,6 +637,7 @@ private struct QueryCadenceCommand: ParsableCommand {
     mutating func run() throws {
         let options = try QueryCadenceOptions(parsed: arguments)
         let runtime = CommandRuntime.current
+        let geography = try options.resolveGeography(environment: runtime.environment)
         let result = try SwarmDatabase.queryCadence(
             dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
             account: options.account,
@@ -642,14 +646,16 @@ private struct QueryCadenceCommand: ParsableCommand {
             toCreatedAt: options.toCreatedAt,
             hourFrom: options.hourFrom,
             hourTo: options.hourTo,
-            locality: options.locality,
-            region: options.region,
-            postalCode: options.postalCode,
-            countryCode: options.countryCode,
+            locality: geography.locality,
+            region: geography.region,
+            postalCode: geography.postalCode,
+            countryCode: geography.countryCode,
+            areaLocalities: geography.areaLocalities,
             categoryNames: options.categoryNames,
-            nearLatitude: options.nearLatitude,
-            nearLongitude: options.nearLongitude,
-            radiusMeters: options.radiusMeters,
+            nearLatitude: geography.nearLatitude,
+            nearLongitude: geography.nearLongitude,
+            radiusMeters: geography.radiusMeters,
+            geography: geography.geography,
             sort: options.sort,
             limit: options.limit
         )
@@ -668,6 +674,7 @@ private struct QueryCompareCommand: ParsableCommand {
     mutating func run() throws {
         let options = try QueryCompareOptions(parsed: arguments)
         let runtime = CommandRuntime.current
+        let geography = try options.resolveGeography(environment: runtime.environment)
         let result = try SwarmDatabase.queryCompare(
             dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
             account: options.account,
@@ -678,14 +685,16 @@ private struct QueryCompareCommand: ParsableCommand {
             asOfCreatedAt: options.asOfCreatedAt,
             hourFrom: options.hourFrom,
             hourTo: options.hourTo,
-            locality: options.locality,
-            region: options.region,
-            postalCode: options.postalCode,
-            countryCode: options.countryCode,
+            locality: geography.locality,
+            region: geography.region,
+            postalCode: geography.postalCode,
+            countryCode: geography.countryCode,
+            areaLocalities: geography.areaLocalities,
             categoryNames: options.categoryNames,
-            nearLatitude: options.nearLatitude,
-            nearLongitude: options.nearLongitude,
-            radiusMeters: options.radiusMeters,
+            nearLatitude: geography.nearLatitude,
+            nearLongitude: geography.nearLongitude,
+            radiusMeters: geography.radiusMeters,
+            geography: geography.geography,
             sort: options.sort,
             minBaselineVisits: options.minBaselineVisits,
             limit: options.limit
@@ -736,20 +745,23 @@ private struct EvidencePacketCommand: ParsableCommand {
     mutating func run() throws {
         let options = try EvidencePacketOptions(parsed: arguments)
         let runtime = CommandRuntime.current
+        let geography = try options.resolveGeography(environment: runtime.environment)
         let result = try SwarmDatabase.evidencePacket(
             dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
             account: options.account,
             date: options.date,
             hourFrom: options.hourFrom,
             hourTo: options.hourTo,
-            locality: options.locality,
-            region: options.region,
-            postalCode: options.postalCode,
-            countryCode: options.countryCode,
+            locality: geography.locality,
+            region: geography.region,
+            postalCode: geography.postalCode,
+            countryCode: geography.countryCode,
+            areaLocalities: geography.areaLocalities,
             categoryNames: options.categoryNames,
-            nearLatitude: options.nearLatitude,
-            nearLongitude: options.nearLongitude,
-            radiusMeters: options.radiusMeters,
+            nearLatitude: geography.nearLatitude,
+            nearLongitude: geography.nearLongitude,
+            radiusMeters: geography.radiusMeters,
+            geography: geography.geography,
             baselineFromCreatedAt: options.baselineFromCreatedAt,
             baselineToCreatedAt: options.baselineToCreatedAt,
             recentFromCreatedAt: options.recentFromCreatedAt,
@@ -1053,6 +1065,7 @@ struct QueryCategoriesOptions {
 struct QueryVenuesOptions {
     let account: String
     let dbPath: String?
+    let configPath: String?
     let format: OutputFormat
     let fromCreatedAt: Int?
     let toCreatedAt: Int?
@@ -1063,6 +1076,8 @@ struct QueryVenuesOptions {
     let region: String?
     let postalCode: String?
     let countryCode: String?
+    let nearPlace: String?
+    let area: String?
     let categoryNames: [String]
     let nearLatitude: Double?
     let nearLongitude: Double?
@@ -1074,6 +1089,7 @@ struct QueryVenuesOptions {
         self.account = try AccountLabel.validate(parsed.account)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
+        self.configPath = parsed.config
         self.fromCreatedAt = try SwarmDatabase.parseQueryTimestamp(parsed.from, optionName: "--from")
         self.toCreatedAt = try SwarmDatabase.parseQueryTimestamp(parsed.to, optionName: "--to")
         self.date = parsed.date
@@ -1083,6 +1099,8 @@ struct QueryVenuesOptions {
         self.region = parsed.region
         self.postalCode = parsed.postalCode
         self.countryCode = parsed.countryCode
+        self.nearPlace = parsed.nearPlace
+        self.area = parsed.area
         self.categoryNames = parsed.categoryNames
         self.nearLatitude = parsed.nearLatitude
         self.nearLongitude = parsed.nearLongitude
@@ -1104,14 +1122,43 @@ struct QueryVenuesOptions {
             countryCode: countryCode
         )
         try SwarmDatabase.validateCategoryOptions(categoryNames)
-        try SwarmDatabase.validateGeoOptions(
+        if nearPlace == nil {
+            try SwarmDatabase.validateGeoOptions(
+                nearLatitude: nearLatitude,
+                nearLongitude: nearLongitude,
+                radiusMeters: radiusMeters
+            )
+        }
+        if sort == .nearest && radiusMeters == nil && nearPlace == nil {
+            throw CLIError("--sort nearest requires --near-lat, --near-lng, and --radius-meters.")
+        }
+        try validateNamedGeographyOptions(
+            nearPlace: nearPlace,
+            area: area,
+            locality: locality,
+            region: region,
+            postalCode: postalCode,
+            countryCode: countryCode,
+            nearLatitude: nearLatitude,
+            nearLongitude: nearLongitude
+        )
+    }
+
+    func resolveGeography(environment: [String: String]) throws -> GeographyExpansion {
+        try GeographyPresetResolver.resolve(
+            account: account,
+            configPath: configPath,
+            environment: environment,
+            nearPlace: nearPlace,
+            area: area,
+            locality: locality,
+            region: region,
+            postalCode: postalCode,
+            countryCode: countryCode,
             nearLatitude: nearLatitude,
             nearLongitude: nearLongitude,
             radiusMeters: radiusMeters
         )
-        if sort == .nearest && radiusMeters == nil {
-            throw CLIError("--sort nearest requires --near-lat, --near-lng, and --radius-meters.")
-        }
     }
 }
 
@@ -1156,6 +1203,7 @@ struct QueryVisitsOptions {
 struct QueryCadenceOptions {
     let account: String
     let dbPath: String?
+    let configPath: String?
     let format: OutputFormat
     let venueID: String?
     let fromCreatedAt: Int?
@@ -1166,6 +1214,8 @@ struct QueryCadenceOptions {
     let region: String?
     let postalCode: String?
     let countryCode: String?
+    let nearPlace: String?
+    let area: String?
     let categoryNames: [String]
     let nearLatitude: Double?
     let nearLongitude: Double?
@@ -1177,6 +1227,7 @@ struct QueryCadenceOptions {
         self.account = try AccountLabel.validate(parsed.account)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
+        self.configPath = parsed.config
         if let venueID = parsed.venueID, venueID.isEmpty {
             throw CLIError("--venue-id must not be empty.")
         }
@@ -1189,6 +1240,8 @@ struct QueryCadenceOptions {
         self.region = parsed.region
         self.postalCode = parsed.postalCode
         self.countryCode = parsed.countryCode
+        self.nearPlace = parsed.nearPlace
+        self.area = parsed.area
         self.categoryNames = parsed.categoryNames
         self.nearLatitude = parsed.nearLatitude
         self.nearLongitude = parsed.nearLongitude
@@ -1210,14 +1263,43 @@ struct QueryCadenceOptions {
             countryCode: countryCode
         )
         try SwarmDatabase.validateCategoryOptions(categoryNames)
-        try SwarmDatabase.validateGeoOptions(
+        if nearPlace == nil {
+            try SwarmDatabase.validateGeoOptions(
+                nearLatitude: nearLatitude,
+                nearLongitude: nearLongitude,
+                radiusMeters: radiusMeters
+            )
+        }
+        if sort == .nearest && radiusMeters == nil && nearPlace == nil {
+            throw CLIError("--sort nearest requires --near-lat, --near-lng, and --radius-meters.")
+        }
+        try validateNamedGeographyOptions(
+            nearPlace: nearPlace,
+            area: area,
+            locality: locality,
+            region: region,
+            postalCode: postalCode,
+            countryCode: countryCode,
+            nearLatitude: nearLatitude,
+            nearLongitude: nearLongitude
+        )
+    }
+
+    func resolveGeography(environment: [String: String]) throws -> GeographyExpansion {
+        try GeographyPresetResolver.resolve(
+            account: account,
+            configPath: configPath,
+            environment: environment,
+            nearPlace: nearPlace,
+            area: area,
+            locality: locality,
+            region: region,
+            postalCode: postalCode,
+            countryCode: countryCode,
             nearLatitude: nearLatitude,
             nearLongitude: nearLongitude,
             radiusMeters: radiusMeters
         )
-        if sort == .nearest && radiusMeters == nil {
-            throw CLIError("--sort nearest requires --near-lat, --near-lng, and --radius-meters.")
-        }
     }
 }
 
@@ -1225,6 +1307,7 @@ struct QueryCadenceOptions {
 struct QueryCompareOptions {
     let account: String
     let dbPath: String?
+    let configPath: String?
     let format: OutputFormat
     let baselineFromCreatedAt: Int
     let baselineToCreatedAt: Int?
@@ -1237,6 +1320,8 @@ struct QueryCompareOptions {
     let region: String?
     let postalCode: String?
     let countryCode: String?
+    let nearPlace: String?
+    let area: String?
     let categoryNames: [String]
     let nearLatitude: Double?
     let nearLongitude: Double?
@@ -1249,6 +1334,7 @@ struct QueryCompareOptions {
         self.account = try AccountLabel.validate(parsed.account)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
+        self.configPath = parsed.config
         guard let baselineFrom = parsed.baselineFrom else {
             throw CLIError("missing required --baseline-from <time>.")
         }
@@ -1266,6 +1352,8 @@ struct QueryCompareOptions {
         self.region = parsed.region
         self.postalCode = parsed.postalCode
         self.countryCode = parsed.countryCode
+        self.nearPlace = parsed.nearPlace
+        self.area = parsed.area
         self.categoryNames = parsed.categoryNames
         self.nearLatitude = parsed.nearLatitude
         self.nearLongitude = parsed.nearLongitude
@@ -1296,14 +1384,43 @@ struct QueryCompareOptions {
             countryCode: countryCode
         )
         try SwarmDatabase.validateCategoryOptions(categoryNames)
-        try SwarmDatabase.validateGeoOptions(
+        if nearPlace == nil {
+            try SwarmDatabase.validateGeoOptions(
+                nearLatitude: nearLatitude,
+                nearLongitude: nearLongitude,
+                radiusMeters: radiusMeters
+            )
+        }
+        if sort == .nearest && radiusMeters == nil && nearPlace == nil {
+            throw CLIError("--sort nearest requires --near-lat, --near-lng, and --radius-meters.")
+        }
+        try validateNamedGeographyOptions(
+            nearPlace: nearPlace,
+            area: area,
+            locality: locality,
+            region: region,
+            postalCode: postalCode,
+            countryCode: countryCode,
+            nearLatitude: nearLatitude,
+            nearLongitude: nearLongitude
+        )
+    }
+
+    func resolveGeography(environment: [String: String]) throws -> GeographyExpansion {
+        try GeographyPresetResolver.resolve(
+            account: account,
+            configPath: configPath,
+            environment: environment,
+            nearPlace: nearPlace,
+            area: area,
+            locality: locality,
+            region: region,
+            postalCode: postalCode,
+            countryCode: countryCode,
             nearLatitude: nearLatitude,
             nearLongitude: nearLongitude,
             radiusMeters: radiusMeters
         )
-        if sort == .nearest && radiusMeters == nil {
-            throw CLIError("--sort nearest requires --near-lat, --near-lng, and --radius-meters.")
-        }
     }
 }
 
@@ -1341,6 +1458,7 @@ struct EvidenceWindowOptions {
 struct EvidencePacketOptions {
     let account: String
     let dbPath: String?
+    let configPath: String?
     let format: OutputFormat
     let date: String
     let hourFrom: Int?
@@ -1349,6 +1467,8 @@ struct EvidencePacketOptions {
     let region: String?
     let postalCode: String?
     let countryCode: String?
+    let nearPlace: String?
+    let area: String?
     let categoryNames: [String]
     let nearLatitude: Double?
     let nearLongitude: Double?
@@ -1365,6 +1485,7 @@ struct EvidencePacketOptions {
         self.account = try AccountLabel.validate(parsed.account)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
+        self.configPath = parsed.config
         guard let date = parsed.date else {
             throw CLIError("missing required --date <YYYY-MM-DD>.")
         }
@@ -1381,6 +1502,8 @@ struct EvidencePacketOptions {
         self.region = parsed.region
         self.postalCode = parsed.postalCode
         self.countryCode = parsed.countryCode
+        self.nearPlace = parsed.nearPlace
+        self.area = parsed.area
         self.categoryNames = parsed.categoryNames
         self.nearLatitude = parsed.nearLatitude
         self.nearLongitude = parsed.nearLongitude
@@ -1418,7 +1541,36 @@ struct EvidencePacketOptions {
         )
         try SwarmDatabase.validatePlaceOptions(locality: locality, region: region, postalCode: postalCode, countryCode: countryCode)
         try SwarmDatabase.validateCategoryOptions(categoryNames)
-        try SwarmDatabase.validateGeoOptions(nearLatitude: nearLatitude, nearLongitude: nearLongitude, radiusMeters: radiusMeters)
+        if nearPlace == nil {
+            try SwarmDatabase.validateGeoOptions(nearLatitude: nearLatitude, nearLongitude: nearLongitude, radiusMeters: radiusMeters)
+        }
+        try validateNamedGeographyOptions(
+            nearPlace: nearPlace,
+            area: area,
+            locality: locality,
+            region: region,
+            postalCode: postalCode,
+            countryCode: countryCode,
+            nearLatitude: nearLatitude,
+            nearLongitude: nearLongitude
+        )
+    }
+
+    func resolveGeography(environment: [String: String]) throws -> GeographyExpansion {
+        try GeographyPresetResolver.resolve(
+            account: account,
+            configPath: configPath,
+            environment: environment,
+            nearPlace: nearPlace,
+            area: area,
+            locality: locality,
+            region: region,
+            postalCode: postalCode,
+            countryCode: countryCode,
+            nearLatitude: nearLatitude,
+            nearLongitude: nearLongitude,
+            radiusMeters: radiusMeters
+        )
     }
 }
 
@@ -1533,6 +1685,7 @@ private struct QueryCategoriesArguments: ParsableArguments {
 private struct QueryVenuesArguments: ParsableArguments {
     @Option var account: String?
     @Option(name: .customLong("db")) var dbPath: String?
+    @Option(help: "Config JSON path for named geography presets. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
     @Option(name: .customLong("from")) var from: String?
     @Option(name: .customLong("to")) var to: String?
     @Option var date: String?
@@ -1542,6 +1695,8 @@ private struct QueryVenuesArguments: ParsableArguments {
     @Option var region: String?
     @Option(name: .customLong("postal-code")) var postalCode: String?
     @Option(name: .customLong("country-code")) var countryCode: String?
+    @Option(name: .customLong("near-place")) var nearPlace: String?
+    @Option(name: .customLong("area")) var area: String?
     @Option(name: .customLong("category")) var categoryNames: [String] = []
     @Option(name: .customLong("near-lat")) var nearLatitude: Double?
     @Option(name: .customLong("near-lng")) var nearLongitude: Double?
@@ -1570,6 +1725,7 @@ private struct QueryVisitsArguments: ParsableArguments {
 private struct QueryCadenceArguments: ParsableArguments {
     @Option var account: String?
     @Option(name: .customLong("db")) var dbPath: String?
+    @Option(help: "Config JSON path for named geography presets. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
     @Option(name: .customLong("venue-id")) var venueID: String?
     @Option(name: .customLong("from")) var from: String?
     @Option(name: .customLong("to")) var to: String?
@@ -1579,6 +1735,8 @@ private struct QueryCadenceArguments: ParsableArguments {
     @Option var region: String?
     @Option(name: .customLong("postal-code")) var postalCode: String?
     @Option(name: .customLong("country-code")) var countryCode: String?
+    @Option(name: .customLong("near-place")) var nearPlace: String?
+    @Option(name: .customLong("area")) var area: String?
     @Option(name: .customLong("category")) var categoryNames: [String] = []
     @Option(name: .customLong("near-lat")) var nearLatitude: Double?
     @Option(name: .customLong("near-lng")) var nearLongitude: Double?
@@ -1593,6 +1751,7 @@ private struct QueryCadenceArguments: ParsableArguments {
 private struct QueryCompareArguments: ParsableArguments {
     @Option var account: String?
     @Option(name: .customLong("db")) var dbPath: String?
+    @Option(help: "Config JSON path for named geography presets. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
     @Option(name: .customLong("baseline-from")) var baselineFrom: String?
     @Option(name: .customLong("baseline-to")) var baselineTo: String?
     @Option(name: .customLong("recent-from")) var recentFrom: String?
@@ -1604,6 +1763,8 @@ private struct QueryCompareArguments: ParsableArguments {
     @Option var region: String?
     @Option(name: .customLong("postal-code")) var postalCode: String?
     @Option(name: .customLong("country-code")) var countryCode: String?
+    @Option(name: .customLong("near-place")) var nearPlace: String?
+    @Option(name: .customLong("area")) var area: String?
     @Option(name: .customLong("category")) var categoryNames: [String] = []
     @Option(name: .customLong("near-lat")) var nearLatitude: Double?
     @Option(name: .customLong("near-lng")) var nearLongitude: Double?
@@ -1629,6 +1790,7 @@ private struct EvidenceWindowArguments: ParsableArguments {
 private struct EvidencePacketArguments: ParsableArguments {
     @Option var account: String?
     @Option(name: .customLong("db")) var dbPath: String?
+    @Option(help: "Config JSON path for named geography presets. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
     @Option var date: String?
     @Option(name: .customLong("baseline-from")) var baselineFrom: String?
     @Option(name: .customLong("baseline-to")) var baselineTo: String?
@@ -1641,6 +1803,8 @@ private struct EvidencePacketArguments: ParsableArguments {
     @Option var region: String?
     @Option(name: .customLong("postal-code")) var postalCode: String?
     @Option(name: .customLong("country-code")) var countryCode: String?
+    @Option(name: .customLong("near-place")) var nearPlace: String?
+    @Option(name: .customLong("area")) var area: String?
     @Option(name: .customLong("category")) var categoryNames: [String] = []
     @Option(name: .customLong("near-lat")) var nearLatitude: Double?
     @Option(name: .customLong("near-lng")) var nearLongitude: Double?
@@ -1663,6 +1827,33 @@ private func parseFormat(format rawFormat: String, json: Bool) throws -> OutputF
     }
 
     return format
+}
+
+private func validateNamedGeographyOptions(
+    nearPlace: String?,
+    area: String?,
+    locality: String?,
+    region: String?,
+    postalCode: String?,
+    countryCode: String?,
+    nearLatitude: Double?,
+    nearLongitude: Double?
+) throws {
+    if let nearPlace, nearPlace.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        throw CLIError("--near-place must not be empty.")
+    }
+    if let area, area.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        throw CLIError("--area must not be empty.")
+    }
+    if nearPlace != nil && (nearLatitude != nil || nearLongitude != nil) {
+        throw CLIError("--near-place cannot be combined with --near-lat or --near-lng.")
+    }
+    if area != nil && nearPlace != nil {
+        throw CLIError("--area cannot be combined with --near-place.")
+    }
+    if area != nil && (locality != nil || region != nil || postalCode != nil || countryCode != nil) {
+        throw CLIError("--area cannot be combined with --locality, --region, --postal-code, or --country-code.")
+    }
 }
 
 enum Formatter {

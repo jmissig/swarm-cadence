@@ -1,6 +1,33 @@
 {
+  "geographies": {
+    "jackson-square": {
+      "kind": "anchor",
+      "display_name": "Jackson Square",
+      "latitude": 37.7979,
+      "longitude": -122.4016,
+      "default_radius_meters": 900
+    },
+    "peninsula": {
+      "kind": "area",
+      "display_name": "Peninsula",
+      "localities": [
+        { "locality": "San Carlos", "region": "CA", "country_code": "US" },
+        { "locality": "Redwood City", "region": "CA", "country_code": "US" },
+        { "locality": "Belmont", "region": "CA", "country_code": "US" }
+      ]
+    }
+  },
   "accounts": {
     "julian": {
+      "geographies": {
+        "home": {
+          "kind": "anchor",
+          "display_name": "Home",
+          "latitude": 0,
+          "longitude": 0,
+          "default_radius_meters": 7000
+        }
+      },
       "v2": {
         "access_token": "replace-with-julian-oauth-access-token",
         "client_id": "replace-with-developer-app-client-id",
@@ -15,6 +42,15 @@
       }
     },
     "alice": {
+      "geographies": {
+        "home": {
+          "kind": "anchor",
+          "display_name": "Home",
+          "latitude": 0,
+          "longitude": 0,
+          "default_radius_meters": 7000
+        }
+      },
       "v2": {
         "access_token": "replace-with-alice-oauth-access-token",
         "client_id": "replace-with-developer-app-client-id",

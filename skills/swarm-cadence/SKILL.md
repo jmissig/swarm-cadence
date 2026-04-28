@@ -88,9 +88,15 @@ Surface selected categories in the answer. Category filters are exact, case-inse
 Do not flatten place language:
 
 - “in San Carlos” → factual locality filters, e.g. `--locality "San Carlos" --region CA --country-code US`
-- “near San Carlos” → caller-supplied anchor/radius, e.g. `--near-lat ... --near-lng ... --radius-meters ...`
+- “near San Carlos” → named or caller-supplied anchor/radius, e.g. `--near-place home --radius-meters 7000` or `--near-lat ... --near-lng ... --radius-meters ...`
+- “San Carlos / Redwood City area” → named factual area, e.g. `--area peninsula`, when the local config defines the area.
 
-Distance is evidence, not judgment. If using a hand-chosen anchor/radius, say that the radius can include nearby localities.
+Prefer named geography when available because it keeps repeated Almanac/Guide
+queries consistent. Still surface the resolved definition in the answer:
+anchor name, radius, included localities, and the `geography.semantics` string.
+Do not treat named geography as fuzzy inference. Distance is evidence, not
+judgment. If using an anchor/radius, say that the radius can include nearby
+localities.
 
 ---
 
@@ -118,7 +124,7 @@ Evidence packets include labeled views (`strongest`, `recent`, `stale`, and `nea
 1. Pick account and scope. If unclear, run `source status` first.
 2. Check `db stats` / packet freshness.
 3. For place-type questions, run `query categories` and select explicit categories.
-4. Choose geography semantics (`locality` vs anchor/radius).
+4. Choose geography semantics (`locality`, named `area`, or anchor/radius).
 5. Run `evidence packet` for multi-view evidence, `query cadence` for venue time-pattern rollups, or lower-level `query venues` / `query compare` for narrower debugging.
 6. Answer in human terms:
    - summarize the most relevant evidence views

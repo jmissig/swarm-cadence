@@ -137,14 +137,16 @@ safely as possible.
   - Output includes stable venue identity, location/category fields, support counts, first/last seen, days since last visit, distinct local dates, local-hour buckets, ISO weekday buckets, weekday/weekend counts, simple observed gap-day facts, freshness, and `query visits` drill-downs.
   - Kept this descriptive: no “lunch preference,” no best venue, no hidden current-era weighting, and no recommendation prose inside the CLI.
 
-- [ ] Add named geography / anchor presets after cadence rollups.
+- [x] Add named geography / anchor presets after cadence rollups.
   - Existing `--near-lat`, `--near-lng`, and `--radius-meters` are correct but too manual for repeat Almanac/Guide work.
   - Preserve the existing semantic distinction: “in place” = factual locality/region/postal/country filters; “near place” = anchor/radius evidence that can include neighboring localities.
   - Start with explicit local presets that have proven useful in Almanac work, for example `home`, `jackson-square`, `peninsula`, and maybe `ferry-building` if needed.
-  - Possible command shapes:
+  - Implemented command shapes:
     - `query venues --account julian --near-place jackson-square --radius-meters 900 --format json`
     - `query venues --account julian --area peninsula --category "Coffee Shop" --format json`
-  - Keep named areas as transparent query expansion / geography evidence, not recommendation logic. Output should include the resolved anchor/area definition.
+  - `query venues`, `query cadence`, `query compare`, and `evidence packet` now resolve config-defined `anchor` and `area` presets in the CLI/options layer.
+  - Output includes requested/resolved geography definitions, semantics, and effective primitive filters or area-locality selectors.
+  - Kept named areas as transparent query expansion / geography evidence, not recommendation logic.
 
 - [ ] Add clearer active/lapsed evidence outputs once cadence/geography are stable.
   - `query compare` already supports some baseline/recent comparison, but Almanac/Guide work wants a more direct reusable evidence shape.

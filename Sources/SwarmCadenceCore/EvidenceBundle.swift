@@ -7,10 +7,13 @@ public struct EvidenceWindow: Codable, Equatable {
 }
 
 public struct EvidenceGeography: Codable, Equatable {
+    public let requested: NamedGeographyRequest
+    public let resolved: ResolvedGeography?
     public let locality: String?
     public let region: String?
     public let postalCode: String?
     public let countryCode: String?
+    public let areaLocalities: [GeographyAreaLocality]
     public let categoryNames: [String]
     public let nearLatitude: Double?
     public let nearLongitude: Double?
@@ -125,10 +128,12 @@ public extension SwarmDatabase {
         region: String? = nil,
         postalCode: String? = nil,
         countryCode: String? = nil,
+        areaLocalities: [GeographyAreaLocality] = [],
         categoryNames: [String] = [],
         nearLatitude: Double? = nil,
         nearLongitude: Double? = nil,
         radiusMeters: Double? = nil,
+        geography requestedGeography: QueryGeography? = nil,
         baselineFromCreatedAt: Int,
         baselineToCreatedAt: Int? = nil,
         recentFromCreatedAt: Int,
@@ -147,8 +152,19 @@ public extension SwarmDatabase {
             limit: limit
         )
         try validatePlaceOptions(locality: locality, region: region, postalCode: postalCode, countryCode: countryCode)
+        let areaLocalities = try validateAreaLocalitiesForEvidence(areaLocalities)
         try validateCategoryOptions(categoryNames)
         try validateGeoOptions(nearLatitude: nearLatitude, nearLongitude: nearLongitude, radiusMeters: radiusMeters)
+        let geography = requestedGeography ?? QueryGeography(
+            requested: NamedGeographyRequest(nearPlace: nil, area: nil),
+            resolved: nil,
+            semantics: GeographyPresetResolver.geographySemantics(
+                hasPlaceFields: locality != nil || region != nil || postalCode != nil || countryCode != nil,
+                hasRadius: radiusMeters != nil,
+                hasArea: !areaLocalities.isEmpty,
+                hasNamedAnchor: false
+            )
+        )
 
         let viewSorts = evidencePacketViewSorts(hasGeoFilter: radiusMeters != nil)
         let views = try viewSorts.map { sort in
@@ -161,10 +177,12 @@ public extension SwarmDatabase {
                 region: region,
                 postalCode: postalCode,
                 countryCode: countryCode,
+                areaLocalities: areaLocalities,
                 categoryNames: categoryNames,
                 nearLatitude: nearLatitude,
                 nearLongitude: nearLongitude,
                 radiusMeters: radiusMeters,
+                geography: geography,
                 sort: sort,
                 limit: limit
             )
@@ -182,10 +200,12 @@ public extension SwarmDatabase {
                 region: region,
                 postalCode: postalCode,
                 countryCode: countryCode,
+                areaLocalities: areaLocalities,
                 categoryNames: categoryNames,
                 nearLatitude: nearLatitude,
                 nearLongitude: nearLongitude,
                 radiusMeters: radiusMeters,
+                geography: geography,
                 sort: sort,
                 minBaselineVisits: minBaselineVisits,
                 limit: limit
@@ -209,15 +229,18 @@ public extension SwarmDatabase {
             account: packetAccount,
             targetWindow: EvidenceWindow(date: date, hourFrom: hourFrom, hourTo: hourTo),
             geography: EvidenceGeography(
+                requested: geography.requested,
+                resolved: geography.resolved,
                 locality: locality,
                 region: region,
                 postalCode: postalCode,
                 countryCode: countryCode,
+                areaLocalities: areaLocalities,
                 categoryNames: categoryNames,
                 nearLatitude: nearLatitude,
                 nearLongitude: nearLongitude,
                 radiusMeters: radiusMeters,
-                semantics: evidenceGeographySemantics(locality: locality, region: region, postalCode: postalCode, countryCode: countryCode, radiusMeters: radiusMeters)
+                semantics: geography.semantics
             ),
             sourceCoverage: evidenceSourceCoverage(dbPath: dbPath, stats: stats),
             views: views,
@@ -243,6 +266,27 @@ private let evidencePacketCaveats = [
 
 private func evidencePacketViewSorts(hasGeoFilter: Bool) -> [EvidenceSort] {
     hasGeoFilter ? [.strongest, .recent, .stale, .nearest] : [.strongest, .recent, .stale]
+}
+
+private func validateAreaLocalitiesForEvidence(_ areaLocalities: [GeographyAreaLocality]) throws -> [GeographyAreaLocality] {
+    try areaLocalities.map { selector in
+        let locality = selector.locality.trimmingCharacters(in: .whitespacesAndNewlines)
+        if locality.isEmpty {
+            throw CLIError("area locality selectors require locality.")
+        }
+        return GeographyAreaLocality(
+            locality: locality,
+            region: trimmedEvidenceOptional(selector.region),
+            postalCode: trimmedEvidenceOptional(selector.postalCode),
+            countryCode: trimmedEvidenceOptional(selector.countryCode)
+        )
+    }
+}
+
+private func trimmedEvidenceOptional(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
 }
 
 private func evidenceSourceCoverage(dbPath: String, stats: DatabaseStatsResult) -> EvidenceSourceCoverage {
