@@ -1214,7 +1214,7 @@ public enum SwarmDatabase {
         return formatter.string(from: date)
     }
 
-    private static func freshness(
+    static func freshness(
         db: Database,
         account: String?,
         adapter: String?

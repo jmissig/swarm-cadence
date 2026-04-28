@@ -172,6 +172,67 @@ public struct QueryCompareFilters: Codable, Equatable {
     public let limit: Int
 }
 
+public struct QueryCadenceFilters: Codable, Equatable {
+    public let venueID: String?
+    public let fromCreatedAt: QueryDateBound?
+    public let toCreatedAt: QueryDateBound?
+    public let hourFrom: Int?
+    public let hourTo: Int?
+    public let locality: String?
+    public let region: String?
+    public let postalCode: String?
+    public let countryCode: String?
+    public let categoryNames: [String]
+    public let nearLatitude: Double?
+    public let nearLongitude: Double?
+    public let radiusMeters: Double?
+    public let sort: EvidenceSort
+    public let orderLabel: String
+    public let limit: Int
+}
+
+public struct CadenceHourBucket: Codable, Equatable {
+    public let hour: Int
+    public let visitCount: Int
+}
+
+public struct CadenceWeekdayBucket: Codable, Equatable {
+    public let weekdayISO: Int
+    public let visitCount: Int
+}
+
+public struct CadenceGapEvidence: Codable, Equatable {
+    public let minDays: Int?
+    public let maxDays: Int?
+    public let averageDays: Double?
+}
+
+public struct VenueCadenceEvidence: Codable, Equatable {
+    public let venueID: String
+    public let name: String?
+    public let latitude: Double?
+    public let longitude: Double?
+    public let locality: String?
+    public let region: String?
+    public let postalCode: String?
+    public let countryCode: String?
+    public let distanceMeters: Double?
+    public let categories: [String]
+    public let visitCount: Int
+    public let firstCreatedAt: Int?
+    public let firstCreatedAtISO8601: String?
+    public let lastCreatedAt: Int?
+    public let lastCreatedAtISO8601: String?
+    public let daysSinceLastVisit: Int?
+    public let distinctLocalDates: Int
+    public let weekdayVisitCount: Int
+    public let weekendVisitCount: Int
+    public let gapDays: CadenceGapEvidence
+    public let hourBuckets: [CadenceHourBucket]
+    public let weekdayBuckets: [CadenceWeekdayBucket]
+    public let drillDown: EvidenceDrillDown
+}
+
 public struct VenueComparisonEvidence: Codable, Equatable {
     public let venueID: String
     public let name: String?
@@ -206,6 +267,21 @@ public struct QueryCompareResult: Codable, Equatable {
     public let totalMatchingVenues: Int
     public let returnedVenues: Int
     public let venues: [VenueComparisonEvidence]
+}
+
+public struct QueryCadenceResult: Codable, Equatable {
+    public let schemaVersion: Int
+    public let command: String
+    public let account: String
+    public let dbPath: String
+    public let sort: EvidenceSort
+    public let orderLabel: String
+    public let filters: QueryCadenceFilters
+    public let sourceCoverage: DatabaseFreshness
+    public let effectiveAsOfCreatedAt: QueryDateBound?
+    public let totalMatchingVenues: Int
+    public let returnedVenues: Int
+    public let venues: [VenueCadenceEvidence]
 }
 
 public extension SwarmDatabase {
@@ -643,6 +719,271 @@ public extension SwarmDatabase {
         }
     }
 
+
+    static func queryCadence(
+        dbPath: String,
+        account: String,
+        venueID: String? = nil,
+        fromCreatedAt: Int? = nil,
+        toCreatedAt: Int? = nil,
+        hourFrom: Int? = nil,
+        hourTo: Int? = nil,
+        locality: String? = nil,
+        region: String? = nil,
+        postalCode: String? = nil,
+        countryCode: String? = nil,
+        categoryNames: [String] = [],
+        nearLatitude: Double? = nil,
+        nearLongitude: Double? = nil,
+        radiusMeters: Double? = nil,
+        sort requestedSort: EvidenceSort? = nil,
+        limit: Int = queryDefaultLimit
+    ) throws -> QueryCadenceResult {
+        guard !dbPath.isEmpty else {
+            throw CLIError("missing required --db <path>.")
+        }
+        let account = try AccountLabel.validate(account)
+        if let venueID, venueID.isEmpty {
+            throw CLIError("--venue-id must not be empty.")
+        }
+        try validateQueryLimit(limit)
+        try validateDateWindow(fromCreatedAt: fromCreatedAt, toCreatedAt: toCreatedAt)
+        try validateCalendarFilters(date: nil, hourFrom: hourFrom, hourTo: hourTo)
+        try validatePlaceFilters(locality: locality, region: region, postalCode: postalCode, countryCode: countryCode)
+        let categoryNames = try validateCategoryFilter(categoryNames)
+        try validateGeoFilters(nearLatitude: nearLatitude, nearLongitude: nearLongitude, radiusMeters: radiusMeters)
+        let sort = try effectiveSort(requestedSort, hasGeoFilter: radiusMeters != nil, defaultWithoutGeo: .strongest)
+
+        let dbQueue = try openReadOnlyDatabase(path: dbPath)
+
+        return try dbQueue.read { db in
+            registerDistanceFunction(db)
+            let categoryNamesJSON = try categoryFilterJSON(categoryNames)
+            let sourceCoverage = try freshness(db: db, account: account, adapter: nil)
+            let effectiveAsOf = sourceCoverage.latestCreatedAt
+
+            let total = try Int.fetchOne(
+                db,
+                sql: """
+                SELECT COUNT(*) FROM (
+                    SELECT c.venue_id
+                    FROM checkins c
+                    JOIN venues v ON v.venue_id = c.venue_id
+                    WHERE c.account = ?
+                      AND c.venue_id IS NOT NULL
+                      AND (? IS NULL OR c.venue_id = ?)
+                      AND (? IS NULL OR c.created_at_unix >= ?)
+                      AND (? IS NULL OR c.created_at_unix <= ?)
+                      AND (? IS NULL OR c.local_hour >= ?)
+                      AND (? IS NULL OR c.local_hour <= ?)
+                      AND (? IS NULL OR lower(v.locality) = lower(?))
+                      AND (? IS NULL OR lower(v.region) = lower(?))
+                      AND (? IS NULL OR lower(v.postal_code) = lower(?))
+                      AND (? IS NULL OR lower(v.country_code) = lower(?))
+                      AND (? IS NULL OR EXISTS (
+                          SELECT 1
+                          FROM checkin_categories cc
+                          JOIN categories cat ON cat.category_id = cc.category_id
+                          WHERE cc.checkin_id = c.checkin_id
+                            AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
+                      ))
+                      AND (? IS NULL OR (v.lat IS NOT NULL AND v.lng IS NOT NULL AND distance_meters(v.lat, v.lng, ?, ?) <= ?))
+                    GROUP BY c.venue_id
+                )
+                """,
+                arguments: [
+                    account,
+                    venueID, venueID,
+                    fromCreatedAt, fromCreatedAt,
+                    toCreatedAt, toCreatedAt,
+                    hourFrom, hourFrom,
+                    hourTo, hourTo,
+                    locality, locality,
+                    region, region,
+                    postalCode, postalCode,
+                    countryCode, countryCode,
+                    categoryNamesJSON, categoryNamesJSON,
+                    radiusMeters, nearLatitude, nearLongitude, radiusMeters
+                ]
+            ) ?? 0
+
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT
+                    v.venue_id,
+                    v.name,
+                    v.lat,
+                    v.lng,
+                    v.locality,
+                    v.region,
+                    v.postal_code,
+                    v.country_code,
+                    CASE WHEN ? IS NULL THEN NULL ELSE distance_meters(v.lat, v.lng, ?, ?) END AS distance_meters,
+                    COUNT(c.checkin_id) AS visit_count,
+                    MIN(c.created_at_unix) AS first_created_at,
+                    MAX(c.created_at_unix) AS last_created_at,
+                    COUNT(DISTINCT c.local_date) AS distinct_local_dates,
+                    SUM(CASE WHEN c.local_weekday_iso BETWEEN 1 AND 5 THEN 1 ELSE 0 END) AS weekday_visit_count,
+                    SUM(CASE WHEN c.local_weekday_iso IN (6, 7) THEN 1 ELSE 0 END) AS weekend_visit_count
+                FROM checkins c
+                JOIN venues v ON v.venue_id = c.venue_id
+                WHERE c.account = ?
+                  AND c.venue_id IS NOT NULL
+                  AND (? IS NULL OR c.venue_id = ?)
+                  AND (? IS NULL OR c.created_at_unix >= ?)
+                  AND (? IS NULL OR c.created_at_unix <= ?)
+                  AND (? IS NULL OR c.local_hour >= ?)
+                  AND (? IS NULL OR c.local_hour <= ?)
+                  AND (? IS NULL OR lower(v.locality) = lower(?))
+                  AND (? IS NULL OR lower(v.region) = lower(?))
+                  AND (? IS NULL OR lower(v.postal_code) = lower(?))
+                  AND (? IS NULL OR lower(v.country_code) = lower(?))
+                  AND (? IS NULL OR EXISTS (
+                      SELECT 1
+                      FROM checkin_categories cc
+                      JOIN categories cat ON cat.category_id = cc.category_id
+                      WHERE cc.checkin_id = c.checkin_id
+                        AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
+                  ))
+                  AND (? IS NULL OR (v.lat IS NOT NULL AND v.lng IS NOT NULL AND distance_meters(v.lat, v.lng, ?, ?) <= ?))
+                GROUP BY v.venue_id, v.name, v.lat, v.lng, v.locality, v.region, v.postal_code, v.country_code
+                ORDER BY \(venueOrderClause(sort))
+                LIMIT ?
+                """,
+                arguments: [
+                    nearLatitude, nearLatitude, nearLongitude,
+                    account,
+                    venueID, venueID,
+                    fromCreatedAt, fromCreatedAt,
+                    toCreatedAt, toCreatedAt,
+                    hourFrom, hourFrom,
+                    hourTo, hourTo,
+                    locality, locality,
+                    region, region,
+                    postalCode, postalCode,
+                    countryCode, countryCode,
+                    categoryNamesJSON, categoryNamesJSON,
+                    radiusMeters, nearLatitude, nearLongitude, radiusMeters,
+                    limit
+                ]
+            )
+
+            let venues = try rows.map { row in
+                let venueID: String = row["venue_id"]
+                let firstCreatedAt: Int? = row["first_created_at"]
+                let lastCreatedAt: Int? = row["last_created_at"]
+                let daysSinceLastVisit: Int? = {
+                    guard let effectiveAsOf, let lastCreatedAt else { return nil }
+                    return max(0, (effectiveAsOf - lastCreatedAt) / 86_400)
+                }()
+
+                return VenueCadenceEvidence(
+                    venueID: venueID,
+                    name: row["name"],
+                    latitude: row["lat"],
+                    longitude: row["lng"],
+                    locality: row["locality"],
+                    region: row["region"],
+                    postalCode: row["postal_code"],
+                    countryCode: row["country_code"],
+                    distanceMeters: row["distance_meters"],
+                    categories: try supportingCategoryNames(
+                        db: db,
+                        account: account,
+                        venueID: venueID,
+                        checkinID: nil,
+                        fromCreatedAt: fromCreatedAt,
+                        toCreatedAt: toCreatedAt,
+                        date: nil,
+                        hourFrom: hourFrom,
+                        hourTo: hourTo
+                    ),
+                    visitCount: row["visit_count"],
+                    firstCreatedAt: firstCreatedAt,
+                    firstCreatedAtISO8601: firstCreatedAt.map(queryISO8601String(timestamp:)),
+                    lastCreatedAt: lastCreatedAt,
+                    lastCreatedAtISO8601: lastCreatedAt.map(queryISO8601String(timestamp:)),
+                    daysSinceLastVisit: daysSinceLastVisit,
+                    distinctLocalDates: row["distinct_local_dates"],
+                    weekdayVisitCount: row["weekday_visit_count"],
+                    weekendVisitCount: row["weekend_visit_count"],
+                    gapDays: try cadenceGapDays(
+                        db: db,
+                        account: account,
+                        venueID: venueID,
+                        fromCreatedAt: fromCreatedAt,
+                        toCreatedAt: toCreatedAt,
+                        hourFrom: hourFrom,
+                        hourTo: hourTo,
+                        categoryNamesJSON: categoryNamesJSON
+                    ),
+                    hourBuckets: try cadenceHourBuckets(
+                        db: db,
+                        account: account,
+                        venueID: venueID,
+                        fromCreatedAt: fromCreatedAt,
+                        toCreatedAt: toCreatedAt,
+                        hourFrom: hourFrom,
+                        hourTo: hourTo,
+                        categoryNamesJSON: categoryNamesJSON
+                    ),
+                    weekdayBuckets: try cadenceWeekdayBuckets(
+                        db: db,
+                        account: account,
+                        venueID: venueID,
+                        fromCreatedAt: fromCreatedAt,
+                        toCreatedAt: toCreatedAt,
+                        hourFrom: hourFrom,
+                        hourTo: hourTo,
+                        categoryNamesJSON: categoryNamesJSON
+                    ),
+                    drillDown: venueDrillDown(
+                        account: account,
+                        dbPath: dbPath,
+                        venueID: venueID,
+                        fromCreatedAt: fromCreatedAt,
+                        toCreatedAt: toCreatedAt,
+                        date: nil,
+                        hourFrom: hourFrom,
+                        hourTo: hourTo
+                    )
+                )
+            }
+
+            return QueryCadenceResult(
+                schemaVersion: 1,
+                command: "query cadence",
+                account: account,
+                dbPath: dbPath,
+                sort: sort,
+                orderLabel: sort.orderLabel,
+                filters: QueryCadenceFilters(
+                    venueID: venueID,
+                    fromCreatedAt: fromCreatedAt.map(queryDateBound(timestamp:)),
+                    toCreatedAt: toCreatedAt.map(queryDateBound(timestamp:)),
+                    hourFrom: hourFrom,
+                    hourTo: hourTo,
+                    locality: locality,
+                    region: region,
+                    postalCode: postalCode,
+                    countryCode: countryCode,
+                    categoryNames: categoryNames,
+                    nearLatitude: nearLatitude,
+                    nearLongitude: nearLongitude,
+                    radiusMeters: radiusMeters,
+                    sort: sort,
+                    orderLabel: sort.orderLabel,
+                    limit: limit
+                ),
+                sourceCoverage: sourceCoverage,
+                effectiveAsOfCreatedAt: effectiveAsOf.map(queryDateBound(timestamp:)),
+                totalMatchingVenues: total,
+                returnedVenues: venues.count,
+                venues: venues
+            )
+        }
+    }
 
 
     static func queryCompare(
@@ -1181,6 +1522,160 @@ private func supportingCategoryNames(
             hourFrom, hourFrom,
             hourTo, hourTo
         ]
+    )
+}
+
+private func cadenceHourBuckets(
+    db: Database,
+    account: String,
+    venueID: String,
+    fromCreatedAt: Int?,
+    toCreatedAt: Int?,
+    hourFrom: Int?,
+    hourTo: Int?,
+    categoryNamesJSON: String?
+) throws -> [CadenceHourBucket] {
+    let rows = try Row.fetchAll(
+        db,
+        sql: """
+        SELECT c.local_hour AS hour, COUNT(c.checkin_id) AS visit_count
+        FROM checkins c
+        WHERE c.account = ?
+          AND c.venue_id = ?
+          AND c.local_hour IS NOT NULL
+          AND (? IS NULL OR c.created_at_unix >= ?)
+          AND (? IS NULL OR c.created_at_unix <= ?)
+          AND (? IS NULL OR c.local_hour >= ?)
+          AND (? IS NULL OR c.local_hour <= ?)
+          AND (? IS NULL OR EXISTS (
+              SELECT 1
+              FROM checkin_categories cc
+              JOIN categories cat ON cat.category_id = cc.category_id
+              WHERE cc.checkin_id = c.checkin_id
+                AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
+          ))
+        GROUP BY c.local_hour
+        ORDER BY c.local_hour ASC
+        """,
+        arguments: [
+            account,
+            venueID,
+            fromCreatedAt, fromCreatedAt,
+            toCreatedAt, toCreatedAt,
+            hourFrom, hourFrom,
+            hourTo, hourTo,
+            categoryNamesJSON, categoryNamesJSON
+        ]
+    )
+
+    return rows.map { row in
+        CadenceHourBucket(hour: row["hour"], visitCount: row["visit_count"])
+    }
+}
+
+private func cadenceWeekdayBuckets(
+    db: Database,
+    account: String,
+    venueID: String,
+    fromCreatedAt: Int?,
+    toCreatedAt: Int?,
+    hourFrom: Int?,
+    hourTo: Int?,
+    categoryNamesJSON: String?
+) throws -> [CadenceWeekdayBucket] {
+    let rows = try Row.fetchAll(
+        db,
+        sql: """
+        SELECT c.local_weekday_iso AS weekday_iso, COUNT(c.checkin_id) AS visit_count
+        FROM checkins c
+        WHERE c.account = ?
+          AND c.venue_id = ?
+          AND c.local_weekday_iso IS NOT NULL
+          AND (? IS NULL OR c.created_at_unix >= ?)
+          AND (? IS NULL OR c.created_at_unix <= ?)
+          AND (? IS NULL OR c.local_hour >= ?)
+          AND (? IS NULL OR c.local_hour <= ?)
+          AND (? IS NULL OR EXISTS (
+              SELECT 1
+              FROM checkin_categories cc
+              JOIN categories cat ON cat.category_id = cc.category_id
+              WHERE cc.checkin_id = c.checkin_id
+                AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
+          ))
+        GROUP BY c.local_weekday_iso
+        ORDER BY c.local_weekday_iso ASC
+        """,
+        arguments: [
+            account,
+            venueID,
+            fromCreatedAt, fromCreatedAt,
+            toCreatedAt, toCreatedAt,
+            hourFrom, hourFrom,
+            hourTo, hourTo,
+            categoryNamesJSON, categoryNamesJSON
+        ]
+    )
+
+    return rows.map { row in
+        CadenceWeekdayBucket(weekdayISO: row["weekday_iso"], visitCount: row["visit_count"])
+    }
+}
+
+private func cadenceGapDays(
+    db: Database,
+    account: String,
+    venueID: String,
+    fromCreatedAt: Int?,
+    toCreatedAt: Int?,
+    hourFrom: Int?,
+    hourTo: Int?,
+    categoryNamesJSON: String?
+) throws -> CadenceGapEvidence {
+    let timestamps = try Int.fetchAll(
+        db,
+        sql: """
+        SELECT c.created_at_unix
+        FROM checkins c
+        WHERE c.account = ?
+          AND c.venue_id = ?
+          AND c.created_at_unix IS NOT NULL
+          AND (? IS NULL OR c.created_at_unix >= ?)
+          AND (? IS NULL OR c.created_at_unix <= ?)
+          AND (? IS NULL OR c.local_hour >= ?)
+          AND (? IS NULL OR c.local_hour <= ?)
+          AND (? IS NULL OR EXISTS (
+              SELECT 1
+              FROM checkin_categories cc
+              JOIN categories cat ON cat.category_id = cc.category_id
+              WHERE cc.checkin_id = c.checkin_id
+                AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
+          ))
+        ORDER BY c.created_at_unix ASC
+        """,
+        arguments: [
+            account,
+            venueID,
+            fromCreatedAt, fromCreatedAt,
+            toCreatedAt, toCreatedAt,
+            hourFrom, hourFrom,
+            hourTo, hourTo,
+            categoryNamesJSON, categoryNamesJSON
+        ]
+    )
+
+    guard timestamps.count >= 2 else {
+        return CadenceGapEvidence(minDays: nil, maxDays: nil, averageDays: nil)
+    }
+
+    let gaps = zip(timestamps, timestamps.dropFirst()).map { previous, next in
+        max(0, next - previous) / 86_400
+    }
+    let average = Double(gaps.reduce(0, +)) / Double(gaps.count)
+    let roundedAverage = (average * 100).rounded() / 100
+    return CadenceGapEvidence(
+        minDays: gaps.min(),
+        maxDays: gaps.max(),
+        averageDays: roundedAverage
     )
 }
 

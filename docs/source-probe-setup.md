@@ -248,6 +248,16 @@ window. This returns venue-level support facts rather than recommendations:
 swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --hour-from 11 --hour-to 14 --locality "San Mateo" --region CA --format json
 ```
 
+For factual venue time/cadence rollups, use `query cadence`. It returns support
+counts, first/last seen, local-hour buckets, ISO weekday buckets,
+weekday/weekend counts, observed gap days, freshness, and visit drill-downs; it
+does not assign meal labels or choose a recommended venue:
+
+```bash
+swift run swarm-cadence query cadence --account julian --venue-id <venue-id> --from 2024-01-01 --to 2026-04-28 --format json
+swift run swarm-cadence query cadence --account julian --locality "San Mateo" --hour-from 11 --hour-to 14 --limit 25 --format json
+```
+
 For builder-facing packets, use the same explicit window without adding fuzzy
 labels inside the CLI:
 
@@ -255,7 +265,7 @@ labels inside the CLI:
 swift run swarm-cadence evidence window --account julian --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
 ```
 
-`query venues` and `query compare` support factual Foursquare venue-location
+`query venues`, `query cadence`, and `query compare` support factual Foursquare venue-location
 bounds with `--locality`, `--region`, `--postal-code`, and `--country-code`, plus
 optional explicit map-distance bounds with `--near-lat`, `--near-lng`, and
 `--radius-meters`. The distance options must be supplied together, and results

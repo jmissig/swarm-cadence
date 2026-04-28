@@ -945,6 +945,91 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertFalse(output.contains("best lunch"))
     }
 
+    func testCLIQueryCadenceRendersVenueTimeRollups() throws {
+        let directory = try makeTemporaryDirectory()
+        let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
+        try FileManager.default.createDirectory(at: rawDirectory, withIntermediateDirectories: true)
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+
+        try writeRawPair(
+            rawDirectory: rawDirectory,
+            baseName: "fixture-v2-julian-cadence-offset0-limit250",
+            rawBody: cadenceRawBody
+        )
+
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["db", "import-raw", "--account", "julian", "--db", dbURL.path, "--raw-dir", rawDirectory.path],
+            output: { _ in },
+            errorOutput: { _ in }
+        ), 0)
+
+        var output = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "cadence",
+                "--account", "julian",
+                "--db", dbURL.path,
+                "--venue-id", "venue-cadence",
+                "--from", "2023-11-01",
+                "--to", "2023-11-30",
+                "--hour-from", "11",
+                "--hour-to", "14",
+                "--locality", "San Mateo",
+                "--category", "Coffee Shop",
+                "--format", "json"
+            ],
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertTrue(output.contains("\"command\" : \"query cadence\""))
+        XCTAssertTrue(output.contains("\"account\" : \"julian\""))
+        XCTAssertTrue(output.contains("\"venue_id\" : \"venue-cadence\""))
+        XCTAssertTrue(output.contains("\"total_matching_venues\" : 1"))
+        XCTAssertTrue(output.contains("\"returned_venues\" : 1"))
+        XCTAssertTrue(output.contains("\"visit_count\" : 4"))
+        XCTAssertTrue(output.contains("\"distinct_local_dates\" : 4"))
+        XCTAssertTrue(output.contains("\"weekday_visit_count\" : 2"))
+        XCTAssertTrue(output.contains("\"weekend_visit_count\" : 2"))
+        XCTAssertTrue(output.contains("\"hour_buckets\""))
+        XCTAssertTrue(output.contains("\"hour\" : 11"))
+        XCTAssertTrue(output.contains("\"hour\" : 12"))
+        XCTAssertTrue(output.contains("\"hour\" : 13"))
+        XCTAssertTrue(output.contains("\"weekday_buckets\""))
+        XCTAssertTrue(output.contains("\"weekday_iso\" : 2"))
+        XCTAssertTrue(output.contains("\"weekday_iso\" : 6"))
+        XCTAssertTrue(output.contains("\"weekday_iso\" : 7"))
+        XCTAssertTrue(output.contains("\"gap_days\""))
+        XCTAssertTrue(output.contains("\"max_days\" : 3"))
+        XCTAssertTrue(output.contains("\"source_coverage\""))
+        XCTAssertTrue(output.contains("\"current_through_iso8601\" : \"2023-11-19T21:15:00Z\""))
+        XCTAssertTrue(output.contains("\"drill_down\""))
+        XCTAssertTrue(output.contains("--venue-id"))
+        XCTAssertTrue(output.contains("--from"))
+        XCTAssertTrue(output.contains("--hour-from"))
+        XCTAssertFalse(output.contains("best lunch"))
+        XCTAssertFalse(output.contains("recommend"))
+    }
+
+    func testCLIQueryCadenceRejectsEmptyVenueIDBeforeReadingDB() throws {
+        var errorOutput = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "cadence",
+                "--account", "julian",
+                "--db", "/tmp/does-not-matter.sqlite",
+                "--venue-id", "",
+                "--format", "json"
+            ],
+            output: { _ in },
+            errorOutput: { errorOutput = $0 }
+        )
+
+        XCTAssertEqual(exit, 2)
+        XCTAssertTrue(errorOutput.contains("--venue-id must not be empty"))
+    }
+
     func testCLIQueryCompareRequiresExplicitWindows() throws {
         var errorOutput = ""
         let exit = SwarmCadenceCommand.run(
@@ -1434,6 +1519,81 @@ final class DatabaseImportTests: XCTestCase {
                     "timeZone": "America/Los_Angeles",
                     "location": { "lat": 37.15, "lng": -122.25 },
                     "categories": [{ "id": "cat-diner", "name": "Diner" }]
+                  }
+                }
+              ]
+            }
+          }
+        }
+        """.data(using: .utf8)!
+    }
+
+    private var cadenceRawBody: Data {
+        """
+        {
+          "meta": { "code": 200 },
+          "response": {
+            "checkins": {
+              "count": 5,
+              "items": [
+                {
+                  "id": "cadence-1",
+                  "createdAt": 1699990200,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-cadence",
+                    "name": "Cadence Cafe",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "lat": 37.1, "lng": -122.2, "city": "San Mateo", "state": "CA", "postalCode": "94401", "cc": "US", "country": "United States" },
+                    "categories": [{ "id": "cat-cadence-coffee", "name": "Coffee Shop" }]
+                  }
+                },
+                {
+                  "id": "cadence-2",
+                  "createdAt": 1700081100,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-cadence",
+                    "name": "Cadence Cafe",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "lat": 37.1, "lng": -122.2, "city": "San Mateo", "state": "CA", "postalCode": "94401", "cc": "US", "country": "United States" },
+                    "categories": [{ "id": "cat-cadence-coffee", "name": "Coffee Shop" }]
+                  }
+                },
+                {
+                  "id": "cadence-3",
+                  "createdAt": 1700342100,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-cadence",
+                    "name": "Cadence Cafe",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "lat": 37.1, "lng": -122.2, "city": "San Mateo", "state": "CA", "postalCode": "94401", "cc": "US", "country": "United States" },
+                    "categories": [{ "id": "cat-cadence-coffee", "name": "Coffee Shop" }]
+                  }
+                },
+                {
+                  "id": "cadence-4",
+                  "createdAt": 1700428500,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-cadence",
+                    "name": "Cadence Cafe",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "lat": 37.1, "lng": -122.2, "city": "San Mateo", "state": "CA", "postalCode": "94401", "cc": "US", "country": "United States" },
+                    "categories": [{ "id": "cat-cadence-coffee", "name": "Coffee Shop" }]
+                  }
+                },
+                {
+                  "id": "cadence-other",
+                  "createdAt": 1700428500,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-other-cadence",
+                    "name": "Other Cadence Venue",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "lat": 37.9, "lng": -122.9, "city": "Oakland", "state": "CA", "cc": "US" },
+                    "categories": [{ "id": "cat-cadence-diner", "name": "Diner" }]
                   }
                 }
               ]

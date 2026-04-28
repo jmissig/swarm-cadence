@@ -539,7 +539,7 @@ private struct QueryCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "query",
         abstract: "Read evidence rows and descriptive rollups.",
-        subcommands: [QueryCategoriesCommand.self, QueryVenuesCommand.self, QueryVisitsCommand.self, QueryCompareCommand.self]
+        subcommands: [QueryCategoriesCommand.self, QueryVenuesCommand.self, QueryVisitsCommand.self, QueryCadenceCommand.self, QueryCompareCommand.self]
     )
 }
 
@@ -617,6 +617,40 @@ private struct QueryVisitsCommand: ParsableCommand {
             date: options.date,
             hourFrom: options.hourFrom,
             hourTo: options.hourTo,
+            limit: options.limit
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct QueryCadenceCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "cadence",
+        abstract: "Roll up factual venue time/cadence evidence."
+    )
+
+    @OptionGroup var arguments: QueryCadenceArguments
+
+    mutating func run() throws {
+        let options = try QueryCadenceOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.queryCadence(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account,
+            venueID: options.venueID,
+            fromCreatedAt: options.fromCreatedAt,
+            toCreatedAt: options.toCreatedAt,
+            hourFrom: options.hourFrom,
+            hourTo: options.hourTo,
+            locality: options.locality,
+            region: options.region,
+            postalCode: options.postalCode,
+            countryCode: options.countryCode,
+            categoryNames: options.categoryNames,
+            nearLatitude: options.nearLatitude,
+            nearLongitude: options.nearLongitude,
+            radiusMeters: options.radiusMeters,
+            sort: options.sort,
             limit: options.limit
         )
         runtime.output(try Formatter.render(result, format: options.format))
@@ -1119,6 +1153,74 @@ struct QueryVisitsOptions {
 }
 
 
+struct QueryCadenceOptions {
+    let account: String
+    let dbPath: String?
+    let format: OutputFormat
+    let venueID: String?
+    let fromCreatedAt: Int?
+    let toCreatedAt: Int?
+    let hourFrom: Int?
+    let hourTo: Int?
+    let locality: String?
+    let region: String?
+    let postalCode: String?
+    let countryCode: String?
+    let categoryNames: [String]
+    let nearLatitude: Double?
+    let nearLongitude: Double?
+    let radiusMeters: Double?
+    let sort: EvidenceSort?
+    let limit: Int
+
+    fileprivate init(parsed: QueryCadenceArguments) throws {
+        self.account = try AccountLabel.validate(parsed.account)
+        self.format = try parseFormat(format: parsed.format, json: parsed.json)
+        self.dbPath = parsed.dbPath
+        if let venueID = parsed.venueID, venueID.isEmpty {
+            throw CLIError("--venue-id must not be empty.")
+        }
+        self.venueID = parsed.venueID
+        self.fromCreatedAt = try SwarmDatabase.parseQueryTimestamp(parsed.from, optionName: "--from")
+        self.toCreatedAt = try SwarmDatabase.parseQueryTimestamp(parsed.to, optionName: "--to")
+        self.hourFrom = parsed.hourFrom
+        self.hourTo = parsed.hourTo
+        self.locality = parsed.locality
+        self.region = parsed.region
+        self.postalCode = parsed.postalCode
+        self.countryCode = parsed.countryCode
+        self.categoryNames = parsed.categoryNames
+        self.nearLatitude = parsed.nearLatitude
+        self.nearLongitude = parsed.nearLongitude
+        self.radiusMeters = parsed.radiusMeters
+        self.sort = try SwarmDatabase.parseEvidenceSort(parsed.sort)
+        self.limit = parsed.limit
+        try SwarmDatabase.validateQueryOptions(
+            fromCreatedAt: fromCreatedAt,
+            toCreatedAt: toCreatedAt,
+            date: nil,
+            hourFrom: hourFrom,
+            hourTo: hourTo,
+            limit: limit
+        )
+        try SwarmDatabase.validatePlaceOptions(
+            locality: locality,
+            region: region,
+            postalCode: postalCode,
+            countryCode: countryCode
+        )
+        try SwarmDatabase.validateCategoryOptions(categoryNames)
+        try SwarmDatabase.validateGeoOptions(
+            nearLatitude: nearLatitude,
+            nearLongitude: nearLongitude,
+            radiusMeters: radiusMeters
+        )
+        if sort == .nearest && radiusMeters == nil {
+            throw CLIError("--sort nearest requires --near-lat, --near-lng, and --radius-meters.")
+        }
+    }
+}
+
 
 struct QueryCompareOptions {
     let account: String
@@ -1465,6 +1567,28 @@ private struct QueryVisitsArguments: ParsableArguments {
 }
 
 
+private struct QueryCadenceArguments: ParsableArguments {
+    @Option var account: String?
+    @Option(name: .customLong("db")) var dbPath: String?
+    @Option(name: .customLong("venue-id")) var venueID: String?
+    @Option(name: .customLong("from")) var from: String?
+    @Option(name: .customLong("to")) var to: String?
+    @Option(name: .customLong("hour-from")) var hourFrom: Int?
+    @Option(name: .customLong("hour-to")) var hourTo: Int?
+    @Option var locality: String?
+    @Option var region: String?
+    @Option(name: .customLong("postal-code")) var postalCode: String?
+    @Option(name: .customLong("country-code")) var countryCode: String?
+    @Option(name: .customLong("category")) var categoryNames: [String] = []
+    @Option(name: .customLong("near-lat")) var nearLatitude: Double?
+    @Option(name: .customLong("near-lng")) var nearLongitude: Double?
+    @Option(name: .customLong("radius-meters")) var radiusMeters: Double?
+    @Option var sort: String?
+    @Option var limit = SwarmDatabase.queryDefaultLimit
+    @Option var format = "auto"
+    @Flag var json = false
+}
+
 
 private struct QueryCompareArguments: ParsableArguments {
     @Option var account: String?
@@ -1654,6 +1778,15 @@ enum Formatter {
     }
 
     static func render(_ result: QueryVisitsResult, format: OutputFormat) throws -> String {
+        switch format {
+        case .auto, .text:
+            return renderHuman(result)
+        case .json:
+            return try renderJSON(result)
+        }
+    }
+
+    static func render(_ result: QueryCadenceResult, format: OutputFormat) throws -> String {
         switch format {
         case .auto, .text:
             return renderHuman(result)
@@ -2030,6 +2163,41 @@ enum Formatter {
             lines.append("- \(visit.createdAtISO8601 ?? "unknown_time"): \(visit.venueName ?? visit.venueID ?? "unknown venue") checkin_id=\(visit.checkinID)")
             if !visit.categories.isEmpty {
                 lines.append("  categories: \(visit.categories.joined(separator: ", "))")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func renderHuman(_ result: QueryCadenceResult) -> String {
+        var lines: [String] = [
+            "query cadence",
+            "account: \(result.account)",
+            "db: \(result.dbPath)",
+            "sort: \(result.sort.rawValue)",
+            "order: \(result.orderLabel)",
+            "current_through: \(result.sourceCoverage.currentThroughISO8601 ?? "unknown")",
+            "total_matching_venues: \(result.totalMatchingVenues)",
+            "returned_venues: \(result.returnedVenues)"
+        ]
+        for venue in result.venues {
+            lines.append("- \(venue.name ?? venue.venueID): visits=\(venue.visitCount) dates=\(venue.distinctLocalDates) first=\(venue.firstCreatedAtISO8601 ?? "unknown") last=\(venue.lastCreatedAtISO8601 ?? "unknown") venue_id=\(venue.venueID)")
+            if let distanceMeters = venue.distanceMeters {
+                lines.append("  distance_meters: \(Int(distanceMeters.rounded()))")
+            }
+            if let days = venue.daysSinceLastVisit {
+                lines.append("  days_since_last_visit: \(days)")
+            }
+            lines.append("  weekday_weekend: \(venue.weekdayVisitCount)/\(venue.weekendVisitCount)")
+            if !venue.hourBuckets.isEmpty {
+                let buckets = venue.hourBuckets.map { "\($0.hour)=\($0.visitCount)" }.joined(separator: ", ")
+                lines.append("  hours: \(buckets)")
+            }
+            if !venue.weekdayBuckets.isEmpty {
+                let buckets = venue.weekdayBuckets.map { "\($0.weekdayISO)=\($0.visitCount)" }.joined(separator: ", ")
+                lines.append("  weekdays_iso: \(buckets)")
+            }
+            if !venue.categories.isEmpty {
+                lines.append("  categories: \(venue.categories.joined(separator: ", "))")
             }
         }
         return lines.joined(separator: "\n")

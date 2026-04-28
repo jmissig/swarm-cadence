@@ -302,6 +302,14 @@ swift run swarm-cadence query visits --account julian --date 2025-12-23 --hour-f
 swift run swarm-cadence query venues --account julian --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
 ```
 
+Roll up factual venue time/cadence support without adding meal labels or
+recommendation prose:
+
+```bash
+swift run swarm-cadence query cadence --account julian --venue-id <venue-id> --from 2024-01-01 --to 2026-04-28 --format json
+swift run swarm-cadence query cadence --account julian --locality "San Mateo" --hour-from 11 --hour-to 14 --limit 25 --format json
+```
+
 Compare venue support across a broad baseline and a recent window. This is the
 reusable cadence query for questions like active anchors, lapsed places, and
 rotation changes; interpretation belongs above the CLI:
@@ -343,15 +351,19 @@ swift run swarm-cadence evidence packet \
 `query categories` lists the known category names for an account, ordered by
 supporting check-ins. `query venues` returns visit counts, first/last seen
 timestamps, categories, the selected evidence sort, and a drill-down descriptor
-for reproducing the supporting visit rows. `query venues` and `query compare`
+for reproducing the supporting visit rows. `query cadence` adds per-venue
+descriptive rollups: support counts, first/last seen, days since last visit
+relative to local evidence freshness, distinct local dates, local-hour buckets,
+ISO weekday buckets, weekday/weekend counts, simple observed gap days, source
+coverage, and visit drill-down descriptors. `query venues`, `query cadence`, and `query compare`
 accept `--sort nearest|strongest|recent|stale` and include the effective sort
 and order label in JSON and text output. With distance filters, the default is
 `nearest`; without distance filters, `query venues` defaults to `strongest` and
-`query compare` defaults to `stale`, preserving the earlier effective ordering
+`query cadence` defaults to `strongest`, while `query compare` defaults to `stale`, preserving the earlier effective ordering
 while making it explicit. `--sort nearest` requires `--near-lat`, `--near-lng`,
 and `--radius-meters`.
 
-`query venues` and `query compare` can also be bounded by factual Foursquare venue location
+`query venues`, `query cadence`, and `query compare` can also be bounded by factual Foursquare venue location
 fields (`--locality`, `--region`, `--postal-code`, `--country-code`), category
 names (repeat `--category`, OR semantics), and/or explicit map distance using
 `--near-lat`, `--near-lng`, and `--radius-meters`.
