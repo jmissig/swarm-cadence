@@ -3,6 +3,25 @@ import XCTest
 @testable import SwarmCadenceCore
 
 final class IngestUpdateTests: XCTestCase {
+    func testIngestUpdateAliasIsNotAccepted() throws {
+        let transport = CapturingIngestTransport(responses: [])
+        var output = ""
+        var error = ""
+
+        let exit = SwarmCadenceCommand.run(
+            arguments: ["ingest", "update", "--account", "julian"],
+            environment: isolatedEnvironment(["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "secret-token"]),
+            liveTransport: transport,
+            output: { output = $0 },
+            errorOutput: { error = $0 }
+        )
+
+        XCTAssertEqual(exit, 2)
+        XCTAssertEqual(output, "")
+        XCTAssertEqual(transport.requests.count, 0)
+        XCTAssertTrue(error.contains("Unexpected argument 'update'"))
+    }
+
     func testIngestUpdateRejectsInvalidPageCountBeforeTransport() throws {
         let directory = try makeTemporaryDirectory()
         let transport = CapturingIngestTransport(responses: [])
@@ -78,7 +97,7 @@ final class IngestUpdateTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: [
-                "ingest", "update",
+                "ingest",
                 "--account", "julian",
                 "--adapter", "v2",
                 "--raw-dir", rawDirectory.path,
@@ -99,7 +118,7 @@ final class IngestUpdateTests: XCTestCase {
         let stats = try SwarmDatabase.stats(dbPath: dbURL.path, account: "julian")
 
         XCTAssertEqual(exit, 0)
-        XCTAssertEqual(result.command, "ingest update")
+        XCTAssertEqual(result.command, "ingest")
         XCTAssertEqual(result.status, .updated)
         XCTAssertTrue(result.complete)
         XCTAssertEqual(result.requestCount, 2)
@@ -145,7 +164,7 @@ final class IngestUpdateTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: [
-                "ingest", "update",
+                "ingest",
                 "--account", "julian",
                 "--adapter", "v2",
                 "--raw-dir", rawDirectory.path,
@@ -216,7 +235,7 @@ final class IngestUpdateTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: [
-                "ingest", "update",
+                "ingest",
                 "--account", "julian",
                 "--adapter", "v2",
                 "--raw-dir", rawDirectory.path,
@@ -275,7 +294,7 @@ final class IngestUpdateTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: [
-                "ingest", "update",
+                "ingest",
                 "--account", "julian",
                 "--adapter", "v2",
                 "--raw-dir", rawDirectory.path,
@@ -328,7 +347,7 @@ final class IngestUpdateTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: [
-                "ingest", "update",
+                "ingest",
                 "--account", "julian",
                 "--adapter", "v2",
                 "--raw-dir", rawDirectory.path,

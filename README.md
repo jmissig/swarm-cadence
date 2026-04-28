@@ -214,9 +214,6 @@ swift run swarm-cadence ingest \
   --format json
 ```
 
-The older `ingest update` form remains accepted as a compatibility alias, but
-new examples should use the top-level `ingest` command.
-
 ## Offline SQLite Import
 
 Import preserved v2 raw files into a rebuildable local SQLite sidecar:

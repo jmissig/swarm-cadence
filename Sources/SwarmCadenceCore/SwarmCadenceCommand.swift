@@ -404,11 +404,7 @@ private struct IngestCommand: ParsableCommand {
         discussion: """
         Normal operator path:
           swarm-cadence ingest --account <label> --adapter v2
-
-        The older `swarm-cadence ingest update ...` form remains accepted as a
-        compatibility alias.
-        """,
-        subcommands: [IngestUpdateCommand.self]
+        """
     )
 
     @OptionGroup var arguments: IngestUpdateArguments
@@ -417,24 +413,10 @@ private struct IngestCommand: ParsableCommand {
         if CommandRuntime.current.arguments == ["ingest"] {
             throw CleanExit.helpRequest(Self.self)
         }
-        try IngestUpdateCommand.runUpdate(arguments)
-    }
-}
-
-private struct IngestUpdateCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "update",
-        abstract: "Compatibility alias for `swarm-cadence ingest`.",
-        shouldDisplay: false
-    )
-
-    @OptionGroup var arguments: IngestUpdateArguments
-
-    mutating func run() throws {
-        try Self.runUpdate(arguments, command: "ingest update")
+        try Self.runUpdate(arguments)
     }
 
-    static func runUpdate(_ arguments: IngestUpdateArguments, command: String = "ingest") throws {
+    static func runUpdate(_ arguments: IngestUpdateArguments) throws {
         let options = try IngestUpdateOptions(parsed: arguments)
         let runtime = CommandRuntime.current
         let config = try ConfigFile.loadOptional(path: options.configPath, environment: runtime.environment)
@@ -448,7 +430,7 @@ private struct IngestUpdateCommand: ParsableCommand {
             pages: options.pages,
             limit: options.limit,
             delayMilliseconds: options.delayMilliseconds,
-            command: command,
+            command: "ingest",
             transport: runtime.liveTransport
         )
         runtime.output(try Formatter.render(result, format: options.format))

@@ -97,7 +97,7 @@ safely as possible.
 
 - [x] Add an ingest/update loop suitable for cron.
   - Goal shape should resemble `protect-cadence`: safe to run every couple of hours without manual babysitting.
-  - Implemented `ingest --account <label> --adapter v2` with defaults `--pages 4`, `--limit 250`, and `--delay-ms 1000`; `ingest update` remains a compatibility alias.
+  - Implemented `ingest --account <label> --adapter v2` with defaults `--pages 4`, `--limit 250`, and `--delay-ms 1000`.
   - It preserves raw responses/manifests, imports after each successful page, stops on an existing local check-in id or short page, and reports `updated`, `no_new_checkins`, `updated_partial`, `config_missing`, `source_blocked`, or `import_failed`.
   - Freshness is derived from existing tables: `last_fetched_at`, `last_imported_at`, oldest/latest check-in timestamps, and `current_through` as the latest imported check-in timestamp.
   - `db stats` and the experimental evidence envelope now include freshness fields.
