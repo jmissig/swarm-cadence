@@ -21,6 +21,25 @@ final class SourceProbeTests: XCTestCase {
         XCTAssertEqual(output, versionFile)
     }
 
+    func testBareCLIShowsOnlyTopLevelVerbs() {
+        var output = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: [],
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertTrue(output.contains("swarm-cadence \(SwarmCadenceVersion.current)"))
+        XCTAssertTrue(output.contains("SUBCOMMANDS:"))
+        XCTAssertTrue(output.contains("auth"))
+        XCTAssertTrue(output.contains("query"))
+        XCTAssertTrue(output.contains("Run `swarm-cadence --help`"))
+        XCTAssertLessThan(output.split(separator: "\n").count, 25)
+        XCTAssertFalse(output.contains("Examples:"))
+        XCTAssertFalse(output.contains("OVERVIEW:"))
+    }
+
     func testCLIHelpIncludesVersionAndConciseTaskSurface() {
         var output = ""
         let exit = SwarmCadenceCommand.run(

@@ -30,6 +30,9 @@ public enum SwarmCadenceCommand {
 
         do {
             switch invocation {
+            case .verbs:
+                output(Self.verbsText)
+                return 0
             case .help:
                 output(Self.helpText)
                 return 0
@@ -309,6 +312,25 @@ public enum SwarmCadenceCommand {
         return message
     }
 
+
+    public static let verbsText = """
+    swarm-cadence \(SwarmCadenceVersion.current)
+
+    SUBCOMMANDS:
+      auth                      Manage saved Foursquare/Swarm auth.
+      setup                     Alias for `auth login`.
+      source                    Inspect source/account readiness.
+      raw                       Collect preserved source payloads.
+      ingest                    Update the local evidence store from source data.
+      db                        Import/check local SQLite evidence.
+      audit                     Reconcile preserved source files.
+      query                     Read evidence rows and descriptive rollups.
+      evidence                  Build bounded evidence bundles for Robut.
+
+    Run `swarm-cadence --help` for examples and grouped subcommands.
+    Run a command with `--help` for detailed options, e.g. `swarm-cadence query visits --help`.
+    """
+
     public static let helpText = """
     swarm-cadence \(SwarmCadenceVersion.current)
 
@@ -374,6 +396,7 @@ public enum SwarmCadenceCommand {
 }
 
 enum Invocation {
+    case verbs
     case help
     case version
     case setup(SetupOptions)
@@ -395,7 +418,11 @@ enum Invocation {
     case evidencePacket(EvidencePacketOptions)
 
     init(arguments: [String]) throws {
-        if arguments.isEmpty || arguments == ["--help"] || arguments == ["-h"] {
+        if arguments.isEmpty {
+            self = .verbs
+            return
+        }
+        if arguments == ["--help"] || arguments == ["-h"] {
             self = .help
             return
         }
