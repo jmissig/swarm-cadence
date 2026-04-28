@@ -21,7 +21,7 @@ final class SourceProbeTests: XCTestCase {
         XCTAssertEqual(output, versionFile)
     }
 
-    func testCLIHelpIncludesVersion() {
+    func testCLIHelpIncludesVersionAndConciseTaskSurface() {
         var output = ""
         let exit = SwarmCadenceCommand.run(
             arguments: ["--help"],
@@ -32,6 +32,11 @@ final class SourceProbeTests: XCTestCase {
         XCTAssertEqual(exit, 0)
         XCTAssertTrue(output.contains("swarm-cadence \(SwarmCadenceVersion.current)"))
         XCTAssertTrue(output.contains("swarm-cadence --version"))
+        XCTAssertTrue(output.contains("OVERVIEW: Build and query local Foursquare/Swarm check-in evidence."))
+        XCTAssertTrue(output.contains("SUBCOMMANDS:"))
+        XCTAssertTrue(output.contains("For detailed command options"))
+        XCTAssertLessThan(output.split(separator: "\n").count, 80)
+        XCTAssertFalse(output.contains("swarm-cadence evidence packet --account <label> --date <YYYY-MM-DD> --baseline-from <time>"))
     }
 
     func testV2ProbeReportsExternalSetupWhenTokenMissing() {

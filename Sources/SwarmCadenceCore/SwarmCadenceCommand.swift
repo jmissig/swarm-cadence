@@ -312,36 +312,64 @@ public enum SwarmCadenceCommand {
     public static let helpText = """
     swarm-cadence \(SwarmCadenceVersion.current)
 
-    Usage:
-      swarm-cadence --version
-      swarm-cadence auth status --account <label> [--config <path>] [--format <human|json>]
-      swarm-cadence auth login [--account <label>] [--config <path>] [--format <human|json>] [--access-token <token>]
-      swarm-cadence auth clear --account <label> [--config <path>] --force [--format <human|json>]
-      swarm-cadence setup [--account <label>] [--config <path>] [--format <human|json>] [--access-token <token>]  # alias for auth login
-      swarm-cadence source status [--account <label>] [--format <human|json>] [--config <path>]
-      swarm-cadence source probe --account <label> --adapter <v2|historysearch> [--format <human|json>] [--config <path>] [--live]
-      swarm-cadence raw fetch --account <label> --adapter v2 [--out <dir>] [--limit <1...250>] [--offset <n>] [--format <human|json>] [--config <path>]
-      swarm-cadence raw fetch-pages --account <label> --adapter v2 [--out <dir>] [--limit <1...250>] [--start-offset <n>] --pages <1...200> [--delay-ms <n>] [--format <human|json>] [--config <path>]
-      swarm-cadence ingest update --account <label> --adapter v2 [--pages <n>] [--limit <1...250>] [--delay-ms <n>] [--config <path>] [--raw-dir <dir>] [--db <path>] [--format <human|json>]
-      swarm-cadence db import-raw --account <label> [--db <path>] [--raw-dir <dir>] [--format <human|json>]
-      swarm-cadence db import-files --account <label> --path <dir> [--source foursquare-export] [--db <path>] [--format <human|json>]
-      swarm-cadence db stats --account <label> [--db <path>] [--format <human|json>]
-      swarm-cadence audit overlap --account <label> --path <foursquare-export-dir> [--raw-dir <v2-raw-dir>] [--examples <n>] [--format <human|json>]
-      swarm-cadence query categories --account <label> [--db <path>] [--limit <1...250>] [--format <human|json>]
-      swarm-cadence query venues --account <label> [--db <path>] [--date <YYYY-MM-DD>] [--hour-from <0...23>] [--hour-to <0...23>] [--from <time>] [--to <time>] [--locality <name>] [--region <code>] [--postal-code <code>] [--country-code <code>] [--category <name>] [--near-lat <lat> --near-lng <lng> --radius-meters <m>] [--sort <nearest|strongest|recent|stale>] [--limit <1...250>] [--format <human|json>]
-      swarm-cadence query visits --account <label> [--db <path>] [--venue-id <id>] [--date <YYYY-MM-DD>] [--hour-from <0...23>] [--hour-to <0...23>] [--from <time>] [--to <time>] [--limit <1...250>] [--format <human|json>]
-      swarm-cadence query compare --account <label> --baseline-from <time> --recent-from <time> [--db <path>] [--baseline-to <time>] [--recent-to <time>] [--as-of <time>] [--hour-from <0...23>] [--hour-to <0...23>] [--locality <name>] [--region <code>] [--postal-code <code>] [--country-code <code>] [--category <name>] [--near-lat <lat> --near-lng <lng> --radius-meters <m>] [--sort <nearest|strongest|recent|stale>] [--min-baseline-visits <n>] [--limit <1...250>] [--format <human|json>]
-      swarm-cadence evidence window --account <label> --date <YYYY-MM-DD> [--hour-from <0...23>] [--hour-to <0...23>] [--db <path>] [--limit <1...250>] [--format <human|json>]
-      swarm-cadence evidence packet --account <label> --date <YYYY-MM-DD> --baseline-from <time> --recent-from <time> [--db <path>] [--baseline-to <time>] [--recent-to <time>] [--as-of <time>] [--hour-from <0...23>] [--hour-to <0...23>] [--locality <name>] [--region <code>] [--postal-code <code>] [--country-code <code>] [--category <name>] [--near-lat <lat> --near-lng <lng> --radius-meters <m>] [--min-baseline-visits <n>] [--limit <1...250>] [--format <human|json>]
+    OVERVIEW: Build and query local Foursquare/Swarm check-in evidence.
 
-    Defaults live under ~/Library/Application Support/swarm-cadence: config.json plus per-account raw archives and SQLite DBs under accounts/<label>/.
-    Auth login guides first-run v2 token/OAuth config without printing tokens or client secrets; when --account is omitted in human mode, it prompts for an account label. `setup` is a compatibility alias for `auth login`.
-    Source status lists configured accounts and local evidence paths without querying SQLite, reading raw payloads, or performing network calls.
-    Source probe is dry config validation by default. Pass --live to perform the explicit minimal read-only v2 checkins probe.
-    Raw fetch performs exactly one conservative v2 checkins request and writes one raw JSON response plus an adjacent manifest.
-    Ingest update is cron-friendly v2 collection: fetch bounded recent pages, preserve raw files, import after each successful page, and report factual freshness.
-    DB import reads preserved raw v2 files from disk only; it performs no network calls.
-    Audit overlap compares preserved v2 raw files and Foursquare export files by check-in id without writing to SQLite.
+    Use source collection/import to build the local evidence store. Use query and
+    evidence commands for bounded answers. Robut composes Guides above this layer;
+    the CLI exposes source-backed rows, rollups, comparisons, and drill-downs.
+
+    Examples:
+      swarm-cadence --version
+      swarm-cadence auth status --account <label>
+      swarm-cadence auth login [--account <label>]
+      swarm-cadence setup [--account <label>]
+      swarm-cadence source status [--account <label>]
+      swarm-cadence ingest update --account julian --adapter v2
+      swarm-cadence query visits --account julian --date 2026-03-25
+      swarm-cadence query compare --account julian --baseline-from 2026-03-01 --recent-from 2026-04-01
+      swarm-cadence evidence packet --account julian --date 2026-03-25 --baseline-from 2026-03-01 --recent-from 2026-04-01
+
+    USAGE: swarm-cadence <subcommand>
+
+    OPTIONS:
+      --version                 Show the version.
+      -h, --help                Show help information.
+
+    SUBCOMMANDS:
+      auth                      Manage saved Foursquare/Swarm auth.
+        status                  Show configured account/auth readiness.
+        login                   Configure v2 token/OAuth credentials.
+        clear                   Remove saved account auth.
+      setup                     Alias for `auth login`.
+      source                    Inspect source/account readiness.
+        status                  List configured accounts and local evidence paths.
+        probe                   Validate v2/historysearch source configuration.
+      raw                       Collect preserved source payloads.
+        fetch                   Fetch one conservative v2 checkins page.
+        fetch-pages             Fetch bounded recent v2 pages.
+      ingest                    Update the local evidence store from source data.
+        update                  Fetch bounded raw pages and import successful pages.
+      db                        Import/check local SQLite evidence.
+        import-raw              Import preserved raw v2 files from disk.
+        import-files            Import official Foursquare export files.
+        stats                   Summarize database coverage.
+      audit                     Reconcile preserved source files.
+        overlap                 Compare v2 raw files with official export by check-in id.
+      query                     Read evidence rows and descriptive rollups.
+        categories              List category coverage.
+        venues                  List/filter venues.
+        visits                  List/filter visits.
+        compare                 Compare baseline and recent venue evidence.
+      evidence                  Build bounded evidence bundles for Robut.
+        window                  Describe one date/hour evidence window.
+        packet                  Compose one bounded local evidence packet.
+
+    Defaults live under ~/Library/Application Support/swarm-cadence: config.json plus
+    per-account raw archives and SQLite DBs under accounts/<label>/.
+
+    For detailed command options, run the specific command with --help, for example:
+      swarm-cadence query visits --help
+      swarm-cadence ingest update --help
     """
 }
 
@@ -378,11 +406,6 @@ enum Invocation {
 
         guard !arguments.isEmpty else {
             throw CLIError("unsupported command. Run `swarm-cadence --help`.")
-        }
-
-        if Array(arguments.dropFirst()).contains(where: { $0 == "--help" || $0 == "-h" }) {
-            self = .help
-            return
         }
 
         if arguments[0] == "setup" {
