@@ -104,9 +104,9 @@ enum SetupAuth {
             promptOutput("Config path: \(configPath)")
             promptOutput("Raw check-ins: \(AppSupportDefaults.rawCheckinsDirectory(account: account, environment: environment))")
             promptOutput("SQLite DB: \(AppSupportDefaults.sqlitePath(account: account, environment: environment))")
-            promptOutput("Choose one credential path:")
-            promptOutput("1. Paste an existing Foursquare v2 access token if you already have one. This is the fastest path.")
-            promptOutput("2. Leave the token blank to start the browser OAuth flow. You will need a Foursquare developer app client id/secret; the CLI will print the URL and ask for the returned code.")
+            promptOutput("Choose one setup path:")
+            promptOutput("1. If you already have a Foursquare v2 access token, paste it at the next prompt.")
+            promptOutput("2. Otherwise, leave the token prompt blank and follow the app setup prompts.")
         }
 
         if token == nil, let existingToken {
@@ -142,29 +142,38 @@ enum SetupAuth {
         }
 
         if token == nil {
+            if format == .human, clientID == nil || clientSecret == nil || redirectURI == nil {
+                promptOutput("Foursquare app setup:")
+                promptOutput("1. Open https://foursquare.com/developers/apps")
+                promptOutput("2. Create or select an app.")
+                promptOutput("3. Set the redirect URI to: \(defaultRedirectURI)")
+                promptOutput("4. Paste the Client ID and Client Secret below.")
+            }
+
             clientID = try clientID ?? existingCredential(
                 name: "SWARM_CADENCE_\(accountKey)_V2_CLIENT_ID",
                 environment: environment,
                 config: existingValues
-            ) ?? promptRequired("Foursquare developer app client id", input: input, output: promptOutput)
+            ) ?? promptRequired("Client ID", input: input, output: promptOutput)
             clientSecret = try clientSecret ?? existingCredential(
                 name: "SWARM_CADENCE_\(accountKey)_V2_CLIENT_SECRET",
                 environment: environment,
                 config: existingValues
-            ) ?? promptRequired("Foursquare developer app client secret", input: input, output: promptOutput)
+            ) ?? promptRequired("Client Secret", input: input, output: promptOutput)
             redirectURI = try redirectURI ?? existingCredential(
                 name: "SWARM_CADENCE_\(accountKey)_V2_REDIRECT_URI",
                 environment: environment,
                 config: existingValues
-            ) ?? promptWithDefault("Foursquare developer app redirect URI", defaultValue: defaultRedirectURI, input: input, output: promptOutput)
+            ) ?? promptWithDefault("Redirect URI", defaultValue: defaultRedirectURI, input: input, output: promptOutput)
 
             let authorizationURL = try FoursquareOAuth.authorizationURL(clientID: clientID!, redirectURI: redirectURI!)
             if format == .human {
-                promptOutput("Open this authorization URL:")
+                promptOutput("Open this URL, approve access, then copy the code from the redirected URL:")
                 promptOutput(authorizationURL.absoluteString)
+                promptOutput("Copy the value after `code=` and before `&` or `#`, then paste it below.")
             }
 
-            authorizationCode = try authorizationCode ?? promptRequired("Code returned after opening the authorization URL", input: input, output: promptOutput)
+            authorizationCode = try authorizationCode ?? promptRequired("Authorization code", input: input, output: promptOutput)
             token = try FoursquareOAuth.exchangeCodeForAccessToken(
                 clientID: clientID!,
                 clientSecret: clientSecret!,
@@ -319,7 +328,7 @@ enum SetupAuth {
     }
 
     private static func promptOptional(_ prompt: String, input: () -> String?, output: (String) -> Void) throws -> String? {
-        output("\(prompt) (paste token, or leave blank to use browser OAuth):")
+        output("\(prompt) (paste token, or leave blank for app setup):")
         guard let value = input() else {
             throw CLIError("interactive input unavailable for \(prompt).")
         }
