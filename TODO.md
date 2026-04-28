@@ -189,7 +189,7 @@ safely as possible.
   support, gaps, and geography clusters.
 - [ ] Add correction/edit storage after the reusable source/derived-output shape is stable.
 - [ ] Add Paprika and `clime` join inputs only above the CLI, with explicit join boundaries; avoid making `swarm-cadence` orchestrate sibling-tool packets.
-- [ ] Document the SQLite audit surface with read-only inspection queries for
+- [ ] Document the SQLite exploration surface with read-only inspection queries for
   coverage, date ranges, venues, and category completeness.
 
 ## Not now

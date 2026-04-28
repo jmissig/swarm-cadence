@@ -397,7 +397,7 @@ Strong candidate facts for lunch Guide inputs:
 
 Build toward two sibling surfaces over the local evidence:
 
-1. **SQLite/Datasette-style explore/audit surface**
+1. **SQLite/Datasette-style explore/inspect surface**
    - read-only browsing, faceting, ad hoc SQL, source coverage, schema inspection, and debugging;
    - useful for humans and trusted agents discovering questions;
    - not the normal conversational contract.
@@ -488,7 +488,7 @@ Use this docs split by default:
 - `README.md` — human-facing usage guide: purpose, setup, normal commands, examples.
 - `TODO.md` — active backlog / near-term parking lot, if needed.
 - `AGENTS.md` — durable architecture, constraints, source-of-truth boundaries, project posture, validation commands, and agent guidance.
-- `docs/` — focused contracts/specs that would bloat `AGENTS.md`, such as credential probe notes, schema docs, source/derived-output schemas, Datasette/audit recipes, source API contracts, and migration decisions.
+- `docs/` — focused contracts/specs that would bloat `AGENTS.md`, such as credential probe notes, schema docs, source/derived-output schemas, Datasette/exploration recipes, source API contracts, and migration decisions.
 
 Completed work should leave `TODO.md` and live in git history, tests, code, and release notes if relevant.
 

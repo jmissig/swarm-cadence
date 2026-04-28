@@ -122,7 +122,7 @@ queries and Lunch Guide bundle shape are useful.
 
 ## Two sibling surfaces
 
-### 1. SQLite / Datasette-style explore-audit surface
+### 1. SQLite / Datasette-style explore-inspect surface
 
 Purpose: let humans and trusted agents inspect the local evidence, debug ingest, and discover better questions.
 
