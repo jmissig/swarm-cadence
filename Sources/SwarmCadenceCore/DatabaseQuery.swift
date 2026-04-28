@@ -292,9 +292,204 @@ public struct QueryCadenceResult: Codable, Equatable {
     public let venues: [VenueCadenceEvidence]
 }
 
+public struct VenueIdentityAuditThresholds: Codable, Equatable {
+    public let sameNameNearbyMeters: Double
+}
+
+public struct VenueIdentitySourceAdapterCount: Codable, Equatable {
+    public let sourceAdapter: String
+    public let checkinCount: Int
+}
+
+public struct VenueIdentityAuditVenue: Codable, Equatable {
+    public let venueID: String
+    public let name: String?
+    public let normalizedName: String?
+    public let address: String?
+    public let normalizedAddress: String?
+    public let latitude: Double?
+    public let longitude: Double?
+    public let locality: String?
+    public let region: String?
+    public let postalCode: String?
+    public let countryCode: String?
+    public let visitCount: Int
+    public let firstCreatedAt: Int?
+    public let firstCreatedAtISO8601: String?
+    public let lastCreatedAt: Int?
+    public let lastCreatedAtISO8601: String?
+    public let sourceAdapters: [VenueIdentitySourceAdapterCount]
+}
+
+public struct VenueIdentityAuditCandidate: Codable, Equatable {
+    public let kind: String
+    public let reason: String
+    public let normalizedName: String?
+    public let normalizedAddress: String?
+    public let distanceMeters: Double?
+    public let venueIDCount: Int
+    public let totalCheckins: Int
+    public let venues: [VenueIdentityAuditVenue]
+}
+
+public struct VenueIdentityAuditResult: Codable, Equatable {
+    public let schemaVersion: Int
+    public let command: String
+    public let account: String
+    public let dbPath: String
+    public let thresholds: VenueIdentityAuditThresholds
+    public let totalCheckins: Int
+    public let totalVenueIds: Int
+    public let sameNameSameAddressCandidateGroups: Int
+    public let sameNameSameAddressCandidateVenueIds: Int
+    public let sameNameSameAddressCandidateCheckins: Int
+    public let sameNameNearbyCandidateGroups: Int
+    public let sameNameNearbyCandidateVenueIds: Int
+    public let sameNameNearbyCandidateCheckins: Int
+    public let returnedCandidates: Int
+    public let candidates: [VenueIdentityAuditCandidate]
+}
+
+private struct VenueIdentityAuditRow {
+    let venueID: String
+    let name: String?
+    let normalizedName: String?
+    let address: String?
+    let normalizedAddress: String?
+    let latitude: Double?
+    let longitude: Double?
+    let locality: String?
+    let region: String?
+    let postalCode: String?
+    let countryCode: String?
+    let visitCount: Int
+    let firstCreatedAt: Int?
+    let lastCreatedAt: Int?
+    let sourceAdapters: [VenueIdentitySourceAdapterCount]
+}
+
 public extension SwarmDatabase {
     static let queryDefaultLimit = 25
     static let queryHardLimit = 250
+    static let identityAuditDefaultSameNameNearbyMeters = 250.0
+
+
+    static func auditVenueIdentity(
+        dbPath: String,
+        account: String,
+        sameNameNearbyMeters: Double = identityAuditDefaultSameNameNearbyMeters,
+        limit: Int = queryDefaultLimit
+    ) throws -> VenueIdentityAuditResult {
+        guard !dbPath.isEmpty else {
+            throw CLIError("missing required --db <path>.")
+        }
+        let account = try AccountLabel.validate(account)
+        try validateQueryLimit(limit)
+        guard sameNameNearbyMeters >= 0 else { throw CLIError("--same-name-nearby-meters must be at least 0.") }
+
+        let dbQueue = try openReadOnlyDatabase(path: dbPath)
+        return try dbQueue.read { db in
+            let totalCheckins = try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM checkins WHERE account = ? AND venue_id IS NOT NULL",
+                arguments: [account]
+            ) ?? 0
+            let totalVenueIds = try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(DISTINCT venue_id) FROM checkins WHERE account = ? AND venue_id IS NOT NULL",
+                arguments: [account]
+            ) ?? 0
+
+            let adapterRows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT venue_id, source_adapter, COUNT(*) AS checkin_count
+                FROM checkins
+                WHERE account = ? AND venue_id IS NOT NULL
+                GROUP BY venue_id, source_adapter
+                ORDER BY venue_id, checkin_count DESC, source_adapter ASC
+                """,
+                arguments: [account]
+            )
+            var adaptersByVenue: [String: [VenueIdentitySourceAdapterCount]] = [:]
+            for row in adapterRows {
+                let venueID: String = row["venue_id"]
+                adaptersByVenue[venueID, default: []].append(VenueIdentitySourceAdapterCount(
+                    sourceAdapter: row["source_adapter"],
+                    checkinCount: row["checkin_count"]
+                ))
+            }
+
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT
+                    v.venue_id,
+                    v.name,
+                    lower(trim(v.name)) AS normalized_name,
+                    json_extract(v.raw_json, '$.location.address') AS address,
+                    lower(trim(COALESCE(json_extract(v.raw_json, '$.location.address'), ''))) AS normalized_address,
+                    v.lat,
+                    v.lng,
+                    v.locality,
+                    v.region,
+                    v.postal_code,
+                    v.country_code,
+                    COUNT(c.checkin_id) AS visit_count,
+                    MIN(c.created_at_unix) AS first_created_at,
+                    MAX(c.created_at_unix) AS last_created_at
+                FROM checkins c
+                JOIN venues v ON v.venue_id = c.venue_id
+                WHERE c.account = ? AND c.venue_id IS NOT NULL
+                GROUP BY v.venue_id, v.name, v.lat, v.lng, v.locality, v.region, v.postal_code, v.country_code, v.raw_json
+                """,
+                arguments: [account]
+            ).map { row in
+                let venueID: String = row["venue_id"]
+                return VenueIdentityAuditRow(
+                    venueID: venueID,
+                    name: row["name"],
+                    normalizedName: nonEmptyNormalized(row["normalized_name"]),
+                    address: row["address"],
+                    normalizedAddress: nonEmptyNormalized(row["normalized_address"]),
+                    latitude: row["lat"],
+                    longitude: row["lng"],
+                    locality: row["locality"],
+                    region: row["region"],
+                    postalCode: row["postal_code"],
+                    countryCode: row["country_code"],
+                    visitCount: row["visit_count"],
+                    firstCreatedAt: row["first_created_at"],
+                    lastCreatedAt: row["last_created_at"],
+                    sourceAdapters: adaptersByVenue[venueID] ?? []
+                )
+            }
+
+            let sameAddressCandidates = sameNameSameAddressCandidates(rows: rows)
+            let sameNameNearbyCandidates = sameNameNearbyCandidates(rows: rows, thresholdMeters: sameNameNearbyMeters)
+            let returned = Array((sameAddressCandidates + sameNameNearbyCandidates).prefix(limit))
+
+            return VenueIdentityAuditResult(
+                schemaVersion: 1,
+                command: "audit identity",
+                account: account,
+                dbPath: dbPath,
+                thresholds: VenueIdentityAuditThresholds(
+                    sameNameNearbyMeters: sameNameNearbyMeters
+                ),
+                totalCheckins: totalCheckins,
+                totalVenueIds: totalVenueIds,
+                sameNameSameAddressCandidateGroups: sameAddressCandidates.count,
+                sameNameSameAddressCandidateVenueIds: distinctVenueIDs(in: sameAddressCandidates),
+                sameNameSameAddressCandidateCheckins: candidateCheckinTotal(in: sameAddressCandidates),
+                sameNameNearbyCandidateGroups: sameNameNearbyCandidates.count,
+                sameNameNearbyCandidateVenueIds: distinctVenueIDs(in: sameNameNearbyCandidates),
+                sameNameNearbyCandidateCheckins: candidateCheckinTotal(in: sameNameNearbyCandidates),
+                returnedCandidates: returned.count,
+                candidates: returned
+            )
+        }
+    }
 
 
     static func queryCategories(
@@ -1834,6 +2029,139 @@ private func cadenceGapDays(
         maxDays: gaps.max(),
         averageDays: roundedAverage
     )
+}
+
+
+private func nonEmptyNormalized(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+}
+
+private func sameNameSameAddressCandidates(rows: [VenueIdentityAuditRow]) -> [VenueIdentityAuditCandidate] {
+    let groups = Dictionary(grouping: rows.filter { $0.normalizedName != nil && $0.normalizedAddress != nil }) { row in
+        "\(row.normalizedName!)\u{1F}\(row.normalizedAddress!)"
+    }
+    return groups.values
+        .filter { $0.count > 1 }
+        .map { group in
+            let sorted = group.sorted(by: venueIdentitySort)
+            return VenueIdentityAuditCandidate(
+                kind: "same_name_same_address",
+                reason: "Multiple venue IDs have the same normalized name and same preserved source address; useful when auditing export/API merge identity.",
+                normalizedName: sorted.first?.normalizedName,
+                normalizedAddress: sorted.first?.normalizedAddress,
+                distanceMeters: maxPairDistanceMeters(sorted),
+                venueIDCount: sorted.count,
+                totalCheckins: sorted.reduce(0) { $0 + $1.visitCount },
+                venues: sorted.map(venueIdentityAuditVenue)
+            )
+        }
+        .sorted(by: candidateSort)
+}
+
+private func sameNameNearbyCandidates(rows: [VenueIdentityAuditRow], thresholdMeters: Double) -> [VenueIdentityAuditCandidate] {
+    let groups = Dictionary(grouping: rows.filter { $0.normalizedName != nil && $0.latitude != nil && $0.longitude != nil }) { $0.normalizedName! }
+    var candidates: [VenueIdentityAuditCandidate] = []
+    for (_, group) in groups where group.count > 1 {
+        var parent = Dictionary(uniqueKeysWithValues: group.map { ($0.venueID, $0.venueID) })
+        func find(_ value: String) -> String {
+            var value = value
+            while parent[value] != value, let next = parent[value] { value = next }
+            return value
+        }
+        func union(_ left: String, _ right: String) {
+            let leftRoot = find(left)
+            let rightRoot = find(right)
+            if leftRoot != rightRoot { parent[rightRoot] = leftRoot }
+        }
+        for i in 0..<group.count {
+            for j in group.index(after: i)..<group.count {
+                if let distance = venueDistanceMeters(group[i], group[j]), distance <= thresholdMeters {
+                    union(group[i].venueID, group[j].venueID)
+                }
+            }
+        }
+        let components = Dictionary(grouping: group) { find($0.venueID) }
+        for component in components.values where component.count > 1 {
+            let sorted = component.sorted(by: venueIdentitySort)
+            candidates.append(VenueIdentityAuditCandidate(
+                kind: "same_name_nearby",
+                reason: "Multiple venue IDs have the same normalized name and are geographically close; this is an audit candidate, not an automatic merge.",
+                normalizedName: sorted.first?.normalizedName,
+                normalizedAddress: nil,
+                distanceMeters: maxPairDistanceMeters(sorted),
+                venueIDCount: sorted.count,
+                totalCheckins: sorted.reduce(0) { $0 + $1.visitCount },
+                venues: sorted.map(venueIdentityAuditVenue)
+            ))
+        }
+    }
+    return candidates.sorted(by: candidateSort)
+}
+
+private func venueIdentityAuditVenue(_ row: VenueIdentityAuditRow) -> VenueIdentityAuditVenue {
+    VenueIdentityAuditVenue(
+        venueID: row.venueID,
+        name: row.name,
+        normalizedName: row.normalizedName,
+        address: row.address,
+        normalizedAddress: row.normalizedAddress,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        locality: row.locality,
+        region: row.region,
+        postalCode: row.postalCode,
+        countryCode: row.countryCode,
+        visitCount: row.visitCount,
+        firstCreatedAt: row.firstCreatedAt,
+        firstCreatedAtISO8601: row.firstCreatedAt.map(queryISO8601String(timestamp:)),
+        lastCreatedAt: row.lastCreatedAt,
+        lastCreatedAtISO8601: row.lastCreatedAt.map(queryISO8601String(timestamp:)),
+        sourceAdapters: row.sourceAdapters
+    )
+}
+
+private func venueIdentitySort(_ left: VenueIdentityAuditRow, _ right: VenueIdentityAuditRow) -> Bool {
+    if left.visitCount != right.visitCount { return left.visitCount > right.visitCount }
+    if (left.lastCreatedAt ?? 0) != (right.lastCreatedAt ?? 0) { return (left.lastCreatedAt ?? 0) > (right.lastCreatedAt ?? 0) }
+    return left.venueID < right.venueID
+}
+
+private func candidateSort(_ left: VenueIdentityAuditCandidate, _ right: VenueIdentityAuditCandidate) -> Bool {
+    if left.totalCheckins != right.totalCheckins { return left.totalCheckins > right.totalCheckins }
+    if left.venueIDCount != right.venueIDCount { return left.venueIDCount > right.venueIDCount }
+    return (left.normalizedName ?? left.venues.first?.name ?? "") < (right.normalizedName ?? right.venues.first?.name ?? "")
+}
+
+private func venueDistanceMeters(_ left: VenueIdentityAuditRow, _ right: VenueIdentityAuditRow) -> Double? {
+    guard let lat1 = left.latitude, let lng1 = left.longitude, let lat2 = right.latitude, let lng2 = right.longitude else { return nil }
+    return haversineDistanceMeters(lat1: lat1, lng1: lng1, lat2: lat2, lng2: lng2)
+}
+
+private func maxPairDistanceMeters(_ rows: [VenueIdentityAuditRow]) -> Double? {
+    guard rows.count > 1 else { return nil }
+    var maxDistance: Double?
+    for i in 0..<rows.count {
+        for j in rows.index(after: i)..<rows.count {
+            guard let distance = venueDistanceMeters(rows[i], rows[j]) else { continue }
+            maxDistance = max(maxDistance ?? distance, distance)
+        }
+    }
+    return maxDistance.map(roundedMeters)
+}
+
+private func roundedMeters(_ meters: Double) -> Double {
+    (meters * 10).rounded() / 10
+}
+
+private func distinctVenueIDs(in candidates: [VenueIdentityAuditCandidate]) -> Int {
+    Set(candidates.flatMap { $0.venues.map(\.venueID) }).count
+}
+
+private func candidateCheckinTotal(in candidates: [VenueIdentityAuditCandidate]) -> Int {
+    let venues = Dictionary(candidates.flatMap { candidate in candidate.venues.map { ($0.venueID, $0.visitCount) } }, uniquingKeysWith: { left, _ in left })
+    return venues.values.reduce(0, +)
 }
 
 private func venueDrillDown(

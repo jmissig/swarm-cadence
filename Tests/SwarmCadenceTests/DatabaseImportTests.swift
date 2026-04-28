@@ -1614,6 +1614,113 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertEqual(parsed, 1_700_006_399)
     }
 
+    func testCLIAuditIdentitySurfacesVenueIdentityCandidates() throws {
+        let directory = try makeTemporaryDirectory()
+        let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
+        try FileManager.default.createDirectory(at: rawDirectory, withIntermediateDirectories: true)
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+        let auditRawBody = """
+        {
+          "meta": { "code": 200 },
+          "response": {
+            "checkins": {
+              "count": 5,
+              "items": [
+                {
+                  "id": "identity-1",
+                  "createdAt": 1700000000,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-tong-sui-old",
+                    "name": "Tong Sui",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "address": "250 S B St", "lat": 37.56735, "lng": -122.32320, "city": "San Mateo", "state": "CA", "cc": "US" },
+                    "categories": [{ "id": "cat-dessert", "name": "Dessert Shop" }]
+                  }
+                },
+                {
+                  "id": "identity-2",
+                  "createdAt": 1700000100,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-tong-sui-new",
+                    "name": "Tong Sui",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "address": "250 S B St", "lat": 37.56574, "lng": -122.32286, "city": "San Mateo", "state": "CA", "cc": "US" },
+                    "categories": [{ "id": "cat-dessert", "name": "Dessert Shop" }]
+                  }
+                },
+                {
+                  "id": "identity-3",
+                  "createdAt": 1700000200,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-vesta",
+                    "name": "Vesta",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "address": "2022 Broadway", "lat": 37.48600, "lng": -122.23000, "city": "Redwood City", "state": "CA", "cc": "US" },
+                    "categories": [{ "id": "cat-restaurant", "name": "Restaurant" }]
+                  }
+                },
+                {
+                  "id": "identity-4",
+                  "createdAt": 1700000300,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-mazra",
+                    "name": "Mazra",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "address": "2022 Broadway", "lat": 37.48601, "lng": -122.23001, "city": "Redwood City", "state": "CA", "cc": "US" },
+                    "categories": [{ "id": "cat-restaurant", "name": "Restaurant" }]
+                  }
+                },
+                {
+                  "id": "identity-5",
+                  "createdAt": 1700000400,
+                  "timeZoneOffset": -480,
+                  "venue": {
+                    "id": "venue-chain-elsewhere",
+                    "name": "Tong Sui",
+                    "timeZone": "America/Los_Angeles",
+                    "location": { "address": "1 Far Away", "lat": 38.5, "lng": -123.5, "city": "Far", "state": "CA", "cc": "US" },
+                    "categories": [{ "id": "cat-dessert", "name": "Dessert Shop" }]
+                  }
+                }
+              ]
+            }
+          }
+        }
+        """.data(using: .utf8)!
+
+        try writeRawPair(
+            rawDirectory: rawDirectory,
+            baseName: "fixture-v2-julian-checkins-offset0-limit250",
+            rawBody: auditRawBody
+        )
+        _ = try SwarmDatabase.importRawV2Checkins(dbPath: dbURL.path, rawDirectory: rawDirectory.path)
+
+        var output = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: [
+                "audit", "identity",
+                "--account", "julian",
+                "--db", dbURL.path,
+                "--format", "json",
+                "--limit", "10"
+            ],
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertTrue(output.contains(#""command" : "audit identity""#))
+        XCTAssertTrue(output.contains(#""same_name_same_address_candidate_groups" : 1"#))
+        XCTAssertTrue(output.contains(#""same_name_nearby_candidate_groups" : 1"#))
+        XCTAssertTrue(output.contains(#""kind" : "same_name_same_address""#))
+        XCTAssertTrue(output.contains(#""kind" : "same_name_nearby""#))
+        XCTAssertTrue(output.contains(#""source_adapter" : "v2""#))
+    }
+
     private var rawBody: Data {
         """
         {

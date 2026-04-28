@@ -155,11 +155,12 @@ safely as possible.
     - `query lapses --account julian --baseline-from 2018-01-01 --recent-from 2024-01-01 --min-baseline-visits 10 --format json`
   - The tool may say “historically strong, absent recently” or “recently active”; it must not infer “disliked,” “abandoned,” or “favorite” as a final judgment.
 
-- [ ] Add venue reconciliation / alias support as an evidence-identity slice.
-  - Motivation: repeated brands or renamed/duplicate venues such as Blue Bottle / Starbucks-style rows can distort support counts.
-  - This belongs in the tool because it affects entity identity, not Robut interpretation.
-  - Keep raw venues untouched; add normalized aliases/groups or correction-backed venue identity records with provenance.
-  - Output should make grouping visible so a future artifact can show whether a count is one Foursquare venue or a grouped canonical venue.
+- [x] Add a narrow venue identity audit for export/API merge checks.
+  - Added `audit identity` over the SQLite evidence store.
+  - It reports same-name/same-address and same-name/nearby venue-ID candidates with source-adapter support counts.
+  - This is intentionally read-only audit evidence, not aliasing, canonical venue grouping, or automatic merge logic.
+  - Example command:
+    - `audit identity --account julian --format json`
 
 - [ ] Add trip / travel-burst clustering after local Guide pieces are usable.
   - Motivation: airports, hotels, ski trips, Hong Kong/Taiwan clusters, and other bursts should not contaminate ordinary local food/place suggestions.

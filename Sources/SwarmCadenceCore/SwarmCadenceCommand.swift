@@ -65,7 +65,7 @@ public enum SwarmCadenceCommand {
       raw                       Collect preserved source payloads.
       ingest                    Update the local evidence store from source data.
       db                        Import/check local SQLite evidence.
-      audit                     Reconcile preserved source files.
+      audit                     Audit source and identity evidence.
       query                     Read evidence rows and descriptive rollups.
       evidence                  Build bounded evidence bundles for Robut.
 
@@ -510,8 +510,8 @@ private struct DBStatsCommand: ParsableCommand {
 private struct AuditCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "audit",
-        abstract: "Reconcile preserved source files.",
-        subcommands: [AuditOverlapCommand.self]
+        abstract: "Audit source and identity evidence.",
+        subcommands: [AuditOverlapCommand.self, AuditIdentityCommand.self]
     )
 }
 
@@ -531,6 +531,27 @@ private struct AuditOverlapCommand: ParsableCommand {
             v2RawDirectory: options.v2RawDirectory ?? AppSupportDefaults.rawCheckinsDirectory(account: options.account, environment: runtime.environment),
             exportPath: options.exportPath,
             exampleLimit: options.exampleLimit
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct AuditIdentityCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "identity",
+        abstract: "Audit venue identity candidates in the SQLite evidence store."
+    )
+
+    @OptionGroup var arguments: AuditIdentityArguments
+
+    mutating func run() throws {
+        let options = try AuditIdentityOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.auditVenueIdentity(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account,
+            sameNameNearbyMeters: options.sameNameNearbyMeters,
+            limit: options.limit
         )
         runtime.output(try Formatter.render(result, format: options.format))
     }
@@ -1085,6 +1106,27 @@ struct AuditOverlapOptions {
             throw CLIError("--examples must be at least 0.")
         }
         self.exampleLimit = parsed.examples
+    }
+}
+
+struct AuditIdentityOptions {
+    let account: String
+    let dbPath: String?
+    let sameNameNearbyMeters: Double
+    let limit: Int
+    let format: OutputFormat
+
+    fileprivate init(parsed: AuditIdentityArguments) throws {
+        self.account = try AccountLabel.validate(parsed.account)
+        self.format = try parseFormat(format: parsed.format, json: parsed.json)
+        if let dbPath = parsed.dbPath, dbPath.isEmpty {
+            throw CLIError("--db must not be empty.")
+        }
+        self.dbPath = parsed.dbPath
+        self.sameNameNearbyMeters = parsed.sameNameNearbyMeters
+        self.limit = parsed.limit
+        try SwarmDatabase.validateQueryOptions(fromCreatedAt: nil, toCreatedAt: nil, limit: limit)
+        guard sameNameNearbyMeters >= 0 else { throw CLIError("--same-name-nearby-meters must be at least 0.") }
     }
 }
 
@@ -1714,6 +1756,14 @@ private struct AuditOverlapArguments: ParsableArguments {
     @Flag var json = false
 }
 
+private struct AuditIdentityArguments: ParsableArguments {
+    @Option var account: String?
+    @Option(name: .customLong("db")) var dbPath: String?
+    @Option(name: .customLong("same-name-nearby-meters")) var sameNameNearbyMeters = SwarmDatabase.identityAuditDefaultSameNameNearbyMeters
+    @Option var limit = SwarmDatabase.queryDefaultLimit
+    @Option var format = "auto"
+    @Flag var json = false
+}
 
 
 private struct QueryCategoriesArguments: ParsableArguments {
@@ -1991,6 +2041,15 @@ enum Formatter {
             return try renderJSON(result)
         }
     }
+    static func render(_ result: VenueIdentityAuditResult, format: OutputFormat) throws -> String {
+        switch format {
+        case .auto, .text:
+            return renderHuman(result)
+        case .json:
+            return try renderJSON(result)
+        }
+    }
+
 
     static func render(_ result: QueryCategoriesResult, format: OutputFormat) throws -> String {
         switch format {
@@ -2330,6 +2389,37 @@ enum Formatter {
             lines.append("last_imported_at_iso8601: \(lastImported)")
         }
 
+        return lines.joined(separator: "\n")
+    }
+
+    private static func renderHuman(_ result: VenueIdentityAuditResult) -> String {
+        var lines: [String] = [
+            "audit identity",
+            "account: \(result.account)",
+            "db: \(result.dbPath)",
+            "total_checkins: \(result.totalCheckins)",
+            "total_venue_ids: \(result.totalVenueIds)",
+            "same_name_same_address: groups=\(result.sameNameSameAddressCandidateGroups) venue_ids=\(result.sameNameSameAddressCandidateVenueIds) checkins=\(result.sameNameSameAddressCandidateCheckins)",
+            "same_name_nearby: groups=\(result.sameNameNearbyCandidateGroups) venue_ids=\(result.sameNameNearbyCandidateVenueIds) checkins=\(result.sameNameNearbyCandidateCheckins) threshold_meters=\(Int(result.thresholds.sameNameNearbyMeters.rounded()))",
+            "returned_candidates: \(result.returnedCandidates)",
+            "network: not performed"
+        ]
+        for candidate in result.candidates {
+            lines.append("- \(candidate.kind): venues=\(candidate.venueIDCount) checkins=\(candidate.totalCheckins) distance_meters=\(candidate.distanceMeters.map { String(Int($0.rounded())) } ?? "n/a")")
+            lines.append("  reason: \(candidate.reason)")
+            for venue in candidate.venues {
+                lines.append("  - \(venue.name ?? venue.venueID): visits=\(venue.visitCount) venue_id=\(venue.venueID)")
+                if let address = venue.address { lines.append("    address: \(address)") }
+                if let locality = venue.locality {
+                    let region = venue.region.map { ", \($0)" } ?? ""
+                    lines.append("    location: \(locality)\(region)")
+                }
+                if !venue.sourceAdapters.isEmpty {
+                    let adapters = venue.sourceAdapters.map { "\($0.sourceAdapter)=\($0.checkinCount)" }.joined(separator: ", ")
+                    lines.append("    source_adapters: \(adapters)")
+                }
+            }
+        }
         return lines.joined(separator: "\n")
     }
 
