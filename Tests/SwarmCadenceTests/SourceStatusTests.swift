@@ -3,7 +3,7 @@ import XCTest
 @testable import SwarmCadenceCore
 
 final class SourceStatusTests: XCTestCase {
-    func testFormatHumanIsRejectedInFavorOfText() throws {
+    func testFormatHumanIsRejectedInFavorOfAutoOrText() throws {
         var output = ""
         var error = ""
 
@@ -17,7 +17,7 @@ final class SourceStatusTests: XCTestCase {
 
         XCTAssertEqual(exit, 2)
         XCTAssertEqual(output, "")
-        XCTAssertTrue(error.contains("unsupported --format. Use `text` or `json`."))
+        XCTAssertTrue(error.contains("unsupported --format. Use `auto`, `text`, or `json`."))
     }
 
     func testSourceStatusMissingConfigReturnsEmptyAccountList() throws {

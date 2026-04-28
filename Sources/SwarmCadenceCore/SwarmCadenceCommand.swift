@@ -211,7 +211,7 @@ private struct AuthStatusCommand: ParsableCommand {
 
     @Option(help: "Account label to inspect, such as julian or alice.") var account: String?
     @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
-    @Option(help: "Output format: text or json.") var format = "text"
+    @Option(help: "Output format: auto, text, or json.") var format = "auto"
     @Flag(help: "Shortcut for --format json.") var json = false
 
     mutating func run() throws {
@@ -259,7 +259,7 @@ private struct AuthClearCommand: ParsableCommand {
 
     @Option(help: "Account label to clear, such as julian or alice.") var account: String?
     @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
-    @Option(help: "Output format: text or json.") var format = "text"
+    @Option(help: "Output format: auto, text, or json.") var format = "auto"
     @Flag(help: "Required to remove stored credentials.") var force = false
     @Flag(help: "Shortcut for --format json.") var json = false
 
@@ -769,7 +769,7 @@ struct SourceProbeOptions {
 
     fileprivate init(parsed: SourceProbeArguments) throws {
         var format = try OutputFormat(rawValue: parsed.format)
-            .orThrow("unsupported --format. Use `text` or `json`.")
+            .orThrow("unsupported --format. Use `auto`, `text`, or `json`.")
 
         if parsed.json {
             guard format == .text else {
@@ -798,7 +798,7 @@ struct RawFetchOptions {
 
     fileprivate init(parsed: RawFetchArguments) throws {
         var format = try OutputFormat(rawValue: parsed.format)
-            .orThrow("unsupported --format. Use `text` or `json`.")
+            .orThrow("unsupported --format. Use `auto`, `text`, or `json`.")
 
         if parsed.json {
             guard format == .text else {
@@ -848,7 +848,7 @@ struct RawFetchPagesOptions {
 
     fileprivate init(parsed: RawFetchPagesArguments) throws {
         var format = try OutputFormat(rawValue: parsed.format)
-            .orThrow("unsupported --format. Use `text` or `json`.")
+            .orThrow("unsupported --format. Use `auto`, `text`, or `json`.")
 
         if parsed.json {
             guard format == .text else {
@@ -1323,7 +1323,7 @@ struct EvidencePacketOptions {
 private struct SetupArguments: ParsableArguments {
     @Option(help: "Account label to configure, such as julian or alice. Text mode prompts when omitted.") var account: String?
     @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
-    @Option(help: "Output format: text or json. JSON mode never prompts.") var format = "text"
+    @Option(help: "Output format: auto, text, or json. JSON mode never prompts.") var format = "auto"
     @Option(name: .customLong("access-token"), help: "Existing Foursquare v2 access token. Fastest path; skips the browser OAuth flow.") var accessToken: String?
     @Option(name: .customLong("client-id"), help: "Foursquare developer app client id, used only when exchanging an authorization code.") var clientID: String?
     @Option(name: .customLong("client-secret"), help: "Foursquare developer app client secret, used only when exchanging an authorization code.") var clientSecret: String?
@@ -1334,7 +1334,7 @@ private struct SetupArguments: ParsableArguments {
 
 private struct SourceStatusArguments: ParsableArguments {
     @Option var account: String?
-    @Option var format = "text"
+    @Option var format = "auto"
     @Option var config: String?
     @Flag var json = false
 }
@@ -1342,7 +1342,7 @@ private struct SourceStatusArguments: ParsableArguments {
 private struct SourceProbeArguments: ParsableArguments {
     @Option var account: String?
     @Option var adapter = "v2"
-    @Option var format = "text"
+    @Option var format = "auto"
     @Option var config: String?
     @Flag var live = false
     @Flag var json = false
@@ -1351,7 +1351,7 @@ private struct SourceProbeArguments: ParsableArguments {
 private struct RawFetchArguments: ParsableArguments {
     @Option var account: String?
     @Option var adapter = "v2"
-    @Option var format = "text"
+    @Option var format = "auto"
     @Option var config: String?
     @Option(name: .customLong("out")) var outputDirectory: String?
     @Option var limit = RawFetch.defaultLimit
@@ -1362,7 +1362,7 @@ private struct RawFetchArguments: ParsableArguments {
 private struct RawFetchPagesArguments: ParsableArguments {
     @Option var account: String?
     @Option var adapter = "v2"
-    @Option var format = "text"
+    @Option var format = "auto"
     @Option var config: String?
     @Option(name: .customLong("out")) var outputDirectory: String?
     @Option var limit = RawFetch.defaultLimit
@@ -1375,7 +1375,7 @@ private struct RawFetchPagesArguments: ParsableArguments {
 private struct IngestUpdateArguments: ParsableArguments {
     @Option var account: String?
     @Option var adapter = "v2"
-    @Option var format = "text"
+    @Option var format = "auto"
     @Option var config: String?
     @Option(name: .customLong("raw-dir")) var rawDirectory: String?
     @Option(name: .customLong("db")) var dbPath: String?
@@ -1389,7 +1389,7 @@ private struct DBImportRawArguments: ParsableArguments {
     @Option var account: String?
     @Option(name: .customLong("db")) var dbPath: String?
     @Option(name: .customLong("raw-dir")) var rawDirectory: String?
-    @Option var format = "text"
+    @Option var format = "auto"
     @Flag var json = false
 }
 
@@ -1398,14 +1398,14 @@ private struct DBImportFilesArguments: ParsableArguments {
     @Option(name: .customLong("db")) var dbPath: String?
     @Option var path: String?
     @Option var source = FileImportSource.foursquareExport.rawValue
-    @Option var format = "text"
+    @Option var format = "auto"
     @Flag var json = false
 }
 
 private struct DBStatsArguments: ParsableArguments {
     @Option var account: String?
     @Option(name: .customLong("db")) var dbPath: String?
-    @Option var format = "text"
+    @Option var format = "auto"
     @Flag var json = false
 }
 
@@ -1414,7 +1414,7 @@ private struct AuditOverlapArguments: ParsableArguments {
     @Option(name: .customLong("raw-dir")) var rawDirectory: String?
     @Option var path: String?
     @Option var examples = SourceAudit.defaultExampleLimit
-    @Option var format = "text"
+    @Option var format = "auto"
     @Flag var json = false
 }
 
@@ -1424,7 +1424,7 @@ private struct QueryCategoriesArguments: ParsableArguments {
     @Option var account: String?
     @Option(name: .customLong("db")) var dbPath: String?
     @Option var limit = SwarmDatabase.queryDefaultLimit
-    @Option var format = "text"
+    @Option var format = "auto"
     @Flag var json = false
 }
 
@@ -1446,7 +1446,7 @@ private struct QueryVenuesArguments: ParsableArguments {
     @Option(name: .customLong("radius-meters")) var radiusMeters: Double?
     @Option var sort: String?
     @Option var limit = SwarmDatabase.queryDefaultLimit
-    @Option var format = "text"
+    @Option var format = "auto"
     @Flag var json = false
 }
 
@@ -1460,7 +1460,7 @@ private struct QueryVisitsArguments: ParsableArguments {
     @Option(name: .customLong("hour-from")) var hourFrom: Int?
     @Option(name: .customLong("hour-to")) var hourTo: Int?
     @Option var limit = SwarmDatabase.queryDefaultLimit
-    @Option var format = "text"
+    @Option var format = "auto"
     @Flag var json = false
 }
 
@@ -1487,7 +1487,7 @@ private struct QueryCompareArguments: ParsableArguments {
     @Option var sort: String?
     @Option(name: .customLong("min-baseline-visits")) var minBaselineVisits = 1
     @Option var limit = SwarmDatabase.queryDefaultLimit
-    @Option var format = "text"
+    @Option var format = "auto"
     @Flag var json = false
 }
 
@@ -1498,7 +1498,7 @@ private struct EvidenceWindowArguments: ParsableArguments {
     @Option(name: .customLong("hour-from")) var hourFrom: Int?
     @Option(name: .customLong("hour-to")) var hourTo: Int?
     @Option var limit = SwarmDatabase.queryDefaultLimit
-    @Option var format = "text"
+    @Option var format = "auto"
     @Flag var json = false
 }
 
@@ -1523,16 +1523,16 @@ private struct EvidencePacketArguments: ParsableArguments {
     @Option(name: .customLong("radius-meters")) var radiusMeters: Double?
     @Option(name: .customLong("min-baseline-visits")) var minBaselineVisits = 1
     @Option var limit = SwarmDatabase.queryDefaultLimit
-    @Option var format = "text"
+    @Option var format = "auto"
     @Flag var json = false
 }
 
 private func parseFormat(format rawFormat: String, json: Bool) throws -> OutputFormat {
     var format = try OutputFormat(rawValue: rawFormat)
-        .orThrow("unsupported --format. Use `text` or `json`.")
+        .orThrow("unsupported --format. Use `auto`, `text`, or `json`.")
 
     if json {
-        guard format == .text else {
+        guard format != .json else {
             throw CLIError("use either `--json` or `--format json`, not both.")
         }
         format = .json
@@ -1544,7 +1544,7 @@ private func parseFormat(format rawFormat: String, json: Bool) throws -> OutputF
 enum Formatter {
     static func render(_ result: SetupAuthResult, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             return try renderJSON(result)
@@ -1553,7 +1553,7 @@ enum Formatter {
 
     static func render(_ result: SourceProbeResult, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             let encoder = JSONEncoder()
@@ -1566,7 +1566,7 @@ enum Formatter {
 
     static func render(_ result: SourceStatusResult, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             return try renderJSON(result)
@@ -1575,7 +1575,7 @@ enum Formatter {
 
     static func render(_ result: RawFetchResult, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             let encoder = JSONEncoder()
@@ -1588,7 +1588,7 @@ enum Formatter {
 
     static func render(_ result: RawFetchPagesResult, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             return try renderJSON(result)
@@ -1597,7 +1597,7 @@ enum Formatter {
 
     static func render(_ result: IngestUpdateResult, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             return try renderJSON(result)
@@ -1606,7 +1606,7 @@ enum Formatter {
 
     static func render(_ result: RawImportResult, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             let encoder = JSONEncoder()
@@ -1619,7 +1619,7 @@ enum Formatter {
 
     static func render(_ result: DatabaseStatsResult, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             return try renderJSON(result)
@@ -1628,7 +1628,7 @@ enum Formatter {
 
     static func render(_ result: SourceOverlapAuditResult, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             return try renderJSON(result)
@@ -1637,7 +1637,7 @@ enum Formatter {
 
     static func render(_ result: QueryCategoriesResult, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             return try renderJSON(result)
@@ -1646,7 +1646,7 @@ enum Formatter {
 
     static func render(_ result: QueryVenuesResult, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             return try renderJSON(result)
@@ -1655,7 +1655,7 @@ enum Formatter {
 
     static func render(_ result: QueryVisitsResult, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             return try renderJSON(result)
@@ -1664,7 +1664,7 @@ enum Formatter {
 
     static func render(_ result: QueryCompareResult, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             return try renderJSON(result)
@@ -1673,7 +1673,7 @@ enum Formatter {
 
     static func render(_ result: EvidenceWindowPacket, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             return try renderJSON(result)
@@ -1682,7 +1682,7 @@ enum Formatter {
 
     static func render(_ result: EvidencePacket, format: OutputFormat) throws -> String {
         switch format {
-        case .text:
+        case .auto, .text:
             return renderHuman(result)
         case .json:
             return try renderJSON(result)

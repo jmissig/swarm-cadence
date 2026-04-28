@@ -390,7 +390,7 @@ not to hidden presets in this evidence CLI.
 
 - Keep tokens, cookies, browser-session details, raw payloads, and SQLite files
   out of git.
-- Use explicit `--account` for non-login commands; `auth login` can prompt for it in text mode. Use `--config`, `--db`, `--raw-dir`, and `--out` when overriding defaults.
+- Use explicit `--account` for non-login commands; `auth login` can prompt for it in auto/text mode. Use `--config`, `--db`, `--raw-dir`, and `--out` when overriding defaults.
 - Default paths live under `~/Library/Application Support/swarm-cadence`, not dotfiles.
 - Do not run `--live` or `raw fetch` as routine tests.
 - Do not use one account's credentials for another account label.
