@@ -40,6 +40,23 @@ final class SourceProbeTests: XCTestCase {
         XCTAssertFalse(output.contains("OVERVIEW:"))
     }
 
+
+    func testBareGroupShowsGroupHelp() {
+        var output = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: ["ingest"],
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertTrue(output.contains("swarm-cadence ingest"))
+        XCTAssertTrue(output.contains("SUBCOMMANDS:"))
+        XCTAssertTrue(output.contains("update"))
+        XCTAssertTrue(output.contains("swarm-cadence ingest update --help"))
+        XCTAssertFalse(output.contains("unsupported command"))
+    }
+
     func testCLIHelpIncludesVersionAndConciseTaskSurface() {
         var output = ""
         let exit = SwarmCadenceCommand.run(

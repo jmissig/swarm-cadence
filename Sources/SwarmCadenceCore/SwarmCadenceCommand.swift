@@ -33,6 +33,9 @@ public enum SwarmCadenceCommand {
             case .verbs:
                 output(Self.verbsText)
                 return 0
+            case let .groupHelp(group):
+                output(Self.groupHelpText(for: group))
+                return 0
             case .help:
                 output(Self.helpText)
                 return 0
@@ -331,6 +334,142 @@ public enum SwarmCadenceCommand {
     Run a command with `--help` for detailed options, e.g. `swarm-cadence query visits --help`.
     """
 
+    public static func groupHelpText(for group: String) -> String {
+        switch group {
+        case "auth":
+            return """
+            swarm-cadence auth
+
+            Manage saved Foursquare/Swarm auth.
+
+            SUBCOMMANDS:
+              status                  Show configured account/auth readiness.
+              login                   Configure credentials.
+              clear                   Remove saved account auth.
+
+            Examples:
+              swarm-cadence auth status --account <label>
+              swarm-cadence auth login [--account <label>]
+              swarm-cadence auth clear --account <label> --force
+
+            Run a command with `--help` for detailed options.
+            """
+        case "source":
+            return """
+            swarm-cadence source
+
+            Inspect source/account readiness.
+
+            SUBCOMMANDS:
+              status                  List configured accounts and local evidence paths.
+              probe                   Validate v2/historysearch source configuration.
+
+            Examples:
+              swarm-cadence source status [--account <label>]
+              swarm-cadence source probe --account <label> --adapter v2
+
+            Run a command with `--help` for detailed options.
+            """
+        case "raw":
+            return """
+            swarm-cadence raw
+
+            Collect preserved source payloads.
+
+            SUBCOMMANDS:
+              fetch                   Fetch one conservative v2 checkins page.
+              fetch-pages             Fetch bounded recent v2 pages.
+
+            Examples:
+              swarm-cadence raw fetch --account <label> --adapter v2
+              swarm-cadence raw fetch-pages --account <label> --adapter v2 --pages 3
+
+            Run a command with `--help` for detailed options.
+            """
+        case "ingest":
+            return """
+            swarm-cadence ingest
+
+            Update the local evidence store from source data.
+
+            SUBCOMMANDS:
+              update                  Fetch bounded raw pages and import successful pages.
+
+            Example:
+              swarm-cadence ingest update --account <label> --adapter v2
+
+            Run `swarm-cadence ingest update --help` for detailed options.
+            """
+        case "db":
+            return """
+            swarm-cadence db
+
+            Import/check local SQLite evidence.
+
+            SUBCOMMANDS:
+              import-raw              Import preserved raw v2 files from disk.
+              import-files            Import official Foursquare export files.
+              stats                   Summarize database coverage.
+
+            Examples:
+              swarm-cadence db stats --account <label>
+              swarm-cadence db import-raw --account <label>
+
+            Run a command with `--help` for detailed options.
+            """
+        case "audit":
+            return """
+            swarm-cadence audit
+
+            Reconcile preserved source files.
+
+            SUBCOMMANDS:
+              overlap                 Compare v2 raw files with official export by check-in id.
+
+            Example:
+              swarm-cadence audit overlap --account <label> --path <foursquare-export-dir>
+
+            Run `swarm-cadence audit overlap --help` for detailed options.
+            """
+        case "query":
+            return """
+            swarm-cadence query
+
+            Read evidence rows and descriptive rollups.
+
+            SUBCOMMANDS:
+              categories              List category coverage.
+              venues                  List/filter venues.
+              visits                  List/filter visits.
+              compare                 Compare baseline and recent venue evidence.
+
+            Examples:
+              swarm-cadence query visits --account <label> --date 2026-03-25
+              swarm-cadence query compare --account <label> --baseline-from 2026-03-01 --recent-from 2026-04-01
+
+            Run a command with `--help` for detailed options.
+            """
+        case "evidence":
+            return """
+            swarm-cadence evidence
+
+            Build bounded evidence bundles for Robut.
+
+            SUBCOMMANDS:
+              window                  Describe one date/hour evidence window.
+              packet                  Compose one bounded local evidence packet.
+
+            Examples:
+              swarm-cadence evidence window --account <label> --date 2026-03-25
+              swarm-cadence evidence packet --account <label> --date 2026-03-25 --baseline-from 2026-03-01 --recent-from 2026-04-01
+
+            Run a command with `--help` for detailed options.
+            """
+        default:
+            return Self.verbsText
+        }
+    }
+
     public static let helpText = """
     swarm-cadence \(SwarmCadenceVersion.current)
 
@@ -397,6 +536,7 @@ public enum SwarmCadenceCommand {
 
 enum Invocation {
     case verbs
+    case groupHelp(String)
     case help
     case version
     case setup(SetupOptions)
@@ -437,6 +577,12 @@ enum Invocation {
 
         if arguments[0] == "setup" {
             self = .setup(try SetupOptions(parsed: Self.parse(SetupArguments.self, Array(arguments.dropFirst()))))
+            return
+        }
+
+        let groupsWithHelp = Set(["auth", "source", "raw", "ingest", "db", "audit", "query", "evidence"])
+        if arguments.count == 1, groupsWithHelp.contains(arguments[0]) {
+            self = .groupHelp(arguments[0])
             return
         }
 
