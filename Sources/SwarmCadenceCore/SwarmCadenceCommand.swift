@@ -557,8 +557,7 @@ enum Invocation {
     case evidenceWindow(EvidenceWindowOptions)
     case evidencePacket(EvidencePacketOptions)
 
-    init(arguments rawArguments: [String]) throws {
-        let arguments = Self.normalizeFriendlyDashes(rawArguments)
+    init(arguments: [String]) throws {
         if arguments.isEmpty {
             self = .verbs
             return
@@ -583,10 +582,6 @@ enum Invocation {
 
         let groupsWithHelp = Set(["auth", "source", "raw", "ingest", "db", "audit", "query", "evidence"])
         if arguments.count == 1, groupsWithHelp.contains(arguments[0]) {
-            self = .groupHelp(arguments[0])
-            return
-        }
-        if arguments.count == 2, groupsWithHelp.contains(arguments[0]), arguments[1] == "--help" || arguments[1] == "-h" {
             self = .groupHelp(arguments[0])
             return
         }
@@ -649,19 +644,6 @@ enum Invocation {
                 )
             }
             throw CLIError(type.message(for: error))
-        }
-    }
-
-    private static func normalizeFriendlyDashes(_ arguments: [String]) -> [String] {
-        arguments.map { argument in
-            switch argument {
-            case "—help", "–help":
-                return "--help"
-            case "—version", "–version":
-                return "--version"
-            default:
-                return argument
-            }
         }
     }
 
