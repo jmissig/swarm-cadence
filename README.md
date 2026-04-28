@@ -345,7 +345,7 @@ supporting check-ins. `query venues` returns visit counts, first/last seen
 timestamps, categories, the selected evidence sort, and a drill-down descriptor
 for reproducing the supporting visit rows. `query venues` and `query compare`
 accept `--sort nearest|strongest|recent|stale` and include the effective sort
-and order label in JSON and human output. With distance filters, the default is
+and order label in JSON and text output. With distance filters, the default is
 `nearest`; without distance filters, `query venues` defaults to `strongest` and
 `query compare` defaults to `stale`, preserving the earlier effective ordering
 while making it explicit. `--sort nearest` requires `--near-lat`, `--near-lng`,
@@ -390,7 +390,7 @@ not to hidden presets in this evidence CLI.
 
 - Keep tokens, cookies, browser-session details, raw payloads, and SQLite files
   out of git.
-- Use explicit `--account` for non-login commands; `auth login` can prompt for it in human mode. Use `--config`, `--db`, `--raw-dir`, and `--out` when overriding defaults.
+- Use explicit `--account` for non-login commands; `auth login` can prompt for it in text mode. Use `--config`, `--db`, `--raw-dir`, and `--out` when overriding defaults.
 - Default paths live under `~/Library/Application Support/swarm-cadence`, not dotfiles.
 - Do not run `--live` or `raw fetch` as routine tests.
 - Do not use one account's credentials for another account label.

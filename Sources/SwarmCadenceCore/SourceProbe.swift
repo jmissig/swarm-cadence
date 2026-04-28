@@ -6,7 +6,7 @@ public enum SourceAdapter: String, Codable {
 }
 
 public enum OutputFormat: String {
-    case human
+    case text
     case json
 }
 

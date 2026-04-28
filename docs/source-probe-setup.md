@@ -35,7 +35,7 @@ Default config:
 ```
 
 Use `swarm-cadence auth login` for the normal first-run auth path. If
-`--account` is omitted in human mode, it prompts for an account label: default
+`--account` is omitted in text mode, it prompts for an account label: default
 `julian` when no accounts exist, or an existing/new label when accounts are
 already present. It creates or merges the JSON config, preserving other accounts
 and fallback adapter sections. `swarm-cadence setup` is kept only as a

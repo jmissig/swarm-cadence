@@ -99,7 +99,7 @@ enum SetupAuth {
         var redirectURI = trimmedNonEmpty(inputs.redirectURI)
         var authorizationCode = trimmedNonEmpty(inputs.authorizationCode)
 
-        if format == .human {
+        if format == .text {
             promptOutput("Auth login for swarm-cadence.")
             promptOutput("Config path: \(configPath)")
             promptOutput("Raw check-ins: \(AppSupportDefaults.rawCheckinsDirectory(account: account, environment: environment))")
@@ -111,13 +111,13 @@ enum SetupAuth {
 
         if token == nil, let existingToken {
             token = existingToken
-            if format == .human {
+            if format == .text {
                 promptOutput("Existing v2 access token found for \(account); keeping it. Pass --access-token to replace it, or run auth clear first.")
             }
         }
 
         if token == nil {
-            if format == .human {
+            if format == .text {
                 token = try promptOptional("Foursquare v2 access token", input: input, output: promptOutput)
             } else {
                 clientID = clientID ?? existingCredential(
@@ -142,7 +142,7 @@ enum SetupAuth {
         }
 
         if token == nil {
-            if format == .human, clientID == nil || clientSecret == nil || redirectURI == nil {
+            if format == .text, clientID == nil || clientSecret == nil || redirectURI == nil {
                 promptOutput("Foursquare app setup:")
                 promptOutput("1. Open https://foursquare.com/developers/apps")
                 promptOutput("2. Create or select an app.")
@@ -167,7 +167,7 @@ enum SetupAuth {
             ) ?? promptWithDefault("Redirect URI", defaultValue: defaultRedirectURI, input: input, output: promptOutput)
 
             let authorizationURL = try FoursquareOAuth.authorizationURL(clientID: clientID!, redirectURI: redirectURI!)
-            if format == .human {
+            if format == .text {
                 promptOutput("Open this URL, approve access, then copy the code from the redirected URL:")
                 promptOutput(authorizationURL.absoluteString)
                 promptOutput("Copy the value after `code=` and before `&` or `#`, then paste it below.")
@@ -291,7 +291,7 @@ enum SetupAuth {
             return try AccountLabel.validate(rawAccount)
         }
 
-        guard format == .human else {
+        guard format == .text else {
             throw CLIError("auth login --format json requires --account <label>.")
         }
 

@@ -3,6 +3,23 @@ import XCTest
 @testable import SwarmCadenceCore
 
 final class SourceStatusTests: XCTestCase {
+    func testFormatHumanIsRejectedInFavorOfText() throws {
+        var output = ""
+        var error = ""
+
+        let exit = SwarmCadenceCommand.run(
+            arguments: ["source", "status", "--format", "human"],
+            environment: ["HOME": temporaryDirectory().path],
+            liveTransport: FailingSourceStatusTransport(),
+            output: { output = $0 },
+            errorOutput: { error = $0 }
+        )
+
+        XCTAssertEqual(exit, 2)
+        XCTAssertEqual(output, "")
+        XCTAssertTrue(error.contains("unsupported --format. Use `text` or `json`."))
+    }
+
     func testSourceStatusMissingConfigReturnsEmptyAccountList() throws {
         let home = temporaryDirectory()
         let config = home.appendingPathComponent("missing-config.json")

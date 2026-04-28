@@ -106,7 +106,7 @@ safely as possible.
 - [x] Add a tool VERSION and include it in provenance.
   - Added repo `VERSION` and Makefile `sync-version` like other local tools.
   - `swarm-cadence --version` prints the synced version, and top-level help shows it.
-  - Evidence packets include `tool_version` in JSON and human output.
+  - Evidence packets include `tool_version` in JSON and text output.
   - Future build metadata/git SHA can be added later without changing `VERSION` as the stable human/tool contract.
 
 - [x] Add interactive first-run auth login, matching the `protect-cadence` auth shape.
@@ -115,7 +115,7 @@ safely as possible.
   - Keep non-interactive/config-file paths for cron and automation.
   - First-run auth should make it obvious where raw files, SQLite, config, and logs/freshness state will live.
   - Added canonical `auth status`, `auth login`, and `auth clear`; `setup` is only a compatibility alias for `auth login`.
-  - `auth login` prompts for an account label in human mode when `--account` is omitted, so the first account is labeled and adding a second account is clean.
+  - `auth login` prompts for an account label in text mode when `--account` is omitted, so the first account is labeled and adding a second account is clean.
   - `auth login` supports token paste and Foursquare OAuth code exchange via injectable transport.
   - Config writes merge into `accounts.<label>.v2`, preserve sibling account/historysearch config, and set `0600` permissions where supported.
 
@@ -128,7 +128,7 @@ safely as possible.
 - [x] Add explicit sorting / multiple evidence views.
   - Current near-radius venue rows sort by distance first, so “top” means nearest, not strongest evidence.
   - Added explicit `--sort nearest|strongest|recent|stale` to `query venues` and `query compare`.
-  - JSON filters/results and human output include the effective sort and order label.
+  - JSON filters/results and text output include the effective sort and order label.
   - Defaults remain nearest with geometry filters, strongest for non-geo venue support, and stale for non-geo compare output.
   - Experimental evidence envelopes now emit labeled views (`strongest`, `recent`, `stale`, plus `nearest` when geometry filters are present) instead of one ambiguous candidate list.
 
