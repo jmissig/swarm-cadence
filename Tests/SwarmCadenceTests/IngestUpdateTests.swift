@@ -10,7 +10,7 @@ final class IngestUpdateTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: [
-                "ingest", "update",
+                "ingest",
                 "--account", "julian",
                 "--adapter", "v2",
                 "--raw-dir", directory.appendingPathComponent("raw").path,
@@ -37,7 +37,7 @@ final class IngestUpdateTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: [
-                "ingest", "update",
+                "ingest",
                 "--account", "julian",
                 "--adapter", "v2",
                 "--raw-dir", directory.appendingPathComponent("raw").path,
@@ -52,6 +52,7 @@ final class IngestUpdateTests: XCTestCase {
 
         let result = try JSONDecoder.snakeCase.decode(IngestUpdateResult.self, from: Data(output.utf8))
         XCTAssertEqual(exit, 1)
+        XCTAssertEqual(result.command, "ingest")
         XCTAssertEqual(result.status, .configMissing)
         XCTAssertFalse(result.networkPerformed)
         XCTAssertEqual(result.requestCount, 0)
@@ -98,6 +99,7 @@ final class IngestUpdateTests: XCTestCase {
         let stats = try SwarmDatabase.stats(dbPath: dbURL.path, account: "julian")
 
         XCTAssertEqual(exit, 0)
+        XCTAssertEqual(result.command, "ingest update")
         XCTAssertEqual(result.status, .updated)
         XCTAssertTrue(result.complete)
         XCTAssertEqual(result.requestCount, 2)

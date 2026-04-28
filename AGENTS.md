@@ -84,7 +84,7 @@ The repository is now a Swift Package Manager project with:
 - Application Support defaults: `config.json`, plus per-account `raw/v2/checkins` and `swarm-cadence.sqlite` under `~/Library/Application Support/swarm-cadence/accounts/<account>`;
 - JSON config with first-class `accounts.julian` and `accounts.alice` sections;
 - conservative `raw fetch --adapter v2` that performs exactly one read-only v2 check-ins request and writes one raw file plus one redacted manifest;
-- cron-friendly `ingest update --adapter v2` that fetches bounded recent pages, preserves each raw file/manifest, imports after each successful page, and reports factual freshness/status for unattended logs;
+- cron-friendly `ingest --adapter v2` that fetches bounded recent pages, preserves each raw file/manifest, imports after each successful page, and reports factual freshness/status for unattended logs, with `ingest update` retained as a compatibility alias;
 - `Makefile` wrappers for build/test/release/default inspection/config bootstrap;
 - offline `db import-raw` from preserved v2 raw/manifest pairs;
 - aggregate-only `db stats` with derived freshness fields (`last_fetched_at`, `last_imported_at`, and `current_through` as the latest imported check-in timestamp);
@@ -106,8 +106,8 @@ swarm-cadence source probe --account julian --adapter v2 --format json
 swarm-cadence source probe --account alice --adapter v2 --format json
 swarm-cadence raw fetch --account julian --adapter v2 --limit 250 --offset 0
 swarm-cadence raw fetch --account alice --adapter v2 --limit 250 --offset 0
-swarm-cadence ingest update --account julian --adapter v2 --format json
-swarm-cadence ingest update --account alice --adapter v2 --format json
+swarm-cadence ingest --account julian --adapter v2 --format json
+swarm-cadence ingest --account alice --adapter v2 --format json
 swarm-cadence db import-raw --account julian --format json
 swarm-cadence db import-raw --account alice --format json
 swarm-cadence db stats --account julian --format json

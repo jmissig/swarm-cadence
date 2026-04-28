@@ -51,9 +51,9 @@ final class SourceProbeTests: XCTestCase {
 
         XCTAssertEqual(exit, 0)
         XCTAssertTrue(output.contains("swarm-cadence ingest"))
-        XCTAssertTrue(output.contains("SUBCOMMANDS:"))
-        XCTAssertTrue(output.contains("update"))
-        XCTAssertTrue(output.contains("swarm-cadence ingest update --help"))
+        XCTAssertTrue(output.contains("Normal operator path"))
+        XCTAssertTrue(output.contains("swarm-cadence ingest --account <label> --adapter v2"))
+        XCTAssertFalse(output.contains("swarm-cadence ingest update --help"))
         XCTAssertFalse(output.contains("unsupported command"))
     }
 

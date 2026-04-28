@@ -185,10 +185,10 @@ is git-ignored; do not commit raw check-in data.
 
 ## Unattended v2 Update
 
-Use `ingest update` for a bounded cron-friendly collection run:
+Use `ingest` for a bounded cron-friendly collection run:
 
 ```bash
-swift run swarm-cadence ingest update \
+swift run swarm-cadence ingest \
   --account julian \
   --adapter v2 \
   --format json
@@ -204,7 +204,7 @@ cap. Status values include `updated`, `no_new_checkins`, `updated_partial`,
 Use explicit paths for tests and one-off dry runs:
 
 ```bash
-swift run swarm-cadence ingest update \
+swift run swarm-cadence ingest \
   --account alice \
   --adapter v2 \
   --raw-dir /tmp/swarm-cadence/alice/raw \
@@ -213,6 +213,9 @@ swift run swarm-cadence ingest update \
   --delay-ms 0 \
   --format json
 ```
+
+The older `ingest update` form remains accepted as a compatibility alias, but
+new examples should use the top-level `ingest` command.
 
 ## Offline SQLite Import
 

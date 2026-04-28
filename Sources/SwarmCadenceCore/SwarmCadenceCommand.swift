@@ -7,314 +7,53 @@ public enum SwarmCadenceCommand {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         liveTransport: ProbeHTTPTransport = URLSessionProbeHTTPTransport(),
         input: @escaping () -> String? = { readLine(strippingNewline: true) },
-        output: (String) -> Void = { print($0) },
-        errorOutput: (String) -> Void = { fputs($0 + "\n", stderr) }
+        output: @escaping (String) -> Void = { print($0) },
+        errorOutput: @escaping (String) -> Void = { fputs($0 + "\n", stderr) }
     ) -> Int {
-        let invocation: Invocation
-        do {
-            invocation = try Invocation(arguments: arguments)
-        } catch let exit as ArgumentParserExit {
-            if exit.isSuccess {
-                output(exit.message)
-            } else {
-                errorOutput(exit.message)
-            }
-            return exit.code
-        } catch let error as CLIError {
-            errorOutput(error.message)
-            return 2
-        } catch {
-            errorOutput("error: \(argumentParserMessage(error))")
-            return 2
+        CommandRuntime.current = CommandRuntime(
+            arguments: Self.normalizeSignedValues(arguments),
+            environment: environment,
+            liveTransport: liveTransport,
+            input: input,
+            output: output,
+            errorOutput: errorOutput,
+            exitCode: 0
+        )
+        defer {
+            CommandRuntime.current = .default
         }
 
         do {
-            switch invocation {
-            case .verbs:
-                output(Self.verbsText)
+            var command = try SwarmCadenceCLI.parseAsRoot(CommandRuntime.current.arguments)
+            do {
+                try command.run()
+                return CommandRuntime.current.exitCode
+            } catch let error as CleanExit {
+                output(SwarmCadenceCLI.fullMessage(for: error))
                 return 0
-            case let .groupHelp(group):
-                output(Self.groupHelpText(for: group))
-                return 0
-            case .help:
-                output(Self.helpText)
-                return 0
-            case .version:
-                output(SwarmCadenceVersion.current)
-                return 0
-            case let .setup(options):
-                let result = try SetupAuth.setup(
-                    action: AuthAction.login.rawValue,
-                    account: options.account,
-                    configPath: options.configPath,
-                    format: options.format,
-                    inputs: options.inputs,
-                    environment: environment,
-                    transport: liveTransport,
-                    input: input,
-                    promptOutput: output
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .auth(options):
-                let result: SetupAuthResult
-                switch options.action {
-                case .status:
-                    result = try SetupAuth.status(
-                        account: options.account,
-                        configPath: options.configPath,
-                        environment: environment
-                    )
-                case .login:
-                    result = try SetupAuth.setup(
-                        action: options.action.rawValue,
-                        account: options.account,
-                        configPath: options.configPath,
-                        format: options.format,
-                        inputs: options.inputs,
-                        environment: environment,
-                        transport: liveTransport,
-                        input: input,
-                        promptOutput: output
-                    )
-                case .clear:
-                    result = try SetupAuth.clear(
-                        account: options.account,
-                        configPath: options.configPath,
-                        environment: environment,
-                        force: options.force
-                    )
+            } catch let error as CLIError {
+                errorOutput(error.message)
+                return 2
+            } catch {
+                let exitCode = SwarmCadenceCLI.exitCode(for: error)
+                if exitCode.isSuccess {
+                    output(SwarmCadenceCLI.fullMessage(for: error))
+                    return 0
                 }
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .sourceProbe(options):
-                let config = try ConfigFile.loadOptional(path: options.configPath, environment: environment)
-                let result = options.live
-                    ? SourceProbe.liveProbe(
-                        account: options.account,
-                        adapter: options.adapter,
-                        environment: environment,
-                        config: config,
-                        transport: liveTransport
-                    )
-                    : SourceProbe.probe(
-                        account: options.account,
-                        adapter: options.adapter,
-                        environment: environment,
-                        config: config
-                    )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .sourceStatus(options):
-                let result = try SourceStatus.status(
-                    account: options.account,
-                    configPath: options.configPath,
-                    environment: environment
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .rawFetch(options):
-                let config = try ConfigFile.loadOptional(path: options.configPath, environment: environment)
-                let result = try RawFetch.fetch(
-                    account: options.account,
-                    adapter: options.adapter,
-                    config: config,
-                    environment: environment,
-                    outputDirectory: options.outputDirectory ?? AppSupportDefaults.rawCheckinsDirectory(account: options.account, environment: environment),
-                    limit: options.limit,
-                    offset: options.offset,
-                    transport: liveTransport
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .rawFetchPages(options):
-                let config = try ConfigFile.loadOptional(path: options.configPath, environment: environment)
-                let result = try RawFetch.fetchPages(
-                    account: options.account,
-                    adapter: options.adapter,
-                    config: config,
-                    environment: environment,
-                    outputDirectory: options.outputDirectory ?? AppSupportDefaults.rawCheckinsDirectory(account: options.account, environment: environment),
-                    limit: options.limit,
-                    startOffset: options.startOffset,
-                    pages: options.pages,
-                    delayMilliseconds: options.delayMilliseconds,
-                    transport: liveTransport
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .ingestUpdate(options):
-                let config = try ConfigFile.loadOptional(path: options.configPath, environment: environment)
-                let result = try IngestUpdate.update(
-                    account: options.account,
-                    adapter: options.adapter,
-                    config: config,
-                    environment: environment,
-                    rawDirectory: options.rawDirectory ?? AppSupportDefaults.rawCheckinsDirectory(account: options.account, environment: environment),
-                    dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: environment),
-                    pages: options.pages,
-                    limit: options.limit,
-                    delayMilliseconds: options.delayMilliseconds,
-                    transport: liveTransport
-                )
-                output(try Formatter.render(result, format: options.format))
-                return result.exitCode
-            case let .dbImportRaw(options):
-                let result = try SwarmDatabase.importRawV2Checkins(
-                    dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: environment),
-                    rawDirectory: options.rawDirectory ?? AppSupportDefaults.rawCheckinsDirectory(account: options.account, environment: environment),
-                    account: options.account
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .dbImportFiles(options):
-                let result = try SwarmDatabase.importFiles(
-                    dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: environment),
-                    path: options.path,
-                    account: options.account,
-                    source: options.source
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .dbStats(options):
-                let result = try SwarmDatabase.stats(
-                    dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: environment),
-                    account: options.account
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .auditOverlap(options):
-                let result = try SourceAudit.overlap(
-                    account: options.account,
-                    v2RawDirectory: options.v2RawDirectory ?? AppSupportDefaults.rawCheckinsDirectory(account: options.account, environment: environment),
-                    exportPath: options.exportPath,
-                    exampleLimit: options.exampleLimit
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .queryCategories(options):
-                let result = try SwarmDatabase.queryCategories(
-                    dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: environment),
-                    account: options.account,
-                    limit: options.limit
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .queryVenues(options):
-                let result = try SwarmDatabase.queryVenues(
-                    dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: environment),
-                    account: options.account,
-                    fromCreatedAt: options.fromCreatedAt,
-                    toCreatedAt: options.toCreatedAt,
-                    date: options.date,
-                    hourFrom: options.hourFrom,
-                    hourTo: options.hourTo,
-                    locality: options.locality,
-                    region: options.region,
-                    postalCode: options.postalCode,
-                    countryCode: options.countryCode,
-                    categoryNames: options.categoryNames,
-                    nearLatitude: options.nearLatitude,
-                    nearLongitude: options.nearLongitude,
-                    radiusMeters: options.radiusMeters,
-                    sort: options.sort,
-                    limit: options.limit
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .queryVisits(options):
-                let result = try SwarmDatabase.queryVisits(
-                    dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: environment),
-                    account: options.account,
-                    venueID: options.venueID,
-                    fromCreatedAt: options.fromCreatedAt,
-                    toCreatedAt: options.toCreatedAt,
-                    date: options.date,
-                    hourFrom: options.hourFrom,
-                    hourTo: options.hourTo,
-                    limit: options.limit
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .queryCompare(options):
-                let result = try SwarmDatabase.queryCompare(
-                    dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: environment),
-                    account: options.account,
-                    baselineFromCreatedAt: options.baselineFromCreatedAt,
-                    baselineToCreatedAt: options.baselineToCreatedAt,
-                    recentFromCreatedAt: options.recentFromCreatedAt,
-                    recentToCreatedAt: options.recentToCreatedAt,
-                    asOfCreatedAt: options.asOfCreatedAt,
-                    hourFrom: options.hourFrom,
-                    hourTo: options.hourTo,
-                    locality: options.locality,
-                    region: options.region,
-                    postalCode: options.postalCode,
-                    countryCode: options.countryCode,
-                    categoryNames: options.categoryNames,
-                    nearLatitude: options.nearLatitude,
-                    nearLongitude: options.nearLongitude,
-                    radiusMeters: options.radiusMeters,
-                    sort: options.sort,
-                    minBaselineVisits: options.minBaselineVisits,
-                    limit: options.limit
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .evidenceWindow(options):
-                let result = try SwarmDatabase.evidenceWindow(
-                    dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: environment),
-                    account: options.account,
-                    date: options.date,
-                    hourFrom: options.hourFrom,
-                    hourTo: options.hourTo,
-                    limit: options.limit
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
-            case let .evidencePacket(options):
-                let result = try SwarmDatabase.evidencePacket(
-                    dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: environment),
-                    account: options.account,
-                    date: options.date,
-                    hourFrom: options.hourFrom,
-                    hourTo: options.hourTo,
-                    locality: options.locality,
-                    region: options.region,
-                    postalCode: options.postalCode,
-                    countryCode: options.countryCode,
-                    categoryNames: options.categoryNames,
-                    nearLatitude: options.nearLatitude,
-                    nearLongitude: options.nearLongitude,
-                    radiusMeters: options.radiusMeters,
-                    baselineFromCreatedAt: options.baselineFromCreatedAt,
-                    baselineToCreatedAt: options.baselineToCreatedAt,
-                    recentFromCreatedAt: options.recentFromCreatedAt,
-                    recentToCreatedAt: options.recentToCreatedAt,
-                    asOfCreatedAt: options.asOfCreatedAt,
-                    minBaselineVisits: options.minBaselineVisits,
-                    limit: options.limit
-                )
-                output(try Formatter.render(result, format: options.format))
-                return 0
+                errorOutput("error: \(error.localizedDescription)")
+                return 1
             }
-        } catch let error as CLIError {
-            errorOutput(error.message)
-            return 2
         } catch {
-            errorOutput("error: \(error.localizedDescription)")
-            return 1
+            let exitCode = SwarmCadenceCLI.exitCode(for: error)
+            let message = SwarmCadenceCLI.fullMessage(for: error)
+            if exitCode.isSuccess {
+                output(message)
+            } else {
+                errorOutput(message)
+            }
+            return exitCode.isSuccess ? 0 : 2
         }
     }
-
-    private static func argumentParserMessage(_ error: Error) -> String {
-        let message = error.localizedDescription
-        if message.hasPrefix("Error: ") {
-            return String(message.dropFirst("Error: ".count))
-        }
-        return message
-    }
-
 
     public static let verbsText = """
     swarm-cadence \(SwarmCadenceVersion.current)
@@ -333,319 +72,6 @@ public enum SwarmCadenceCommand {
     Run `swarm-cadence --help` for examples and grouped subcommands.
     Run a command with `--help` for detailed options, e.g. `swarm-cadence query visits --help`.
     """
-
-    public static func groupHelpText(for group: String) -> String {
-        switch group {
-        case "auth":
-            return """
-            swarm-cadence auth
-
-            Manage saved Foursquare/Swarm auth.
-
-            SUBCOMMANDS:
-              status                  Show configured account/auth readiness.
-              login                   Configure credentials.
-              clear                   Remove saved account auth.
-
-            Examples:
-              swarm-cadence auth status --account <label>
-              swarm-cadence auth login [--account <label>]
-              swarm-cadence auth clear --account <label> --force
-
-            Run a command with `--help` for detailed options.
-            """
-        case "source":
-            return """
-            swarm-cadence source
-
-            Inspect source/account readiness.
-
-            SUBCOMMANDS:
-              status                  List configured accounts and local evidence paths.
-              probe                   Validate v2/historysearch source configuration.
-
-            Examples:
-              swarm-cadence source status [--account <label>]
-              swarm-cadence source probe --account <label> --adapter v2
-
-            Run a command with `--help` for detailed options.
-            """
-        case "raw":
-            return """
-            swarm-cadence raw
-
-            Collect preserved source payloads.
-
-            SUBCOMMANDS:
-              fetch                   Fetch one conservative v2 checkins page.
-              fetch-pages             Fetch bounded recent v2 pages.
-
-            Examples:
-              swarm-cadence raw fetch --account <label> --adapter v2
-              swarm-cadence raw fetch-pages --account <label> --adapter v2 --pages 3
-
-            Run a command with `--help` for detailed options.
-            """
-        case "ingest":
-            return """
-            swarm-cadence ingest
-
-            Update the local evidence store from source data.
-
-            SUBCOMMANDS:
-              update                  Fetch bounded raw pages and import successful pages.
-
-            Example:
-              swarm-cadence ingest update --account <label> --adapter v2
-
-            Run `swarm-cadence ingest update --help` for detailed options.
-            """
-        case "db":
-            return """
-            swarm-cadence db
-
-            Import/check local SQLite evidence.
-
-            SUBCOMMANDS:
-              import-raw              Import preserved raw v2 files from disk.
-              import-files            Import official Foursquare export files.
-              stats                   Summarize database coverage.
-
-            Examples:
-              swarm-cadence db stats --account <label>
-              swarm-cadence db import-raw --account <label>
-
-            Run a command with `--help` for detailed options.
-            """
-        case "audit":
-            return """
-            swarm-cadence audit
-
-            Reconcile preserved source files.
-
-            SUBCOMMANDS:
-              overlap                 Compare v2 raw files with official export by check-in id.
-
-            Example:
-              swarm-cadence audit overlap --account <label> --path <foursquare-export-dir>
-
-            Run `swarm-cadence audit overlap --help` for detailed options.
-            """
-        case "query":
-            return """
-            swarm-cadence query
-
-            Read evidence rows and descriptive rollups.
-
-            SUBCOMMANDS:
-              categories              List category coverage.
-              venues                  List/filter venues.
-              visits                  List/filter visits.
-              compare                 Compare baseline and recent venue evidence.
-
-            Examples:
-              swarm-cadence query visits --account <label> --date 2026-03-25
-              swarm-cadence query compare --account <label> --baseline-from 2026-03-01 --recent-from 2026-04-01
-
-            Run a command with `--help` for detailed options.
-            """
-        case "evidence":
-            return """
-            swarm-cadence evidence
-
-            Build bounded evidence bundles for Robut.
-
-            SUBCOMMANDS:
-              window                  Describe one date/hour evidence window.
-              packet                  Compose one bounded local evidence packet.
-
-            Examples:
-              swarm-cadence evidence window --account <label> --date 2026-03-25
-              swarm-cadence evidence packet --account <label> --date 2026-03-25 --baseline-from 2026-03-01 --recent-from 2026-04-01
-
-            Run a command with `--help` for detailed options.
-            """
-        default:
-            return Self.verbsText
-        }
-    }
-
-    public static let helpText = """
-    swarm-cadence \(SwarmCadenceVersion.current)
-
-    OVERVIEW: Build and query local Foursquare/Swarm check-in evidence.
-
-    Use source collection/import to build the local evidence store. Use query and
-    evidence commands for bounded answers. Robut composes Guides above this layer;
-    the CLI exposes source-backed rows, rollups, comparisons, and drill-downs.
-
-    Examples:
-      swarm-cadence --version
-      swarm-cadence auth status --account <label>
-      swarm-cadence auth login [--account <label>]
-      swarm-cadence setup [--account <label>]
-      swarm-cadence source status [--account <label>]
-      swarm-cadence ingest update --account julian --adapter v2
-      swarm-cadence query visits --account julian --date 2026-03-25
-      swarm-cadence query compare --account julian --baseline-from 2026-03-01 --recent-from 2026-04-01
-      swarm-cadence evidence packet --account julian --date 2026-03-25 --baseline-from 2026-03-01 --recent-from 2026-04-01
-
-    USAGE: swarm-cadence <subcommand>
-
-    OPTIONS:
-      --version                 Show the version.
-      -h, --help                Show help information.
-
-    SUBCOMMANDS:
-      auth                      Manage saved Foursquare/Swarm auth.
-        status                  Show configured account/auth readiness.
-        login                   Configure v2 token/OAuth credentials.
-        clear                   Remove saved account auth.
-      setup                     Alias for `auth login`.
-      source                    Inspect source/account readiness.
-        status                  List configured accounts and local evidence paths.
-        probe                   Validate v2/historysearch source configuration.
-      raw                       Collect preserved source payloads.
-        fetch                   Fetch one conservative v2 checkins page.
-        fetch-pages             Fetch bounded recent v2 pages.
-      ingest                    Update the local evidence store from source data.
-        update                  Fetch bounded raw pages and import successful pages.
-      db                        Import/check local SQLite evidence.
-        import-raw              Import preserved raw v2 files from disk.
-        import-files            Import official Foursquare export files.
-        stats                   Summarize database coverage.
-      audit                     Reconcile preserved source files.
-        overlap                 Compare v2 raw files with official export by check-in id.
-      query                     Read evidence rows and descriptive rollups.
-        categories              List category coverage.
-        venues                  List/filter venues.
-        visits                  List/filter visits.
-        compare                 Compare baseline and recent venue evidence.
-      evidence                  Build bounded evidence bundles for Robut.
-        window                  Describe one date/hour evidence window.
-        packet                  Compose one bounded local evidence packet.
-
-    Defaults live under ~/Library/Application Support/swarm-cadence: config.json plus
-    per-account raw archives and SQLite DBs under accounts/<label>/.
-
-    For detailed command options, run the specific command with --help, for example:
-      swarm-cadence query visits --help
-      swarm-cadence ingest update --help
-    """
-}
-
-enum Invocation {
-    case verbs
-    case groupHelp(String)
-    case help
-    case version
-    case setup(SetupOptions)
-    case auth(AuthOptions)
-    case sourceStatus(SourceStatusOptions)
-    case sourceProbe(SourceProbeOptions)
-    case rawFetch(RawFetchOptions)
-    case rawFetchPages(RawFetchPagesOptions)
-    case ingestUpdate(IngestUpdateOptions)
-    case dbImportRaw(DBImportRawOptions)
-    case dbImportFiles(DBImportFilesOptions)
-    case dbStats(DBStatsOptions)
-    case auditOverlap(AuditOverlapOptions)
-    case queryCategories(QueryCategoriesOptions)
-    case queryVenues(QueryVenuesOptions)
-    case queryVisits(QueryVisitsOptions)
-    case queryCompare(QueryCompareOptions)
-    case evidenceWindow(EvidenceWindowOptions)
-    case evidencePacket(EvidencePacketOptions)
-
-    init(arguments: [String]) throws {
-        if arguments.isEmpty {
-            self = .verbs
-            return
-        }
-        if arguments == ["--help"] || arguments == ["-h"] {
-            self = .help
-            return
-        }
-        if arguments == ["--version"] {
-            self = .version
-            return
-        }
-
-        guard !arguments.isEmpty else {
-            throw CLIError("unsupported command. Run `swarm-cadence --help`.")
-        }
-
-        if arguments[0] == "setup" {
-            self = .setup(try SetupOptions(parsed: Self.parse(SetupArguments.self, Array(arguments.dropFirst()))))
-            return
-        }
-
-        let groupsWithHelp = Set(["auth", "source", "raw", "ingest", "db", "audit", "query", "evidence"])
-        if arguments.count == 1, groupsWithHelp.contains(arguments[0]) {
-            self = .groupHelp(arguments[0])
-            return
-        }
-
-        guard arguments.count >= 2 else {
-            throw CLIError("unsupported command. Run `swarm-cadence --help`.")
-        }
-
-        switch (arguments[0], arguments[1]) {
-        case ("auth", _):
-            self = .auth(try AuthOptions(parsed: Self.parse(AuthArguments.self, Array(arguments.dropFirst()))))
-        case ("source", "status"):
-            self = .sourceStatus(try SourceStatusOptions(parsed: Self.parse(SourceStatusArguments.self, Array(arguments.dropFirst(2)))))
-        case ("source", "probe"):
-            self = .sourceProbe(try SourceProbeOptions(parsed: Self.parse(SourceProbeArguments.self, Array(arguments.dropFirst(2)))))
-        case ("raw", "fetch"):
-            self = .rawFetch(try RawFetchOptions(parsed: Self.parse(RawFetchArguments.self, Array(arguments.dropFirst(2)))))
-        case ("raw", "fetch-pages"):
-            self = .rawFetchPages(try RawFetchPagesOptions(parsed: Self.parse(RawFetchPagesArguments.self, Array(arguments.dropFirst(2)))))
-        case ("ingest", "update"):
-            self = .ingestUpdate(try IngestUpdateOptions(parsed: Self.parse(IngestUpdateArguments.self, Array(arguments.dropFirst(2)))))
-        case ("db", "import-raw"):
-            self = .dbImportRaw(try DBImportRawOptions(parsed: Self.parse(DBImportRawArguments.self, Array(arguments.dropFirst(2)))))
-        case ("db", "import-files"):
-            self = .dbImportFiles(try DBImportFilesOptions(parsed: Self.parse(DBImportFilesArguments.self, Array(arguments.dropFirst(2)))))
-        case ("db", "stats"):
-            self = .dbStats(try DBStatsOptions(parsed: Self.parse(DBStatsArguments.self, Array(arguments.dropFirst(2)))))
-        case ("audit", "overlap"):
-            self = .auditOverlap(try AuditOverlapOptions(parsed: Self.parse(AuditOverlapArguments.self, Array(arguments.dropFirst(2)))))
-        case ("query", "categories"):
-            self = .queryCategories(try QueryCategoriesOptions(parsed: Self.parse(QueryCategoriesArguments.self, Array(arguments.dropFirst(2)))))
-        case ("query", "venues"):
-            self = .queryVenues(try QueryVenuesOptions(parsed: Self.parse(QueryVenuesArguments.self, Array(arguments.dropFirst(2)))))
-        case ("query", "visits"):
-            self = .queryVisits(try QueryVisitsOptions(parsed: Self.parse(QueryVisitsArguments.self, Array(arguments.dropFirst(2)))))
-        case ("query", "compare"):
-            self = .queryCompare(try QueryCompareOptions(parsed: Self.parse(QueryCompareArguments.self, Array(arguments.dropFirst(2)))))
-        case ("evidence", "window"):
-            self = .evidenceWindow(try EvidenceWindowOptions(parsed: Self.parse(EvidenceWindowArguments.self, Array(arguments.dropFirst(2)))))
-        case ("evidence", "packet"):
-            self = .evidencePacket(try EvidencePacketOptions(parsed: Self.parse(EvidencePacketArguments.self, Array(arguments.dropFirst(2)))))
-        default:
-            throw CLIError("unsupported command. Run `swarm-cadence --help`.")
-        }
-    }
-
-    private static func parse<Arguments: ParsableArguments>(
-        _ type: Arguments.Type,
-        _ arguments: [String]
-    ) throws -> Arguments {
-        do {
-            return try type.parse(Self.normalizeSignedValues(arguments))
-        } catch {
-            let exitCode = type.exitCode(for: error)
-            if exitCode.rawValue == 0 {
-                throw ArgumentParserExit(
-                    message: type.fullMessage(for: error),
-                    code: Int(exitCode.rawValue),
-                    isSuccess: true
-                )
-            }
-            throw CLIError(type.message(for: error))
-        }
-    }
 
     private static func normalizeSignedValues(_ arguments: [String]) -> [String] {
         let signedValueOptions: Set<String> = ["--limit", "--offset", "--pages", "--delay-ms", "--from", "--to", "--baseline-from", "--baseline-to", "--recent-from", "--recent-to", "--as-of", "--near-lat", "--near-lng", "--radius-meters"]
@@ -670,16 +96,654 @@ enum Invocation {
     }
 }
 
-private struct ArgumentParserExit: Error {
-    let message: String
-    let code: Int
-    let isSuccess: Bool
+private struct CommandRuntime {
+    var arguments: [String]
+    var environment: [String: String]
+    var liveTransport: ProbeHTTPTransport
+    var input: () -> String?
+    var output: (String) -> Void
+    var errorOutput: (String) -> Void
+    var exitCode: Int
+
+    static let `default` = CommandRuntime(
+        arguments: [],
+        environment: [:],
+        liveTransport: URLSessionProbeHTTPTransport(),
+        input: { nil },
+        output: { _ in },
+        errorOutput: { _ in },
+        exitCode: 0
+    )
+
+    static var current = CommandRuntime.default
 }
 
-enum AuthAction: String {
-    case status
-    case login
-    case clear
+private struct SwarmCadenceCLI: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "swarm-cadence",
+        abstract: "Build and query local Foursquare/Swarm check-in evidence.",
+        discussion: """
+        swarm-cadence \(SwarmCadenceVersion.current)
+
+        Use source collection/import to build the local evidence store. Use query
+        and evidence commands for bounded answers. Robut composes Guides above
+        this layer; the CLI exposes source-backed rows, rollups, comparisons,
+        and drill-downs.
+
+        Examples:
+          swarm-cadence --version
+          swarm-cadence auth status --account <label>
+          swarm-cadence auth login [--account <label>]
+          swarm-cadence setup [--account <label>]
+          swarm-cadence source status [--account <label>]
+          swarm-cadence ingest --account julian --adapter v2
+          swarm-cadence query visits --account julian --date 2026-03-25
+          swarm-cadence query compare --account julian --baseline-from 2026-03-01 --recent-from 2026-04-01
+          swarm-cadence evidence packet --account julian --date 2026-03-25 --baseline-from 2026-03-01 --recent-from 2026-04-01
+
+        Defaults live under ~/Library/Application Support/swarm-cadence: config.json
+        plus per-account raw archives and SQLite DBs under accounts/<label>/.
+
+        For detailed command options, run a command with --help.
+        """,
+        version: SwarmCadenceVersion.current,
+        groupedSubcommands: [
+            CommandGroup(name: "Setup and ingest", subcommands: [
+                AuthCommand.self,
+                SetupCommand.self,
+                SourceCommand.self,
+                RawCommand.self,
+                IngestCommand.self
+            ]),
+            CommandGroup(name: "Evidence store", subcommands: [
+                DBCommand.self,
+                AuditCommand.self,
+                QueryCommand.self,
+                EvidenceCommand.self
+            ])
+        ]
+    )
+
+    mutating func run() throws {
+        CommandRuntime.current.output(SwarmCadenceCommand.verbsText)
+    }
+}
+
+private struct SetupCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "setup",
+        abstract: "Alias for `auth login`."
+    )
+
+    @OptionGroup var arguments: SetupArguments
+
+    mutating func run() throws {
+        let options = try SetupOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SetupAuth.setup(
+            action: "login",
+            account: options.account,
+            configPath: options.configPath,
+            format: options.format,
+            inputs: options.inputs,
+            environment: runtime.environment,
+            transport: runtime.liveTransport,
+            input: runtime.input,
+            promptOutput: runtime.output
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct AuthCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "auth",
+        abstract: "Manage saved Foursquare/Swarm auth.",
+        subcommands: [AuthStatusCommand.self, AuthLoginCommand.self, AuthClearCommand.self]
+    )
+}
+
+private struct AuthStatusCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "status",
+        abstract: "Show configured account/auth readiness."
+    )
+
+    @Option(help: "Account label to inspect, such as julian or alice.") var account: String?
+    @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(help: "Output format: human or json.") var format = "human"
+    @Flag(help: "Shortcut for --format json.") var json = false
+
+    mutating func run() throws {
+        let runtime = CommandRuntime.current
+        let result = try SetupAuth.status(
+            account: try AccountLabel.validate(account),
+            configPath: config,
+            environment: runtime.environment
+        )
+        runtime.output(try Formatter.render(result, format: try parseFormat(format: format, json: json)))
+    }
+}
+
+private struct AuthLoginCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "login",
+        abstract: "Configure v2 token/OAuth credentials."
+    )
+
+    @OptionGroup var arguments: SetupArguments
+
+    mutating func run() throws {
+        let options = try SetupOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SetupAuth.setup(
+            action: "login",
+            account: options.account,
+            configPath: options.configPath,
+            format: options.format,
+            inputs: options.inputs,
+            environment: runtime.environment,
+            transport: runtime.liveTransport,
+            input: runtime.input,
+            promptOutput: runtime.output
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct AuthClearCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "clear",
+        abstract: "Remove saved account auth."
+    )
+
+    @Option(help: "Account label to clear, such as julian or alice.") var account: String?
+    @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(help: "Output format: human or json.") var format = "human"
+    @Flag(help: "Required to remove stored credentials.") var force = false
+    @Flag(help: "Shortcut for --format json.") var json = false
+
+    mutating func run() throws {
+        let outputFormat = try parseFormat(format: format, json: json)
+        let runtime = CommandRuntime.current
+        let result = try SetupAuth.clear(
+            account: try AccountLabel.validate(account),
+            configPath: config,
+            environment: runtime.environment,
+            force: force
+        )
+        runtime.output(try Formatter.render(result, format: outputFormat))
+    }
+}
+
+private struct SourceCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "source",
+        abstract: "Inspect source/account readiness.",
+        subcommands: [SourceStatusCommand.self, SourceProbeCommand.self]
+    )
+}
+
+private struct SourceStatusCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "status",
+        abstract: "List configured accounts and local evidence paths."
+    )
+
+    @OptionGroup var arguments: SourceStatusArguments
+
+    mutating func run() throws {
+        let options = try SourceStatusOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SourceStatus.status(
+            account: options.account,
+            configPath: options.configPath,
+            environment: runtime.environment
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct SourceProbeCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "probe",
+        abstract: "Validate v2/historysearch source configuration."
+    )
+
+    @OptionGroup var arguments: SourceProbeArguments
+
+    mutating func run() throws {
+        let options = try SourceProbeOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let config = try ConfigFile.loadOptional(path: options.configPath, environment: runtime.environment)
+        let result = options.live
+            ? SourceProbe.liveProbe(
+                account: options.account,
+                adapter: options.adapter,
+                environment: runtime.environment,
+                config: config,
+                transport: runtime.liveTransport
+            )
+            : SourceProbe.probe(
+                account: options.account,
+                adapter: options.adapter,
+                environment: runtime.environment,
+                config: config
+            )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct RawCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "raw",
+        abstract: "Collect preserved source payloads.",
+        subcommands: [RawFetchCommand.self, RawFetchPagesCommand.self]
+    )
+}
+
+private struct RawFetchCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "fetch",
+        abstract: "Fetch one conservative v2 checkins page."
+    )
+
+    @OptionGroup var arguments: RawFetchArguments
+
+    mutating func run() throws {
+        let options = try RawFetchOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let config = try ConfigFile.loadOptional(path: options.configPath, environment: runtime.environment)
+        let result = try RawFetch.fetch(
+            account: options.account,
+            adapter: options.adapter,
+            config: config,
+            environment: runtime.environment,
+            outputDirectory: options.outputDirectory ?? AppSupportDefaults.rawCheckinsDirectory(account: options.account, environment: runtime.environment),
+            limit: options.limit,
+            offset: options.offset,
+            transport: runtime.liveTransport
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct RawFetchPagesCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "fetch-pages",
+        abstract: "Fetch bounded recent v2 pages."
+    )
+
+    @OptionGroup var arguments: RawFetchPagesArguments
+
+    mutating func run() throws {
+        let options = try RawFetchPagesOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let config = try ConfigFile.loadOptional(path: options.configPath, environment: runtime.environment)
+        let result = try RawFetch.fetchPages(
+            account: options.account,
+            adapter: options.adapter,
+            config: config,
+            environment: runtime.environment,
+            outputDirectory: options.outputDirectory ?? AppSupportDefaults.rawCheckinsDirectory(account: options.account, environment: runtime.environment),
+            limit: options.limit,
+            startOffset: options.startOffset,
+            pages: options.pages,
+            delayMilliseconds: options.delayMilliseconds,
+            transport: runtime.liveTransport
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct IngestCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "ingest",
+        abstract: "Fetch bounded v2 raw pages and import successful pages.",
+        usage: "swarm-cadence ingest --account <label> [--adapter v2] [--pages <pages>] [--limit <limit>]",
+        discussion: """
+        Normal operator path:
+          swarm-cadence ingest --account <label> --adapter v2
+
+        The older `swarm-cadence ingest update ...` form remains accepted as a
+        compatibility alias.
+        """,
+        subcommands: [IngestUpdateCommand.self]
+    )
+
+    @OptionGroup var arguments: IngestUpdateArguments
+
+    mutating func run() throws {
+        if CommandRuntime.current.arguments == ["ingest"] {
+            throw CleanExit.helpRequest(Self.self)
+        }
+        try IngestUpdateCommand.runUpdate(arguments)
+    }
+}
+
+private struct IngestUpdateCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "update",
+        abstract: "Compatibility alias for `swarm-cadence ingest`.",
+        shouldDisplay: false
+    )
+
+    @OptionGroup var arguments: IngestUpdateArguments
+
+    mutating func run() throws {
+        try Self.runUpdate(arguments, command: "ingest update")
+    }
+
+    static func runUpdate(_ arguments: IngestUpdateArguments, command: String = "ingest") throws {
+        let options = try IngestUpdateOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let config = try ConfigFile.loadOptional(path: options.configPath, environment: runtime.environment)
+        let result = try IngestUpdate.update(
+            account: options.account,
+            adapter: options.adapter,
+            config: config,
+            environment: runtime.environment,
+            rawDirectory: options.rawDirectory ?? AppSupportDefaults.rawCheckinsDirectory(account: options.account, environment: runtime.environment),
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            pages: options.pages,
+            limit: options.limit,
+            delayMilliseconds: options.delayMilliseconds,
+            command: command,
+            transport: runtime.liveTransport
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+        CommandRuntime.current.exitCode = result.exitCode
+    }
+}
+
+private struct DBCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "db",
+        abstract: "Import/check local SQLite evidence.",
+        subcommands: [DBImportRawCommand.self, DBImportFilesCommand.self, DBStatsCommand.self]
+    )
+}
+
+private struct DBImportRawCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "import-raw",
+        abstract: "Import preserved raw v2 files from disk."
+    )
+
+    @OptionGroup var arguments: DBImportRawArguments
+
+    mutating func run() throws {
+        let options = try DBImportRawOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.importRawV2Checkins(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            rawDirectory: options.rawDirectory ?? AppSupportDefaults.rawCheckinsDirectory(account: options.account, environment: runtime.environment),
+            account: options.account
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct DBImportFilesCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "import-files",
+        abstract: "Import official Foursquare export files."
+    )
+
+    @OptionGroup var arguments: DBImportFilesArguments
+
+    mutating func run() throws {
+        let options = try DBImportFilesOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.importFiles(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            path: options.path,
+            account: options.account,
+            source: options.source
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct DBStatsCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "stats",
+        abstract: "Summarize database coverage."
+    )
+
+    @OptionGroup var arguments: DBStatsArguments
+
+    mutating func run() throws {
+        let options = try DBStatsOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.stats(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct AuditCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "audit",
+        abstract: "Reconcile preserved source files.",
+        subcommands: [AuditOverlapCommand.self]
+    )
+}
+
+private struct AuditOverlapCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "overlap",
+        abstract: "Compare v2 raw files with official export by check-in id."
+    )
+
+    @OptionGroup var arguments: AuditOverlapArguments
+
+    mutating func run() throws {
+        let options = try AuditOverlapOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SourceAudit.overlap(
+            account: options.account,
+            v2RawDirectory: options.v2RawDirectory ?? AppSupportDefaults.rawCheckinsDirectory(account: options.account, environment: runtime.environment),
+            exportPath: options.exportPath,
+            exampleLimit: options.exampleLimit
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct QueryCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "query",
+        abstract: "Read evidence rows and descriptive rollups.",
+        subcommands: [QueryCategoriesCommand.self, QueryVenuesCommand.self, QueryVisitsCommand.self, QueryCompareCommand.self]
+    )
+}
+
+private struct QueryCategoriesCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "categories",
+        abstract: "List category coverage."
+    )
+
+    @OptionGroup var arguments: QueryCategoriesArguments
+
+    mutating func run() throws {
+        let options = try QueryCategoriesOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.queryCategories(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account,
+            limit: options.limit
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct QueryVenuesCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "venues",
+        abstract: "List/filter venues."
+    )
+
+    @OptionGroup var arguments: QueryVenuesArguments
+
+    mutating func run() throws {
+        let options = try QueryVenuesOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.queryVenues(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account,
+            fromCreatedAt: options.fromCreatedAt,
+            toCreatedAt: options.toCreatedAt,
+            date: options.date,
+            hourFrom: options.hourFrom,
+            hourTo: options.hourTo,
+            locality: options.locality,
+            region: options.region,
+            postalCode: options.postalCode,
+            countryCode: options.countryCode,
+            categoryNames: options.categoryNames,
+            nearLatitude: options.nearLatitude,
+            nearLongitude: options.nearLongitude,
+            radiusMeters: options.radiusMeters,
+            sort: options.sort,
+            limit: options.limit
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct QueryVisitsCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "visits",
+        abstract: "List/filter visits."
+    )
+
+    @OptionGroup var arguments: QueryVisitsArguments
+
+    mutating func run() throws {
+        let options = try QueryVisitsOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.queryVisits(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account,
+            venueID: options.venueID,
+            fromCreatedAt: options.fromCreatedAt,
+            toCreatedAt: options.toCreatedAt,
+            date: options.date,
+            hourFrom: options.hourFrom,
+            hourTo: options.hourTo,
+            limit: options.limit
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct QueryCompareCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "compare",
+        abstract: "Compare baseline and recent venue evidence."
+    )
+
+    @OptionGroup var arguments: QueryCompareArguments
+
+    mutating func run() throws {
+        let options = try QueryCompareOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.queryCompare(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account,
+            baselineFromCreatedAt: options.baselineFromCreatedAt,
+            baselineToCreatedAt: options.baselineToCreatedAt,
+            recentFromCreatedAt: options.recentFromCreatedAt,
+            recentToCreatedAt: options.recentToCreatedAt,
+            asOfCreatedAt: options.asOfCreatedAt,
+            hourFrom: options.hourFrom,
+            hourTo: options.hourTo,
+            locality: options.locality,
+            region: options.region,
+            postalCode: options.postalCode,
+            countryCode: options.countryCode,
+            categoryNames: options.categoryNames,
+            nearLatitude: options.nearLatitude,
+            nearLongitude: options.nearLongitude,
+            radiusMeters: options.radiusMeters,
+            sort: options.sort,
+            minBaselineVisits: options.minBaselineVisits,
+            limit: options.limit
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct EvidenceCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "evidence",
+        abstract: "Build bounded evidence bundles for Robut.",
+        subcommands: [EvidenceWindowCommand.self, EvidencePacketCommand.self]
+    )
+}
+
+private struct EvidenceWindowCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "window",
+        abstract: "Describe one date/hour evidence window."
+    )
+
+    @OptionGroup var arguments: EvidenceWindowArguments
+
+    mutating func run() throws {
+        let options = try EvidenceWindowOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.evidenceWindow(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account,
+            date: options.date,
+            hourFrom: options.hourFrom,
+            hourTo: options.hourTo,
+            limit: options.limit
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct EvidencePacketCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "packet",
+        abstract: "Compose one bounded local evidence packet."
+    )
+
+    @OptionGroup var arguments: EvidencePacketArguments
+
+    mutating func run() throws {
+        let options = try EvidencePacketOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.evidencePacket(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account,
+            date: options.date,
+            hourFrom: options.hourFrom,
+            hourTo: options.hourTo,
+            locality: options.locality,
+            region: options.region,
+            postalCode: options.postalCode,
+            countryCode: options.countryCode,
+            categoryNames: options.categoryNames,
+            nearLatitude: options.nearLatitude,
+            nearLongitude: options.nearLongitude,
+            radiusMeters: options.radiusMeters,
+            baselineFromCreatedAt: options.baselineFromCreatedAt,
+            baselineToCreatedAt: options.baselineToCreatedAt,
+            recentFromCreatedAt: options.recentFromCreatedAt,
+            recentToCreatedAt: options.recentToCreatedAt,
+            asOfCreatedAt: options.asOfCreatedAt,
+            minBaselineVisits: options.minBaselineVisits,
+            limit: options.limit
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
 }
 
 struct SetupOptions {
@@ -699,51 +763,6 @@ struct SetupOptions {
             redirectURI: parsed.redirectURI,
             authorizationCode: parsed.authorizationCode
         )
-    }
-}
-
-struct AuthOptions {
-    let action: AuthAction
-    let account: String?
-    let configPath: String?
-    let format: OutputFormat
-    let inputs: SetupAuthInputs
-    let force: Bool
-
-    fileprivate init(parsed: AuthArguments) throws {
-        self.action = try AuthAction(rawValue: parsed.action ?? AuthAction.status.rawValue)
-            .orThrow("unsupported auth action. Use `status`, `login`, or `clear`.")
-        if self.action == .login {
-            self.account = parsed.account
-        } else {
-            self.account = try AccountLabel.validate(parsed.account)
-        }
-        self.configPath = parsed.config
-        self.format = try parseFormat(format: parsed.format, json: parsed.json)
-        self.inputs = SetupAuthInputs(
-            accessToken: parsed.accessToken,
-            clientID: parsed.clientID,
-            clientSecret: parsed.clientSecret,
-            redirectURI: parsed.redirectURI,
-            authorizationCode: parsed.authorizationCode
-        )
-        self.force = parsed.force
-
-        if action != .login {
-            let setupFlags = [
-                parsed.accessToken,
-                parsed.clientID,
-                parsed.clientSecret,
-                parsed.redirectURI,
-                parsed.authorizationCode
-            ]
-            if setupFlags.contains(where: { $0 != nil }) {
-                throw CLIError("auth \(action.rawValue) does not accept setup credential options.")
-            }
-        }
-        if action != .clear, force {
-            throw CLIError("auth \(action.rawValue) does not accept --force.")
-        }
     }
 }
 
@@ -900,7 +919,7 @@ struct IngestUpdateOptions {
         self.adapter = try SourceAdapter(rawValue: parsed.adapter)
             .orThrow("unsupported --adapter. Use `v2`.")
         guard self.adapter == .v2 else {
-            throw CLIError("ingest update is currently implemented only for --adapter v2.")
+            throw CLIError("ingest is currently implemented only for --adapter v2.")
         }
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.configPath = parsed.config
@@ -1328,20 +1347,6 @@ private struct SetupArguments: ParsableArguments {
     @Option(name: .customLong("client-secret"), help: "Foursquare developer app client secret, used only when exchanging an authorization code.") var clientSecret: String?
     @Option(name: .customLong("redirect-uri"), help: "Developer app redirect URI. Defaults to a local callback URI and must match the Foursquare app setting.") var redirectURI: String?
     @Option(name: .customLong("authorization-code"), help: "Code copied from the browser redirect after opening the printed authorization URL.") var authorizationCode: String?
-    @Flag(help: "Shortcut for --format json.") var json = false
-}
-
-private struct AuthArguments: ParsableArguments {
-    @Argument(help: "Auth action: status, login, or clear.") var action: String?
-    @Option(help: "Account label to inspect or configure, such as julian or alice. Human login prompts when omitted.") var account: String?
-    @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
-    @Option(help: "Output format: human or json. JSON login never prompts.") var format = "human"
-    @Option(name: .customLong("access-token"), help: "Existing Foursquare v2 access token. Fastest login path; skips the browser OAuth flow.") var accessToken: String?
-    @Option(name: .customLong("client-id"), help: "Foursquare developer app client id, used only when exchanging an authorization code.") var clientID: String?
-    @Option(name: .customLong("client-secret"), help: "Foursquare developer app client secret, used only when exchanging an authorization code.") var clientSecret: String?
-    @Option(name: .customLong("redirect-uri"), help: "Developer app redirect URI. Defaults to a local callback URI and must match the Foursquare app setting.") var redirectURI: String?
-    @Option(name: .customLong("authorization-code"), help: "Code copied from the browser redirect after opening the printed authorization URL.") var authorizationCode: String?
-    @Flag(help: "Required by auth clear to remove stored credentials.") var force = false
     @Flag(help: "Shortcut for --format json.") var json = false
 }
 
@@ -1835,7 +1840,7 @@ enum Formatter {
 
     private static func renderHuman(_ result: IngestUpdateResult) -> String {
         var lines: [String] = [
-            "ingest update",
+            result.command,
             "account: \(result.account)",
             "adapter: \(result.adapter.rawValue)",
             "status: \(result.status.rawValue)",

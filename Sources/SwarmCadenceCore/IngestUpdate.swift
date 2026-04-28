@@ -75,12 +75,13 @@ public enum IngestUpdate {
         pages requestedPages: Int = defaultPages,
         limit: Int = RawFetch.defaultLimit,
         delayMilliseconds: Int = RawFetch.fetchPagesDefaultDelayMilliseconds,
+        command: String = "ingest",
         transport: ProbeHTTPTransport = URLSessionProbeHTTPTransport(),
         sleep: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) }
     ) throws -> IngestUpdateResult {
         let account = try AccountLabel.validate(account)
         guard adapter == .v2 else {
-            throw CLIError("ingest update is currently implemented only for --adapter v2.")
+            throw CLIError("ingest is currently implemented only for --adapter v2.")
         }
         guard (1...RawFetch.hardLimit).contains(limit) else {
             throw CLIError("--limit \(limit) exceeds the allowed range of 1...\(RawFetch.hardLimit).")
@@ -104,6 +105,7 @@ public enum IngestUpdate {
         let probe = SourceProbe.probe(account: account, adapter: adapter, environment: environment, config: config)
         guard probe.status != .externalSetupRequired else {
             return result(
+                command: command,
                 account: account,
                 adapter: adapter,
                 status: .configMissing,
@@ -163,6 +165,7 @@ public enum IngestUpdate {
             } catch let error as CLIError {
                 let status: IngestUpdateStatus = totalCheckinsUpserted > 0 ? .updatedPartial : .sourceBlocked
                 return result(
+                    command: command,
                     account: account,
                     adapter: adapter,
                     status: status,
@@ -189,6 +192,7 @@ public enum IngestUpdate {
             } catch {
                 let status: IngestUpdateStatus = totalCheckinsUpserted > 0 ? .updatedPartial : .sourceBlocked
                 return result(
+                    command: command,
                     account: account,
                     adapter: adapter,
                     status: status,
@@ -217,6 +221,7 @@ public enum IngestUpdate {
             guard fetchResult.status == .success else {
                 let status: IngestUpdateStatus = totalCheckinsUpserted > 0 ? .updatedPartial : .sourceBlocked
                 return result(
+                    command: command,
                     account: account,
                     adapter: adapter,
                     status: status,
@@ -276,6 +281,7 @@ public enum IngestUpdate {
                 )
             } catch let error as CLIError {
                 return result(
+                    command: command,
                     account: account,
                     adapter: adapter,
                     status: .importFailed,
@@ -301,6 +307,7 @@ public enum IngestUpdate {
                 )
             } catch {
                 return result(
+                    command: command,
                     account: account,
                     adapter: adapter,
                     status: .importFailed,
@@ -375,6 +382,7 @@ public enum IngestUpdate {
         }
 
         return result(
+            command: command,
             account: account,
             adapter: adapter,
             status: status,
@@ -401,6 +409,7 @@ public enum IngestUpdate {
     }
 
     private static func result(
+        command: String,
         account: String,
         adapter: SourceAdapter,
         status: IngestUpdateStatus,
@@ -426,7 +435,7 @@ public enum IngestUpdate {
     ) -> IngestUpdateResult {
         IngestUpdateResult(
             schemaVersion: 1,
-            command: "ingest update",
+            command: command,
             account: account,
             adapter: adapter,
             status: status,
