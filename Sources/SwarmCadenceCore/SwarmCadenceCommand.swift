@@ -1349,40 +1349,40 @@ private struct SourceProbeArguments: ParsableArguments {
 }
 
 private struct RawFetchArguments: ParsableArguments {
-    @Option var account: String?
-    @Option var adapter = "v2"
-    @Option var format = "auto"
-    @Option var config: String?
-    @Option(name: .customLong("out")) var outputDirectory: String?
-    @Option var limit = RawFetch.defaultLimit
-    @Option var offset = 0
-    @Flag var json = false
+    @Option(help: "Account label to fetch for, such as julian or alice.") var account: String?
+    @Option(help: "Source adapter to use. Currently only v2 is supported for live raw fetches.") var adapter = "v2"
+    @Option(help: "Output format: auto, text, or json.") var format = "auto"
+    @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(name: .customLong("out"), help: "Directory for preserved raw response and manifest files. Defaults to the account raw/v2/checkins directory.") var outputDirectory: String?
+    @Option(help: "Maximum check-ins to request in this page. Must be within the tool's bounded source limit.") var limit = RawFetch.defaultLimit
+    @Option(help: "Source pagination offset for this one-page fetch.") var offset = 0
+    @Flag(help: "Shortcut for --format json.") var json = false
 }
 
 private struct RawFetchPagesArguments: ParsableArguments {
-    @Option var account: String?
-    @Option var adapter = "v2"
-    @Option var format = "auto"
-    @Option var config: String?
-    @Option(name: .customLong("out")) var outputDirectory: String?
-    @Option var limit = RawFetch.defaultLimit
-    @Option(name: .customLong("start-offset")) var startOffset = 0
-    @Option var pages: Int
-    @Option(name: .customLong("delay-ms")) var delayMilliseconds = RawFetch.fetchPagesDefaultDelayMilliseconds
-    @Flag var json = false
+    @Option(help: "Account label to fetch for, such as julian or alice.") var account: String?
+    @Option(help: "Source adapter to use. Currently only v2 is supported for live raw fetches.") var adapter = "v2"
+    @Option(help: "Output format: auto, text, or json.") var format = "auto"
+    @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(name: .customLong("out"), help: "Directory for preserved raw response and manifest files. Defaults to the account raw/v2/checkins directory.") var outputDirectory: String?
+    @Option(help: "Maximum check-ins to request per page. Must be within the tool's bounded source limit.") var limit = RawFetch.defaultLimit
+    @Option(name: .customLong("start-offset"), help: "Source pagination offset for the first page.") var startOffset = 0
+    @Option(help: "Number of recent source pages to fetch before stopping unless a short page is reached first.") var pages: Int
+    @Option(name: .customLong("delay-ms"), help: "Pause between page requests, in milliseconds, to keep unattended fetches polite.") var delayMilliseconds = RawFetch.fetchPagesDefaultDelayMilliseconds
+    @Flag(help: "Shortcut for --format json.") var json = false
 }
 
 private struct IngestUpdateArguments: ParsableArguments {
-    @Option var account: String?
-    @Option var adapter = "v2"
-    @Option var format = "auto"
-    @Option var config: String?
-    @Option(name: .customLong("raw-dir")) var rawDirectory: String?
-    @Option(name: .customLong("db")) var dbPath: String?
-    @Option var pages = IngestUpdate.defaultPages
-    @Option var limit = RawFetch.defaultLimit
-    @Option(name: .customLong("delay-ms")) var delayMilliseconds = RawFetch.fetchPagesDefaultDelayMilliseconds
-    @Flag var json = false
+    @Option(help: "Account label to update, such as julian or alice.") var account: String?
+    @Option(help: "Source adapter to use. Ingest currently supports v2 only.") var adapter = "v2"
+    @Option(help: "Output format: auto, text, or json.") var format = "auto"
+    @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(name: .customLong("raw-dir"), help: "Directory containing/preserving v2 raw response and manifest files. Defaults to the account raw/v2/checkins directory.") var rawDirectory: String?
+    @Option(name: .customLong("db"), help: "SQLite evidence database path. Defaults to the account swarm-cadence.sqlite file.") var dbPath: String?
+    @Option(help: "Maximum number of recent source pages to fetch during this update.") var pages = IngestUpdate.defaultPages
+    @Option(help: "Maximum check-ins to request per source page. Must be within the tool's bounded source limit.") var limit = RawFetch.defaultLimit
+    @Option(name: .customLong("delay-ms"), help: "Pause between page requests, in milliseconds, to keep unattended updates polite.") var delayMilliseconds = RawFetch.fetchPagesDefaultDelayMilliseconds
+    @Flag(help: "Shortcut for --format json.") var json = false
 }
 
 private struct DBImportRawArguments: ParsableArguments {
