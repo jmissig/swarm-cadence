@@ -1147,29 +1147,29 @@ struct EvidencePacketOptions {
 }
 
 private struct SetupArguments: ParsableArguments {
-    @Option var account: String?
-    @Option var config: String?
-    @Option var format = "human"
-    @Option(name: .customLong("access-token")) var accessToken: String?
-    @Option(name: .customLong("client-id")) var clientID: String?
-    @Option(name: .customLong("client-secret")) var clientSecret: String?
-    @Option(name: .customLong("redirect-uri")) var redirectURI: String?
-    @Option(name: .customLong("authorization-code")) var authorizationCode: String?
-    @Flag var json = false
+    @Option(help: "Account label to configure, such as julian or alice. Human mode prompts when omitted.") var account: String?
+    @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(help: "Output format: human or json. JSON mode never prompts.") var format = "human"
+    @Option(name: .customLong("access-token"), help: "Existing Foursquare v2 access token. Fastest path; skips the browser OAuth flow.") var accessToken: String?
+    @Option(name: .customLong("client-id"), help: "Foursquare developer app client id, used only when exchanging an authorization code.") var clientID: String?
+    @Option(name: .customLong("client-secret"), help: "Foursquare developer app client secret, used only when exchanging an authorization code.") var clientSecret: String?
+    @Option(name: .customLong("redirect-uri"), help: "Developer app redirect URI. Defaults to a local callback URI and must match the Foursquare app setting.") var redirectURI: String?
+    @Option(name: .customLong("authorization-code"), help: "Code copied from the browser redirect after opening the printed authorization URL.") var authorizationCode: String?
+    @Flag(help: "Shortcut for --format json.") var json = false
 }
 
 private struct AuthArguments: ParsableArguments {
-    @Argument var action: String?
-    @Option var account: String?
-    @Option var config: String?
-    @Option var format = "human"
-    @Option(name: .customLong("access-token")) var accessToken: String?
-    @Option(name: .customLong("client-id")) var clientID: String?
-    @Option(name: .customLong("client-secret")) var clientSecret: String?
-    @Option(name: .customLong("redirect-uri")) var redirectURI: String?
-    @Option(name: .customLong("authorization-code")) var authorizationCode: String?
-    @Flag var force = false
-    @Flag var json = false
+    @Argument(help: "Auth action: status, login, or clear.") var action: String?
+    @Option(help: "Account label to inspect or configure, such as julian or alice. Human login prompts when omitted.") var account: String?
+    @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(help: "Output format: human or json. JSON login never prompts.") var format = "human"
+    @Option(name: .customLong("access-token"), help: "Existing Foursquare v2 access token. Fastest login path; skips the browser OAuth flow.") var accessToken: String?
+    @Option(name: .customLong("client-id"), help: "Foursquare developer app client id, used only when exchanging an authorization code.") var clientID: String?
+    @Option(name: .customLong("client-secret"), help: "Foursquare developer app client secret, used only when exchanging an authorization code.") var clientSecret: String?
+    @Option(name: .customLong("redirect-uri"), help: "Developer app redirect URI. Defaults to a local callback URI and must match the Foursquare app setting.") var redirectURI: String?
+    @Option(name: .customLong("authorization-code"), help: "Code copied from the browser redirect after opening the printed authorization URL.") var authorizationCode: String?
+    @Flag(help: "Required by auth clear to remove stored credentials.") var force = false
+    @Flag(help: "Shortcut for --format json.") var json = false
 }
 
 private struct SourceStatusArguments: ParsableArguments {

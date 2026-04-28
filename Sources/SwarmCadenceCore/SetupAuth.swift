@@ -104,8 +104,9 @@ enum SetupAuth {
             promptOutput("Config path: \(configPath)")
             promptOutput("Raw check-ins: \(AppSupportDefaults.rawCheckinsDirectory(account: account, environment: environment))")
             promptOutput("SQLite DB: \(AppSupportDefaults.sqlitePath(account: account, environment: environment))")
-            promptOutput("Fast path: paste an existing Foursquare v2 access token, for example one copied from the API Explorer request's oauth_token query parameter.")
-            promptOutput("Official path: leave the token blank and use the Foursquare OAuth code flow with a developer app client id/secret and redirect URI.")
+            promptOutput("Choose one credential path:")
+            promptOutput("1. Paste an existing Foursquare v2 access token if you already have one. This is the fastest path.")
+            promptOutput("2. Leave the token blank to start the browser OAuth flow. You will need a Foursquare developer app client id/secret; the CLI will print the URL and ask for the returned code.")
         }
 
         if token == nil, let existingToken {
@@ -145,17 +146,17 @@ enum SetupAuth {
                 name: "SWARM_CADENCE_\(accountKey)_V2_CLIENT_ID",
                 environment: environment,
                 config: existingValues
-            ) ?? promptRequired("Foursquare client id", input: input, output: promptOutput)
+            ) ?? promptRequired("Foursquare developer app client id", input: input, output: promptOutput)
             clientSecret = try clientSecret ?? existingCredential(
                 name: "SWARM_CADENCE_\(accountKey)_V2_CLIENT_SECRET",
                 environment: environment,
                 config: existingValues
-            ) ?? promptRequired("Foursquare client secret", input: input, output: promptOutput)
+            ) ?? promptRequired("Foursquare developer app client secret", input: input, output: promptOutput)
             redirectURI = try redirectURI ?? existingCredential(
                 name: "SWARM_CADENCE_\(accountKey)_V2_REDIRECT_URI",
                 environment: environment,
                 config: existingValues
-            ) ?? promptWithDefault("Foursquare redirect URI", defaultValue: defaultRedirectURI, input: input, output: promptOutput)
+            ) ?? promptWithDefault("Foursquare developer app redirect URI", defaultValue: defaultRedirectURI, input: input, output: promptOutput)
 
             let authorizationURL = try FoursquareOAuth.authorizationURL(clientID: clientID!, redirectURI: redirectURI!)
             if format == .human {
@@ -163,7 +164,7 @@ enum SetupAuth {
                 promptOutput(authorizationURL.absoluteString)
             }
 
-            authorizationCode = try authorizationCode ?? promptRequired("Foursquare authorization code", input: input, output: promptOutput)
+            authorizationCode = try authorizationCode ?? promptRequired("Code returned after opening the authorization URL", input: input, output: promptOutput)
             token = try FoursquareOAuth.exchangeCodeForAccessToken(
                 clientID: clientID!,
                 clientSecret: clientSecret!,
@@ -318,7 +319,7 @@ enum SetupAuth {
     }
 
     private static func promptOptional(_ prompt: String, input: () -> String?, output: (String) -> Void) throws -> String? {
-        output("\(prompt) (leave blank for OAuth code flow):")
+        output("\(prompt) (paste token, or leave blank to use browser OAuth):")
         guard let value = input() else {
             throw CLIError("interactive input unavailable for \(prompt).")
         }
