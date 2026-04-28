@@ -37,6 +37,7 @@ Default local paths:
 swarm-cadence source status --format json
 swarm-cadence auth status --account julian --format json
 swarm-cadence db stats --account julian --format json
+swarm-cadence ingest --account julian --adapter v2 --format json
 swarm-cadence query categories --account julian --format json
 swarm-cadence query venues --account julian --format json
 swarm-cadence query visits --account julian --venue-id <venue-id> --format json
@@ -50,7 +51,7 @@ Use `swarm-cadence --help` for the current surface.
 
 ## Freshness policy
 
-For substantive answers, check freshness from `db stats` or the experimental `evidence packet` envelope:
+For substantive answers, check freshness from `db stats` or `evidence packet`:
 
 - `last_fetched_at_iso8601`: latest raw source pull
 - `last_imported_at_iso8601`: latest import into SQLite
@@ -59,7 +60,7 @@ For substantive answers, check freshness from `db stats` or the experimental `ev
 
 If freshness is missing, stale, or much older than the user’s question, say so before interpreting. Do not imply current open/closed status, hours, or today’s availability from Swarm alone.
 
-Use `ingest update` only when the user asks for a refresh or the workflow explicitly calls for one; it is read-only against Swarm/Foursquare but writes local raw files and SQLite.
+Use `ingest` only when the user asks for a refresh or the workflow explicitly calls for one; it is read-only against Swarm/Foursquare but writes local raw files and SQLite.
 
 ---
 
@@ -115,7 +116,7 @@ Evidence packets include labeled views (`strongest`, `recent`, `stale`, and `nea
 2. Check `db stats` / packet freshness.
 3. For place-type questions, run `query categories` and select explicit categories.
 4. Choose geography semantics (`locality` vs anchor/radius).
-5. Run the experimental `evidence packet` envelope for multi-view evidence, or lower-level `query venues` / `query compare` for narrower debugging. Treat it as grounding, not the final answer packet.
+5. Run `evidence packet` for multi-view evidence, or lower-level `query venues` / `query compare` for narrower debugging.
 6. Answer in human terms:
    - summarize the most relevant evidence views
    - mention freshness and selected categories/geography
@@ -141,3 +142,5 @@ Do not use `swarm-cadence` for:
 - silently inferring personal preference from a single visit
 
 When the evidence looks misleading, say what gap showed up: stale venue, duplicate/renamed venue, weak category coverage, sparse history, or missing current context.
+
+<!-- repo-version: 0.5.0 -->
