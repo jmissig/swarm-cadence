@@ -83,6 +83,7 @@ public struct VenueEvidence: Codable, Equatable {
     public let lastCreatedAt: Int?
     public let lastCreatedAtISO8601: String?
     public let categories: [String]
+    public let annotations: [Annotation]?
     public let drillDown: EvidenceDrillDown
 }
 
@@ -101,6 +102,7 @@ public struct VisitEvidence: Codable, Equatable {
     public let latitude: Double?
     public let longitude: Double?
     public let categories: [String]
+    public let annotations: [Annotation]?
     public let sourceAdapter: String
 }
 
@@ -114,6 +116,7 @@ public struct CategoryEvidence: Codable, Equatable {
     public let firstCreatedAtISO8601: String?
     public let lastCreatedAt: Int?
     public let lastCreatedAtISO8601: String?
+    public let annotations: [Annotation]?
 }
 
 public struct QueryCategoriesResult: Codable, Equatable {
@@ -495,7 +498,8 @@ public extension SwarmDatabase {
     static func queryCategories(
         dbPath: String,
         account: String,
-        limit: Int = queryDefaultLimit
+        limit: Int = queryDefaultLimit,
+        includeAnnotations: Bool = true
     ) throws -> QueryCategoriesResult {
         _ = try AccountLabel.validate(account)
         try validateQueryLimit(limit)
@@ -534,18 +538,40 @@ public extension SwarmDatabase {
                 arguments: [account, limit]
             )
 
+            let annotationTargets = includeAnnotations
+                ? Set(rows.flatMap { row -> [AnnotationLookupTarget] in
+                    let categoryID: String = row["category_id"]
+                    let name: String = row["name"]
+                    return [
+                        AnnotationLookupTarget(kind: "category", id: categoryID),
+                        AnnotationLookupTarget(kind: "category", id: name)
+                    ]
+                })
+                : []
+            let annotationsByTarget = try fetchAnnotations(db: db, account: account, targets: annotationTargets)
+
             let categories = rows.map { row in
+                let categoryID: String = row["category_id"]
+                let name: String = row["name"]
                 let firstCreatedAt: Int? = row["first_created_at"]
                 let lastCreatedAt: Int? = row["last_created_at"]
+                let annotationKeys = [
+                    AnnotationLookupTarget(kind: "category", id: categoryID),
+                    AnnotationLookupTarget(kind: "category", id: name)
+                ]
+                let annotations = includeAnnotations
+                    ? mergeAnnotations(annotationKeys.flatMap { annotationsByTarget[$0] ?? [] })
+                    : nil
                 return CategoryEvidence(
-                    categoryID: row["category_id"],
-                    name: row["name"],
+                    categoryID: categoryID,
+                    name: name,
                     checkinCount: row["checkin_count"],
                     venueCount: row["venue_count"],
                     firstCreatedAt: firstCreatedAt,
                     firstCreatedAtISO8601: firstCreatedAt.map(queryISO8601String(timestamp:)),
                     lastCreatedAt: lastCreatedAt,
-                    lastCreatedAtISO8601: lastCreatedAt.map(queryISO8601String(timestamp:))
+                    lastCreatedAtISO8601: lastCreatedAt.map(queryISO8601String(timestamp:)),
+                    annotations: annotations
                 )
             }
 
@@ -581,7 +607,8 @@ public extension SwarmDatabase {
         radiusMeters: Double? = nil,
         geography requestedGeography: QueryGeography? = nil,
         sort requestedSort: EvidenceSort? = nil,
-        limit: Int = queryDefaultLimit
+        limit: Int = queryDefaultLimit,
+        includeAnnotations: Bool = true
     ) throws -> QueryVenuesResult {
         guard !dbPath.isEmpty else {
             throw CLIError("missing required --db <path>.")
@@ -722,10 +749,19 @@ public extension SwarmDatabase {
                 ]
             )
 
+            let annotationTargets = includeAnnotations
+                ? Set(rows.map { row -> AnnotationLookupTarget in
+                    let venueID: String = row["venue_id"]
+                    return AnnotationLookupTarget(kind: "venue", id: venueID)
+                })
+                : []
+            let annotationsByTarget = try fetchAnnotations(db: db, account: account, targets: annotationTargets)
+
             let venues = try rows.map { row in
                 let venueID: String = row["venue_id"]
                 let firstCreatedAt: Int? = row["first_created_at"]
                 let lastCreatedAt: Int? = row["last_created_at"]
+                let annotationKey = AnnotationLookupTarget(kind: "venue", id: venueID)
                 return VenueEvidence(
                     venueID: venueID,
                     name: row["name"],
@@ -752,6 +788,7 @@ public extension SwarmDatabase {
                         hourFrom: hourFrom,
                         hourTo: hourTo
                     ),
+                    annotations: includeAnnotations ? (annotationsByTarget[annotationKey] ?? []) : nil,
                     drillDown: venueDrillDown(
                         account: account,
                         dbPath: dbPath,
@@ -808,7 +845,8 @@ public extension SwarmDatabase {
         date: String? = nil,
         hourFrom: Int? = nil,
         hourTo: Int? = nil,
-        limit: Int = queryDefaultLimit
+        limit: Int = queryDefaultLimit,
+        includeAnnotations: Bool = true
     ) throws -> QueryVisitsResult {
         guard !dbPath.isEmpty else {
             throw CLIError("missing required --db <path>.")
@@ -889,10 +927,26 @@ public extension SwarmDatabase {
                 ]
             )
 
+            let annotationTargets = includeAnnotations
+                ? Set(rows.flatMap { row -> [AnnotationLookupTarget] in
+                    let checkinID: String = row["checkin_id"]
+                    let rowVenueID: String? = row["venue_id"]
+                    var targets = [AnnotationLookupTarget(kind: "checkin", id: checkinID)]
+                    if let rowVenueID {
+                        targets.append(AnnotationLookupTarget(kind: "venue", id: rowVenueID))
+                    }
+                    return targets
+                })
+                : []
+            let annotationsByTarget = try fetchAnnotations(db: db, account: account, targets: annotationTargets)
+
             let visits = try rows.map { row in
                 let checkinID: String = row["checkin_id"]
                 let createdAt: Int? = row["created_at_unix"]
                 let rowVenueID: String? = row["venue_id"]
+                let checkinNoteKey = AnnotationLookupTarget(kind: "checkin", id: checkinID)
+                let venueNoteKeys = rowVenueID.map { [AnnotationLookupTarget(kind: "venue", id: $0)] } ?? []
+                let annotationKeys = [checkinNoteKey] + venueNoteKeys
                 return VisitEvidence(
                     checkinID: checkinID,
                     createdAt: createdAt,
@@ -918,6 +972,9 @@ public extension SwarmDatabase {
                         hourFrom: hourFrom,
                         hourTo: hourTo
                     ),
+                    annotations: includeAnnotations
+                        ? mergeAnnotations(annotationKeys.flatMap { annotationsByTarget[$0] ?? [] })
+                        : nil,
                     sourceAdapter: row["source_adapter"]
                 )
             }
@@ -1875,6 +1932,20 @@ private func supportingCategoryNames(
             hourTo, hourTo
         ]
     )
+}
+
+private func mergeAnnotations(_ annotations: [Annotation]) -> [Annotation] {
+    var seen = Set<Int64>()
+    var merged: [Annotation] = []
+    for annotation in annotations where seen.insert(annotation.id).inserted {
+        merged.append(annotation)
+    }
+    return merged.sorted {
+        if $0.updatedAtISO8601 != $1.updatedAtISO8601 {
+            return $0.updatedAtISO8601 > $1.updatedAtISO8601
+        }
+        return $0.id > $1.id
+    }
 }
 
 private func cadenceHourBuckets(

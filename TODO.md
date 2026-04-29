@@ -41,17 +41,15 @@ safely as possible.
    - Keep “in <place>” as locality filtering and “near <place>” as anchor/radius
      or future named-area resolution; distance remains evidence, not judgment.
 
-5. **Build Guide-ready evidence pieces**
-   - Compose generic query results into a small builder-facing diagnostic envelope only to inspect the pieces for one concrete Guide/Almanac experiment.
+5. **Build reusable evidence primitives**
+   - Use concrete Guide/Almanac experiments to discover missing source/derived pieces, but keep the stable tool contract small: account scope, freshness/coverage, explicit windows/geography, support counts, uncertainty, source trails, and caveats.
    - Lunch is an acceptance-test example, not the center of the tool.
-   - Keep the stable tool contract boring: account scope, freshness/coverage, explicit windows/geography, support counts, uncertainty, source trails, and caveats.
-   - Do not rank a hidden “best” answer inside `swarm-cadence`, and do not make the CLI own the final Robut evidence packet or workbench/interface.
+   - Do not rank a hidden “best” answer inside `swarm-cadence`, and do not make the CLI own the final Robut evidence packet, Guide packet, or explorable interface.
 
-6. **Only then add corrections / derived model state**
-   - Add human-approved labels, exclusions, aliases, and interpretation
-     overrides once Guide-ready evidence pieces reveal what needs correcting.
-   - Raw evidence stays untouched; derived/correction state must be visible and
-     scoped.
+6. **Draft corrections now; apply them only when scoped**
+   - Draft human-approved labels, exclusions, aliases, and interpretation
+     overrides against real Guide examples, but keep raw evidence untouched.
+   - Correction state must be visible, scoped, and human-authored or human-approved before it changes future answers.
 
 ## Now
 
@@ -84,9 +82,9 @@ safely as possible.
   - Results include venue location fields and `distance_meters` as evidence.
   - Captured the key semantic distinction: “in San Carlos” means locality; “near San Carlos” should include nearby Redwood City/Belmont venues via an anchor/radius or future `--near-place`/`--area` resolver.
 
-- [x] Build the first experimental evidence envelope.
-  - Implemented experimental `evidence packet` output with schema label `swarm_experimental_packet`; naming/API are intentionally provisional and should not imply the CLI owns final packet composition.
-  - It composes existing `query venues` and `query compare` results into one JSON packet with explicit account, target window, geography definition, source coverage, sources, and caveats.
+- [x] Build the first experimental diagnostic envelope.
+  - Implemented experimental diagnostic output with schema label `swarm_experimental_packet`; naming/API are intentionally provisional and should not imply the CLI owns final packet composition.
+  - It composes existing `query venues` and `query compare` results into one experimental JSON diagnostic with explicit account, target window, geography definition, source coverage, sources, and caveats.
   - It includes geography semantics visibly: locality filters are “in place”; anchor/radius filters can include nearby localities.
   - It avoids ranking, recommendation prose, correction state, open-now data, and cross-source joins.
 
@@ -106,7 +104,7 @@ safely as possible.
 - [x] Add a tool VERSION and include it in provenance.
   - Added repo `VERSION` and Makefile `sync-version` like other local tools.
   - `swarm-cadence --version` prints the synced version, and top-level help shows it.
-  - Evidence packets include `tool_version` in JSON and text output.
+  - Experimental diagnostic outputs include `tool_version` in JSON and text output.
   - Future build metadata/git SHA can be added later without changing `VERSION` as the stable human/tool contract.
 
 - [x] Add interactive first-run auth login, matching the `protect-cadence` auth shape.
@@ -119,6 +117,8 @@ safely as possible.
   - `auth login` supports token paste and Foursquare OAuth code exchange via injectable transport.
   - Config writes merge into `accounts.<label>.v2`, preserve sibling account/historysearch config, and set `0600` permissions where supported.
 
+- [ ] Use [docs/pattern-boundary-and-corrections.md](docs/pattern-boundary-and-corrections.md) to keep `swarm-cadence` as place/visit evidence substrate with simple attached annotations, not the lunch recommender or correction machinery.
+
 - [ ] Create an OpenClaw skill for `swarm-cadence`.
   - Mirror the local-tool pattern used by `protect-cadence`, `clime`, and `paprika-pantry`.
   - Document when to use Swarm evidence, safe read-only/query commands, ingest/update expectations, default paths, and provenance/freshness interpretation.
@@ -130,7 +130,7 @@ safely as possible.
   - Added explicit `--sort nearest|strongest|recent|stale` to `query venues` and `query compare`.
   - JSON filters/results and text output include the effective sort and order label.
   - Defaults remain nearest with geometry filters, strongest for non-geo venue support, and stale for non-geo compare output.
-  - Experimental evidence envelopes now emit labeled views (`strongest`, `recent`, `stale`, plus `nearest` when geometry filters are present) instead of one ambiguous candidate list.
+  - Experimental diagnostic envelopes now emit labeled evidence views (`strongest`, `recent`, `stale`, plus `nearest` when geometry filters are present) instead of one ambiguous ranked list.
 
 - [x] Add venue time/cadence rollups as the next small evidence-substrate slice.
   - Implemented `query cadence` for factual venue-level time/cadence rollups over explicit venue/date/hour/geography/category/near-radius filters.
@@ -144,7 +144,7 @@ safely as possible.
   - Implemented command shapes:
     - `query venues --account julian --near-place jackson-square --radius-meters 900 --format json`
     - `query venues --account julian --area peninsula --category "Coffee Shop" --format json`
-  - `query venues`, `query cadence`, `query compare`, and `evidence packet` now resolve config-defined `anchor` and `area` presets in the CLI/options layer.
+  - `query venues`, `query cadence`, `query compare`, and the experimental diagnostic envelope now resolve config-defined `anchor` and `area` presets in the CLI/options layer.
   - Output includes requested/resolved geography definitions, semantics, and effective primitive filters or area-locality selectors.
   - Kept named areas as transparent query expansion / geography evidence, not recommendation logic.
 
@@ -162,8 +162,8 @@ safely as possible.
   - Example command:
     - `audit identity --account julian --format json`
 
-- [ ] Add trip / travel-burst clustering after local Guide pieces are usable.
-  - Motivation: airports, hotels, ski trips, Hong Kong/Taiwan clusters, and other bursts should not contaminate ordinary local food/place suggestions.
+- [ ] Add trip / travel-burst clustering after local source/derived pieces are usable.
+  - Motivation: airports, hotels, ski trips, Hong Kong/Taiwan clusters, and other bursts should be separable from ordinary local food/place evidence.
   - The tool can expose bounded travel clusters by country/locality/date gaps; Robut decides how to use them in Almanacs/Guides.
   - Possible command shape:
     - `query trips --account julian --country-code TW --gap-days 3 --include localities,categories,top-venues --format json`
@@ -174,11 +174,12 @@ safely as possible.
   - Saved groups like `coffee-bakery` or `food-broad` could be useful if they are explicit caller/tool-defined sets, rendered in output, and not fuzzy hidden cuisine/preference models.
   - Future output should show which concrete Foursquare categories were included.
 
-- [ ] Add correction/edit storage after the reusable source/derived-output shape is stable.
-  - Store scoped human corrections / approved overrides separately from raw evidence and derived observations.
-  - Examples: `convenience_not_preference`, `still_loved_lapsed`, `not_for_lunch`, `closed_or_renamed`, category override, join policy override.
-  - Include scope, proposer/source, approval state (`proposed`, `human_approved`, `human_authored`), created/updated time, and visible effect on future packets/answers.
-  - Do not allow LLM-written interpretations to become raw evidence or unmarked human preference.
+- [ ] Draft and exercise correction/edit examples soon, before sidecar storage.
+  - Use the attached-note approach in [docs/pattern-boundary-and-corrections.md](docs/pattern-boundary-and-corrections.md): annotations attached to venues, check-ins/windows, categories, geography, or person/family context.
+  - Start with human-authored or human-approved Robut/Obsidian notes tied to venue/check-in/category/geography identifiers.
+  - Store scoped human corrections / approved overrides separately from raw evidence and derived observations once Guide experiments show which corrections need machine application.
+  - Keep any durable form minimal: attached target, note text, source, and updated time.
+  - Do not allow LLM-written interpretations to become raw evidence or unmarked human preference; human notes should remain visibly annotations.
 
 - [ ] Keep these explicit non-goals while adding the above.
   - Do not add hidden “current-era weighted venue ranking” as a tool-owned score. Expose recent support, historical support, gaps, freshness, and sort modes instead.
@@ -234,9 +235,9 @@ safely as possible.
   account.
 - [ ] Add venue reconciliation: closed/renamed status, aliases, categories, and
   lat/lng confidence.
-- [ ] Add derived observations: active anchors, lapsed favorites, meal-window
-  support, gaps, and geography clusters.
-- [ ] Add correction/edit storage after the reusable source/derived-output shape is stable.
+- [ ] Add derived observations: active/lapsed support facts, meal-window
+  support, gaps, and geography clusters; leave favorite/preference labels above the CLI.
+- [ ] Add correction/edit storage after drafted examples show which scoped corrections need machine application.
 - [ ] Add Paprika and `clime` join inputs only above the CLI, with explicit join boundaries; avoid making `swarm-cadence` orchestrate sibling-tool packets.
 - [ ] Document the SQLite exploration surface with read-only inspection queries for
   coverage, date ranges, venues, and category completeness.

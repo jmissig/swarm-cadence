@@ -142,6 +142,47 @@ I checked Swarm evidence through <date>. For coffee near San Carlos, using Coffe
 
 ---
 
+## Durable interpretive context / annotations
+
+If a human gives feedback, corrections, or commentary that would materially change how future tool users should interpret Swarm evidence, pause and ask whether they want that context remembered durably as an annotation.
+
+This applies especially to commentary about:
+
+- a venue: renamed, closed, duplicate, wrong identity, misleading category, or “this check-in was really for the place next door”
+- a check-in: accidental, imported wrong, private/irrelevant, unusual context, or not representative of a real visit pattern
+- a category: too broad/narrow, locally misleading, or not useful for a specific kind of question
+- geography: local radius assumptions, neighborhood boundaries, travel corridors, or “near X” conventions
+- context/window: family context, recurring situation, time-bounded caveat, or interpretation rule for a class of future questions
+
+Ask plainly, using memory/durability/annotation language rather than generic “save this?” phrasing. Good examples:
+
+```text
+That changes how I’d interpret this evidence later. Should I remember it as a Swarm annotation?
+```
+
+```text
+Should I add that as durable commentary on this venue/check-in/category?
+```
+
+```text
+Want me to attach that as an annotation so future Swarm lookups see the caveat?
+```
+
+If the human approves, attach an annotation rather than changing source evidence or creating recommendation/preference machinery. Keep the body plain-English and interpretive:
+
+```bash
+swarm-cadence annotations add \
+  --account julian \
+  --target-kind venue \
+  --target-id <venue-id> \
+  --body "This venue is a duplicate/old identity for <current venue>; treat historical check-ins as support for the current place, not a separate option." \
+  --source human
+```
+
+Use `annotations kinds` to discover allowed target kinds, and `annotations targets` to reuse local target-id conventions before inventing a new one. Annotations are attached context, not source evidence, ratings, favorites, or recommendations.
+
+---
+
 ## Boundaries
 
 Do not use `swarm-cadence` for:
@@ -154,4 +195,4 @@ Do not use `swarm-cadence` for:
 
 When the evidence looks misleading, say what gap showed up: stale venue, duplicate/renamed venue, weak category coverage, sparse history, or missing current context.
 
-<!-- repo-version: 0.5.0 -->
+<!-- repo-version: 0.6.0 -->

@@ -131,6 +131,7 @@ public enum IngestUpdate {
             )
         }
 
+        _ = try SwarmDatabase.migrateDatabase(dbPath: dbPath, account: account)
         let freshnessBefore = try SwarmDatabase.freshness(dbPath: dbPath, account: account, adapter: adapter.rawValue)
         var knownCheckinIDs = try SwarmDatabase.existingCheckinIDs(
             dbPath: dbPath,

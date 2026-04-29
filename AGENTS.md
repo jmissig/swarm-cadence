@@ -35,7 +35,7 @@ Source of truth:
 - Canonical external source: Foursquare/Swarm check-in history for each configured account.
 - Canonical local evidence: the local `swarm-cadence` SQLite database once records are ingested.
 - Raw source payloads: preserved in the evidence DB or adjacent raw archive so future schemas can be re-derived.
-- Derived/cached data: model/derived tables or sidecar DBs for cadence, venue rollups, candidate sets, labels, and source/derived outputs; these should be rebuildable from local evidence plus human corrections. Evidence packets are Robut/LLM-composed artifacts above the stable CLI pieces, except for explicitly experimental diagnostic envelopes.
+- Derived/cached data: model/derived tables or sidecar DBs for cadence, venue rollups, source/derived outputs, and human-annotations; these should be rebuildable from local evidence plus annotation storage. Evidence packets are Robut/LLM-composed artifacts above the stable CLI pieces, except for explicitly experimental diagnostic envelopes.
 - Research/design sources:
   - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Foursquare Swarm Connector.md`
   - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Pattern Extraction Tooling.md`
@@ -95,7 +95,7 @@ The repository is now a Swift Package Manager project with:
 - factual venue time/cadence rollups (`query cadence`) over explicit venue/date/hour/geography/category filters, returning support counts, first/last seen, gaps, local-hour buckets, ISO weekday buckets, weekday/weekend counts, freshness, and visit drill-downs without recommendation labels;
 - generic venue cadence comparisons over explicit baseline/recent windows (`query compare`) for active/lapsed/rotation evidence;
 - generic builder-facing `evidence window` packets over explicit date/hour filters, without fuzzy meal/time labels in the CLI;
-- first experimental evidence envelope `evidence packet`, which composes venue support and cadence comparison facts with explicit target window, geography semantics, source coverage, sources, and caveats; its name/schema are provisional and not a durable API commitment and should not imply the CLI owns final packet composition;
+- first experimental diagnostic envelope, which composes venue support and cadence comparison facts with explicit target window, geography semantics, source coverage, sources, and caveats; its name/schema are provisional and not a durable API commitment and should not imply the CLI owns final packet composition;
 - fixture/temp-path tests for probes, raw fetch behavior, parser validation, redaction, import idempotency, aggregate stats, two-account defaults, first evidence queries, and local-time sidecar output.
 
 The v2 API direction is proven locally for Julian and should be exercised for Alice as a first-class second account. Treat v2 OAuth as the primary source path unless it becomes blocked for an account or token/app setup. Keep `historysearch` as a narrow fallback, and keep official export/takeout import as an audit/completeness backstop for rows the API does not return.
@@ -127,7 +127,7 @@ Near-term critical path:
 5. Preserve export-only coordinate/timestamp breadcrumbs, but prefer API rows where both exist.
 6. Import and inspect real coverage with `db stats`, `query venues`, `query visits`, `query cadence`, and `query compare`.
 7. Use geography constraints in real Guide/Almanac reads, keeping “in <place>” and “near <place>” semantics distinct.
-8. Inspect first experimental evidence envelopes and decide the next reusable evidence gap: named-place/area resolution, active/lapsed evidence, venue reconciliation, or human-readable Guide rendering above the CLI.
+8. Inspect first experimental diagnostic envelopes and decide the next reusable evidence gap: named-place/area resolution, active/lapsed support facts, venue reconciliation, or human-readable Guide rendering above the CLI.
 9. Add correction/derived model state only after source/derived outputs show what actually needs correcting.
 
 Keep raw files as source of truth and the SQLite DB rebuildable. Build generic cadence/evidence query tools before any recommendation-like or guide-specific surface. Preserve account separation throughout.
@@ -181,7 +181,7 @@ Use repo-local, fixture, sandboxed, or temporary paths for tests and smoke check
 - The CLI exposes evidence. OpenClaw/Robut handles judgment, phrasing, and conversation.
 - Derived labels are provisional handles, not permanent facts about a person.
 - Prefer boring, inspectable facts: counts, first/last visits, gaps, windows, support, freshness, provenance, drill-downs.
-- Prefer candidate sets, alternatives, exclusions, and source/derived outputs over one hidden “best” answer.
+- Prefer source/derived rows, explicit filters, alternatives, and visible exclusions over one hidden “best” answer.
 - Preserve uncertainty and source quality; mark inferred categories and stale metadata.
 - Avoid over-joining personal data. Each cross-source join needs a purpose and a privacy/agency reason.
 - Do not let location history become surveillance exhaust. Build for reflection and situated help, not creepiness.
@@ -307,8 +307,8 @@ Likely derived/model concepts later:
 - recent share vs historical share;
 - meal-window affinity;
 - home/work/travel or geography clusters where explicitly supported;
-- lapsed favorites / active anchors / convenience repeats as provisional labels;
-- human corrections and scoped exclusions.
+- active/lapsed support facts, gap facts, and context windows;
+- human-approved corrections and scoped exclusions.
 
 ## CLI / local tool guidance
 
@@ -360,7 +360,7 @@ Command names are provisional, but prefer `source probe` because the command sho
 
 > Julian asks: “Where should I grab lunch today?”
 
-The tool should not answer “best lunch” by itself. It should provide builder-facing source/derived outputs that let Robut compose evidence packets and power human-facing Almanacs and Guides.
+The tool should not answer “best lunch” by itself. It should provide source/derived outputs that let Robut compose any evidence packet, Almanac, or Guide above the CLI.
 
 Useful pattern-extraction verbs for this project:
 
@@ -375,24 +375,24 @@ Useful pattern-extraction verbs for this project:
 - classify provisionally;
 - find recurrence/cadence/lapse/resumption;
 - find co-occurrence/association;
-- surface candidates, alternatives, and exclusions;
+- surface source/derived rows, alternatives, mechanical exclusions, and uncertainty;
 - explain/cite/drill down;
 - simulate or adjust assumptions;
 - critique/correct/update edits and interpretation records;
 - decay/retire stale patterns;
 - export/transfer/preserve.
 
-Strong candidate facts for lunch Guide inputs:
+Useful source facts for lunch Guide inputs:
 
 - nearby active anchors;
-- lapsed favorites;
+- active/lapsed support facts;
 - lunch-window support vs dinner-only support;
 - recent vs historical frequency;
 - category/cuisine lanes;
 - travel radius / geography cluster;
 - stale import warnings;
 - open-now/enrichment status when available;
-- exclusions and why candidates were not included;
+- mechanical exclusions and filter limits;
 - uncertainty and inferred labels.
 
 ### Two-surface design
@@ -414,7 +414,7 @@ Build toward two sibling surfaces over the local evidence:
 
 - Location history is sensitive. Treat it as private evidence, not ambient context to be sprayed everywhere.
 - Do not join Swarm data with cameras, calendar, Paprika, clime, messages, or other household data unless a query explicitly needs it or a documented policy allows it.
-- If a source is included in a cross-source packet, explain why it was included and what it contributed.
+- If Robut includes a source in a cross-source packet above the CLI, the packet should explain why it was included and what it contributed.
 - Support corrections without rewriting raw check-ins:
   - “that was convenience, not preference”;
   - “don’t suggest this for lunch”;
@@ -490,7 +490,7 @@ Use this docs split by default:
 - `README.md` — human-facing usage guide: purpose, setup, normal commands, examples.
 - `TODO.md` — active backlog / near-term parking lot, if needed.
 - `AGENTS.md` — durable architecture, constraints, source-of-truth boundaries, project posture, validation commands, and agent guidance.
-- `docs/` — focused contracts/specs that would bloat `AGENTS.md`, such as credential probe notes, schema docs, source/derived-output schemas, Datasette/exploration recipes, source API contracts, and migration decisions.
+- `docs/` — focused contracts/specs that would bloat `AGENTS.md`, such as credential probe annotations, schema docs, source/derived-output schemas, Datasette/exploration recipes, source API contracts, and migration decisions.
 
 Completed work should leave `TODO.md` and live in git history, tests, code, and release notes if relevant.
 
@@ -533,7 +533,7 @@ Watch for:
 ## Working style for agents
 
 - Start by reading `AGENTS.md`, `README.md`, `TODO.md` if present, and focused docs relevant to the task.
-- For research-shaped work, check the Obsidian source notes listed above.
+- For research-shaped work, check the Obsidian source annotations listed above.
 - Make the smallest coherent change that solves the real problem.
 - Challenge scope drift kindly and directly.
 - Keep code, schemas, command surfaces, and docs easy to inspect after time away.

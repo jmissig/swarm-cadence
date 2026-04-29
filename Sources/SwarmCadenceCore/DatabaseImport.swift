@@ -36,6 +36,16 @@ public enum FileImportSource: String, Codable, Equatable {
     case foursquareExport = "foursquare-export"
 }
 
+
+public struct DatabaseMigrateResult: Codable, Equatable {
+    public let schemaVersion: Int
+    public let command: String
+    public let account: String?
+    public let dbPath: String
+    public let migrationsApplied: [String]
+    public let annotationsTablePresent: Bool
+}
+
 public struct DatabaseStatsResult: Codable, Equatable {
     public let schemaVersion: Int
     public let command: String
@@ -67,6 +77,38 @@ public struct DatabaseFreshness: Codable, Equatable {
 }
 
 public enum SwarmDatabase {
+
+    public static func migrateDatabase(dbPath: String, account: String? = nil) throws -> DatabaseMigrateResult {
+        guard !dbPath.isEmpty else {
+            throw CLIError("missing required --db <path>.")
+        }
+        let account = try account.map(AccountLabel.validate)
+        let dbQueue = try openDatabase(path: dbPath)
+        try migrate(dbQueue)
+        return try dbQueue.read { db in
+            let migrations = try String.fetchAll(
+                db,
+                sql: "SELECT identifier FROM grdb_migrations ORDER BY identifier"
+            )
+            let annotationsPresent = try Bool.fetchOne(
+                db,
+                sql: """
+                SELECT EXISTS(
+                    SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'annotations'
+                )
+                """
+            ) ?? false
+            return DatabaseMigrateResult(
+                schemaVersion: 1,
+                command: "db migrate",
+                account: account,
+                dbPath: dbPath,
+                migrationsApplied: migrations,
+                annotationsTablePresent: annotationsPresent
+            )
+        }
+    }
+
     public static func importRawV2Checkins(
         dbPath: String,
         rawDirectory: String,
@@ -268,8 +310,7 @@ public enum SwarmDatabase {
         }
 
         let account = try account.map(AccountLabel.validate)
-        let dbQueue = try openDatabase(path: dbPath)
-        try migrate(dbQueue)
+        let dbQueue = try openReadOnlyDatabase(path: dbPath)
 
         return try dbQueue.read { db in
             let minCreatedAt = try Int.fetchOne(
@@ -341,8 +382,7 @@ public enum SwarmDatabase {
         }
 
         let account = try account.map(AccountLabel.validate)
-        let dbQueue = try openDatabase(path: dbPath)
-        try migrate(dbQueue)
+        let dbQueue = try openReadOnlyDatabase(path: dbPath)
 
         return try dbQueue.read { db in
             try freshness(db: db, account: account, adapter: adapter)
@@ -513,6 +553,23 @@ public enum SwarmDatabase {
                 else { continue }
                 try updateVenueLocationFields(db: db, venueID: venueID, location: location)
             }
+        }
+        migrator.registerMigration("v4_annotations") { db in
+            try db.execute(sql: """
+            CREATE TABLE annotations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account TEXT NOT NULL,
+                target_kind TEXT NOT NULL,
+                target_id TEXT NOT NULL,
+                body TEXT NOT NULL,
+                source TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX idx_annotations_account_target ON annotations(account, target_kind, target_id);
+            CREATE INDEX idx_annotations_account_updated_at ON annotations(account, updated_at);
+            """)
         }
         try migrator.migrate(dbQueue)
     }

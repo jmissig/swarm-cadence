@@ -2,6 +2,6 @@ import Foundation
 
 public enum SwarmCadenceVersion {
     // VERSION-SYNC-START
-    public static let current = "0.5.0"
+    public static let current = "0.6.0"
     // VERSION-SYNC-END
 }

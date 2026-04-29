@@ -3,6 +3,52 @@ import XCTest
 @testable import SwarmCadenceCore
 
 final class DatabaseImportTests: XCTestCase {
+    func testHiddenDBMigrateCommandRunsButDoesNotAppearInDBHelp() throws {
+        let directory = try makeTemporaryDirectory()
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+
+        var helpOutput = ""
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["db", "--help"],
+            output: { helpOutput = $0 },
+            errorOutput: { _ in }
+        ), 0)
+        XCTAssertFalse(helpOutput.contains("migrate"))
+
+        var migrateOutput = ""
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["db", "migrate", "--account", "julian", "--db", dbURL.path, "--format", "json"],
+            output: { migrateOutput = $0 },
+            errorOutput: { _ in }
+        ), 0)
+
+        XCTAssertTrue(migrateOutput.contains("\"command\" : \"db migrate\""))
+        XCTAssertTrue(migrateOutput.contains("\"v4_annotations\""))
+        XCTAssertTrue(migrateOutput.contains("\"annotations_table_present\" : true"))
+    }
+
+    func testDBStatsDoesNotCreateMissingSQLiteDB() throws {
+        let directory = try makeTemporaryDirectory()
+        let dbURL = directory.appendingPathComponent("missing.sqlite")
+
+        XCTAssertThrowsError(try SwarmDatabase.stats(dbPath: dbURL.path, account: "alice")) { error in
+            XCTAssertTrue(String(describing: error).contains("SQLite DB does not exist"))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dbURL.path))
+    }
+
+    func testDatabaseMigrateCreatesAnnotationsTable() throws {
+        let directory = try makeTemporaryDirectory()
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+
+        let result = try SwarmDatabase.migrateDatabase(dbPath: dbURL.path, account: "julian")
+
+        XCTAssertEqual(result.command, "db migrate")
+        XCTAssertEqual(result.account, "julian")
+        XCTAssertTrue(result.migrationsApplied.contains("v4_annotations"))
+        XCTAssertTrue(result.annotationsTablePresent)
+    }
+
     func testImportRawV2ManifestAndRawFileIntoSQLite() throws {
         let directory = try makeTemporaryDirectory()
         let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)

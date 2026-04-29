@@ -67,6 +67,7 @@ public enum SwarmCadenceCommand {
       db                        Import/check local SQLite evidence.
       audit                     Audit source and identity evidence.
       query                     Read evidence rows and descriptive rollups.
+      annotations                     Attach/list annotations.
       evidence                  Build bounded evidence bundles for Robut.
 
     Run `swarm-cadence --help` for examples and grouped subcommands.
@@ -138,6 +139,8 @@ private struct SwarmCadenceCLI: ParsableCommand {
           swarm-cadence source status [--account <label>]
           swarm-cadence ingest --account julian --adapter v2
           swarm-cadence query visits --account julian --date 2026-03-25
+          swarm-cadence annotations add --account julian --target-kind venue --target-id <venue-id> --body "Annotation"
+          swarm-cadence annotations list --account julian --target-kind venue --target-id <venue-id>
           swarm-cadence query compare --account julian --baseline-from 2026-03-01 --recent-from 2026-04-01
           swarm-cadence query lapses --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01
           swarm-cadence evidence packet --account julian --date 2026-03-25 --baseline-from 2026-03-01 --recent-from 2026-04-01
@@ -160,6 +163,7 @@ private struct SwarmCadenceCLI: ParsableCommand {
                 DBCommand.self,
                 AuditCommand.self,
                 QueryCommand.self,
+                AnnotationsCommand.self,
                 EvidenceCommand.self
             ])
         ]
@@ -443,7 +447,7 @@ private struct DBCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "db",
         abstract: "Import/check local SQLite evidence.",
-        subcommands: [DBImportRawCommand.self, DBImportFilesCommand.self, DBStatsCommand.self]
+        subcommands: [DBImportRawCommand.self, DBImportFilesCommand.self, DBStatsCommand.self, DBMigrateCommand.self]
     )
 }
 
@@ -483,6 +487,27 @@ private struct DBImportFilesCommand: ParsableCommand {
             path: options.path,
             account: options.account,
             source: options.source
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+
+private struct DBMigrateCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "migrate",
+        abstract: "Migrate local SQLite evidence DB.",
+        shouldDisplay: false
+    )
+
+    @OptionGroup var arguments: DBMigrateArguments
+
+    mutating func run() throws {
+        let options = try DBMigrateOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.migrateDatabase(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account
         )
         runtime.output(try Formatter.render(result, format: options.format))
     }
@@ -579,7 +604,8 @@ private struct QueryCategoriesCommand: ParsableCommand {
         let result = try SwarmDatabase.queryCategories(
             dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
             account: options.account,
-            limit: options.limit
+            limit: options.limit,
+            includeAnnotations: options.includeAnnotations
         )
         runtime.output(try Formatter.render(result, format: options.format))
     }
@@ -616,7 +642,8 @@ private struct QueryVenuesCommand: ParsableCommand {
             radiusMeters: geography.radiusMeters,
             geography: geography.geography,
             sort: options.sort,
-            limit: options.limit
+            limit: options.limit,
+            includeAnnotations: options.includeAnnotations
         )
         runtime.output(try Formatter.render(result, format: options.format))
     }
@@ -642,7 +669,8 @@ private struct QueryVisitsCommand: ParsableCommand {
             date: options.date,
             hourFrom: options.hourFrom,
             hourTo: options.hourTo,
-            limit: options.limit
+            limit: options.limit,
+            includeAnnotations: options.includeAnnotations
         )
         runtime.output(try Formatter.render(result, format: options.format))
     }
@@ -761,6 +789,97 @@ private struct QueryLapsesCommand: ParsableCommand {
             minBaselineVisits: options.minBaselineVisits,
             limit: options.limit,
             commandName: "query lapses"
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct AnnotationsCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "annotations",
+        abstract: "Attach/list annotations.",
+        subcommands: [AnnotationsAddCommand.self, AnnotationsListCommand.self, AnnotationsKindsCommand.self, AnnotationsTargetsCommand.self]
+    )
+}
+
+private struct AnnotationsAddCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "add",
+        abstract: "Attach an annotation to a target."
+    )
+
+    @OptionGroup var arguments: AnnotationsAddArguments
+
+    mutating func run() throws {
+        let options = try AnnotationsAddOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.addAnnotation(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account,
+            targetKind: options.targetKind,
+            targetID: options.targetID,
+            body: options.body,
+            source: options.source
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+private struct AnnotationsListCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "list",
+        abstract: "List annotations."
+    )
+
+    @OptionGroup var arguments: AnnotationsListArguments
+
+    mutating func run() throws {
+        let options = try AnnotationsListOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.listAnnotations(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account,
+            targetKind: options.targetKind,
+            targetID: options.targetID,
+            limit: options.limit
+        )
+        runtime.output(try Formatter.render(result, format: options.format))
+    }
+}
+
+
+private struct AnnotationsKindsCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "kinds",
+        abstract: "List supported annotation target kinds."
+    )
+
+    @Option var format = "auto"
+    @Flag var json = false
+
+    mutating func run() throws {
+        let format = try parseFormat(format: format, json: json)
+        let result = SwarmDatabase.listAnnotationKinds()
+        CommandRuntime.current.output(try Formatter.render(result, format: format))
+    }
+}
+
+private struct AnnotationsTargetsCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "targets",
+        abstract: "List annotation target IDs currently used in the DB."
+    )
+
+    @OptionGroup var arguments: AnnotationsTargetsArguments
+
+    mutating func run() throws {
+        let options = try AnnotationsTargetsOptions(parsed: arguments)
+        let runtime = CommandRuntime.current
+        let result = try SwarmDatabase.listAnnotationTargets(
+            dbPath: options.dbPath ?? AppSupportDefaults.sqlitePath(account: options.account, environment: runtime.environment),
+            account: options.account,
+            kind: options.kind,
+            limit: options.limit
         )
         runtime.output(try Formatter.render(result, format: options.format))
     }
@@ -1071,6 +1190,22 @@ struct DBImportFilesOptions {
     }
 }
 
+
+struct DBMigrateOptions {
+    let account: String
+    let dbPath: String?
+    let format: OutputFormat
+
+    fileprivate init(parsed: DBMigrateArguments) throws {
+        self.account = try AccountLabel.validate(parsed.account)
+        self.format = try parseFormat(format: parsed.format, json: parsed.json)
+        if let dbPath = parsed.dbPath, dbPath.isEmpty {
+            throw CLIError("--db must not be empty.")
+        }
+        self.dbPath = parsed.dbPath
+    }
+}
+
 struct DBStatsOptions {
     let account: String
     let dbPath: String?
@@ -1136,12 +1271,14 @@ struct QueryCategoriesOptions {
     let dbPath: String?
     let format: OutputFormat
     let limit: Int
+    let includeAnnotations: Bool
 
     fileprivate init(parsed: QueryCategoriesArguments) throws {
         self.account = try AccountLabel.validate(parsed.account)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
         self.limit = parsed.limit
+        self.includeAnnotations = !parsed.noAnnotations
         try SwarmDatabase.validateQueryOptions(fromCreatedAt: nil, toCreatedAt: nil, limit: limit)
     }
 }
@@ -1168,6 +1305,7 @@ struct QueryVenuesOptions {
     let radiusMeters: Double?
     let sort: EvidenceSort?
     let limit: Int
+    let includeAnnotations: Bool
 
     fileprivate init(parsed: QueryVenuesArguments) throws {
         self.account = try AccountLabel.validate(parsed.account)
@@ -1191,6 +1329,7 @@ struct QueryVenuesOptions {
         self.radiusMeters = parsed.radiusMeters
         self.sort = try SwarmDatabase.parseEvidenceSort(parsed.sort)
         self.limit = parsed.limit
+        self.includeAnnotations = !parsed.noAnnotations
         try SwarmDatabase.validateQueryOptions(
             fromCreatedAt: fromCreatedAt,
             toCreatedAt: toCreatedAt,
@@ -1257,6 +1396,7 @@ struct QueryVisitsOptions {
     let hourFrom: Int?
     let hourTo: Int?
     let limit: Int
+    let includeAnnotations: Bool
 
     fileprivate init(parsed: QueryVisitsArguments) throws {
         self.account = try AccountLabel.validate(parsed.account)
@@ -1272,6 +1412,7 @@ struct QueryVisitsOptions {
         self.hourFrom = parsed.hourFrom
         self.hourTo = parsed.hourTo
         self.limit = parsed.limit
+        self.includeAnnotations = !parsed.noAnnotations
         try SwarmDatabase.validateQueryOptions(
             fromCreatedAt: fromCreatedAt,
             toCreatedAt: toCreatedAt,
@@ -1508,6 +1649,81 @@ struct QueryCompareOptions {
     }
 }
 
+struct AnnotationsAddOptions {
+    let account: String
+    let dbPath: String?
+    let targetKind: String
+    let targetID: String
+    let body: String
+    let source: String
+    let format: OutputFormat
+
+    fileprivate init(parsed: AnnotationsAddArguments) throws {
+        self.account = try AccountLabel.validate(parsed.account)
+        self.format = try parseFormat(format: parsed.format, json: parsed.json)
+        if let dbPath = parsed.dbPath, dbPath.isEmpty {
+            throw CLIError("--db must not be empty.")
+        }
+        self.dbPath = parsed.dbPath
+        guard let targetKind = parsed.targetKind else {
+            throw CLIError("missing required --target-kind <kind>.")
+        }
+        guard let targetID = parsed.targetID else {
+            throw CLIError("missing required --target-id <id>.")
+        }
+        guard let body = parsed.body else {
+            throw CLIError("missing required --body <text>.")
+        }
+        self.targetKind = targetKind
+        self.targetID = targetID
+        self.body = body
+        self.source = parsed.source
+    }
+}
+
+struct AnnotationsListOptions {
+    let account: String
+    let dbPath: String?
+    let targetKind: String?
+    let targetID: String?
+    let limit: Int
+    let format: OutputFormat
+
+    fileprivate init(parsed: AnnotationsListArguments) throws {
+        self.account = try AccountLabel.validate(parsed.account)
+        self.format = try parseFormat(format: parsed.format, json: parsed.json)
+        if let dbPath = parsed.dbPath, dbPath.isEmpty {
+            throw CLIError("--db must not be empty.")
+        }
+        self.dbPath = parsed.dbPath
+        self.targetKind = parsed.targetKind
+        self.targetID = parsed.targetID
+        self.limit = parsed.limit
+        try SwarmDatabase.validateQueryOptions(fromCreatedAt: nil, toCreatedAt: nil, limit: limit)
+    }
+}
+
+
+struct AnnotationsTargetsOptions {
+    let account: String
+    let dbPath: String?
+    let kind: String?
+    let limit: Int
+    let format: OutputFormat
+
+    fileprivate init(parsed: AnnotationsTargetsArguments) throws {
+        self.account = try AccountLabel.validate(parsed.account)
+        self.format = try parseFormat(format: parsed.format, json: parsed.json)
+        if let dbPath = parsed.dbPath, dbPath.isEmpty {
+            throw CLIError("--db must not be empty.")
+        }
+        self.dbPath = parsed.dbPath
+        self.kind = parsed.kind
+        self.limit = parsed.limit
+        try SwarmDatabase.validateQueryOptions(fromCreatedAt: nil, toCreatedAt: nil, limit: limit)
+    }
+}
+
 struct EvidenceWindowOptions {
     let account: String
     let dbPath: String?
@@ -1740,6 +1956,14 @@ private struct DBImportFilesArguments: ParsableArguments {
     @Flag var json = false
 }
 
+
+private struct DBMigrateArguments: ParsableArguments {
+    @Option var account: String?
+    @Option(name: .customLong("db")) var dbPath: String?
+    @Option var format = "auto"
+    @Flag var json = false
+}
+
 private struct DBStatsArguments: ParsableArguments {
     @Option var account: String?
     @Option(name: .customLong("db")) var dbPath: String?
@@ -1772,6 +1996,7 @@ private struct QueryCategoriesArguments: ParsableArguments {
     @Option var limit = SwarmDatabase.queryDefaultLimit
     @Option var format = "auto"
     @Flag var json = false
+    @Flag(name: .customLong("no-annotations"), help: "Do not include inline annotations.") var noAnnotations = false
 }
 
 private struct QueryVenuesArguments: ParsableArguments {
@@ -1797,6 +2022,7 @@ private struct QueryVenuesArguments: ParsableArguments {
     @Option var limit = SwarmDatabase.queryDefaultLimit
     @Option var format = "auto"
     @Flag var json = false
+    @Flag(name: .customLong("no-annotations"), help: "Do not include inline annotations.") var noAnnotations = false
 }
 
 private struct QueryVisitsArguments: ParsableArguments {
@@ -1811,6 +2037,7 @@ private struct QueryVisitsArguments: ParsableArguments {
     @Option var limit = SwarmDatabase.queryDefaultLimit
     @Option var format = "auto"
     @Flag var json = false
+    @Flag(name: .customLong("no-annotations"), help: "Do not include inline annotations.") var noAnnotations = false
 }
 
 
@@ -1863,6 +2090,37 @@ private struct QueryCompareArguments: ParsableArguments {
     @Option(name: .customLong("radius-meters")) var radiusMeters: Double?
     @Option var sort: String?
     @Option(name: .customLong("min-baseline-visits")) var minBaselineVisits = 1
+    @Option var limit = SwarmDatabase.queryDefaultLimit
+    @Option var format = "auto"
+    @Flag var json = false
+}
+
+private struct AnnotationsAddArguments: ParsableArguments {
+    @Option var account: String?
+    @Option(name: .customLong("db")) var dbPath: String?
+    @Option(name: .customLong("target-kind")) var targetKind: String?
+    @Option(name: .customLong("target-id")) var targetID: String?
+    @Option var body: String?
+    @Option var source = "human"
+    @Option var format = "auto"
+    @Flag var json = false
+}
+
+private struct AnnotationsListArguments: ParsableArguments {
+    @Option var account: String?
+    @Option(name: .customLong("db")) var dbPath: String?
+    @Option(name: .customLong("target-kind")) var targetKind: String?
+    @Option(name: .customLong("target-id")) var targetID: String?
+    @Option var limit = SwarmDatabase.queryDefaultLimit
+    @Option var format = "auto"
+    @Flag var json = false
+}
+
+
+private struct AnnotationsTargetsArguments: ParsableArguments {
+    @Option var account: String?
+    @Option(name: .customLong("db")) var dbPath: String?
+    @Option(name: .customLong("kind")) var kind: String?
     @Option var limit = SwarmDatabase.queryDefaultLimit
     @Option var format = "auto"
     @Flag var json = false
@@ -2024,6 +2282,16 @@ enum Formatter {
         }
     }
 
+
+    static func render(_ result: DatabaseMigrateResult, format: OutputFormat) throws -> String {
+        switch format {
+        case .auto, .text:
+            return renderHuman(result)
+        case .json:
+            return try renderJSON(result)
+        }
+    }
+
     static func render(_ result: DatabaseStatsResult, format: OutputFormat) throws -> String {
         switch format {
         case .auto, .text:
@@ -2088,6 +2356,42 @@ enum Formatter {
     }
 
     static func render(_ result: QueryCompareResult, format: OutputFormat) throws -> String {
+        switch format {
+        case .auto, .text:
+            return renderHuman(result)
+        case .json:
+            return try renderJSON(result)
+        }
+    }
+
+    static func render(_ result: ListAnnotationKindsResult, format: OutputFormat) throws -> String {
+        switch format {
+        case .auto, .text:
+            return renderHuman(result)
+        case .json:
+            return try renderJSON(result)
+        }
+    }
+
+    static func render(_ result: ListAnnotationTargetsResult, format: OutputFormat) throws -> String {
+        switch format {
+        case .auto, .text:
+            return renderHuman(result)
+        case .json:
+            return try renderJSON(result)
+        }
+    }
+
+    static func render(_ result: AddAnnotationResult, format: OutputFormat) throws -> String {
+        switch format {
+        case .auto, .text:
+            return renderHuman(result)
+        case .json:
+            return try renderJSON(result)
+        }
+    }
+
+    static func render(_ result: ListAnnotationsResult, format: OutputFormat) throws -> String {
         switch format {
         case .auto, .text:
             return renderHuman(result)
@@ -2356,6 +2660,17 @@ enum Formatter {
         return lines.joined(separator: "\n")
     }
 
+
+    private static func renderHuman(_ result: DatabaseMigrateResult) -> String {
+        [
+            "db migrate",
+            "account: \(result.account ?? "all")",
+            "db: \(result.dbPath)",
+            "migrations: \(result.migrationsApplied.joined(separator: ", "))",
+            "annotations_table_present: \(result.annotationsTablePresent ? "yes" : "no")"
+        ].joined(separator: "\n")
+    }
+
     private static func renderHuman(_ result: DatabaseStatsResult) -> String {
         var lines: [String] = [
             "db stats",
@@ -2437,6 +2752,7 @@ enum Formatter {
             if let first = category.firstCreatedAtISO8601, let last = category.lastCreatedAtISO8601 {
                 lines.append("  first_last: \(first) … \(last)")
             }
+            appendAnnotations(category.annotations, to: &lines)
         }
         return lines.joined(separator: "\n")
     }
@@ -2470,6 +2786,7 @@ enum Formatter {
             if !venue.categories.isEmpty {
                 lines.append("  categories: \(venue.categories.joined(separator: ", "))")
             }
+            appendAnnotations(venue.annotations, to: &lines)
         }
         return lines.joined(separator: "\n")
     }
@@ -2487,6 +2804,7 @@ enum Formatter {
             if !visit.categories.isEmpty {
                 lines.append("  categories: \(visit.categories.joined(separator: ", "))")
             }
+            appendAnnotations(visit.annotations, to: &lines)
         }
         return lines.joined(separator: "\n")
     }
@@ -2554,6 +2872,64 @@ enum Formatter {
             }
         }
         return lines.joined(separator: "\n")
+    }
+
+
+    private static func renderHuman(_ result: ListAnnotationKindsResult) -> String {
+        (["annotations kinds"] + result.kinds.map { "- \($0)" }).joined(separator: "\n")
+    }
+
+    private static func renderHuman(_ result: ListAnnotationTargetsResult) -> String {
+        var lines: [String] = [
+            "annotations targets",
+            "account: \(result.account)",
+            "db: \(result.dbPath)",
+            "kind: \(result.kind ?? "all")",
+            "total_matching_targets: \(result.totalMatchingTargets)",
+            "returned_targets: \(result.returnedTargets)"
+        ]
+        for target in result.targets {
+            lines.append("- \(target.kind):\(target.id) annotations=\(target.annotationCount) updated_at=\(target.lastUpdatedAtISO8601 ?? "unknown")")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func renderHuman(_ result: AddAnnotationResult) -> String {
+        [
+            "annotations add",
+            "account: \(result.account)",
+            "db: \(result.dbPath)",
+            "annotation_id: \(result.annotation.id)",
+            "target: \(result.annotation.targetKind):\(result.annotation.targetID)",
+            "source: \(result.annotation.source)",
+            "created_at: \(result.annotation.createdAtISO8601)",
+            "body: \(result.annotation.body)"
+        ].joined(separator: "\n")
+    }
+
+    private static func renderHuman(_ result: ListAnnotationsResult) -> String {
+        var lines: [String] = [
+            "annotations list",
+            "account: \(result.account)",
+            "db: \(result.dbPath)",
+            "target: \(result.target.kind.map { "\($0):\(result.target.id ?? "")" } ?? "all")",
+            "total_matching_annotations: \(result.totalMatchingAnnotations)",
+            "returned_annotations: \(result.returnedAnnotations)"
+        ]
+        for annotation in result.annotations {
+            lines.append("- \(annotation.targetKind):\(annotation.targetID) annotation_id=\(annotation.id) source=\(annotation.source) updated_at=\(annotation.updatedAtISO8601)")
+            lines.append("  body: \(annotation.body)")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func appendAnnotations(_ annotations: [Annotation]?, to lines: inout [String]) {
+        guard let annotations, !annotations.isEmpty else { return }
+        lines.append("  annotations:")
+        for annotation in annotations {
+            lines.append("    - \(annotation.body)")
+            lines.append("      target: \(annotation.targetKind):\(annotation.targetID) annotation_id=\(annotation.id) source=\(annotation.source)")
+        }
     }
 
     private static func renderHuman(_ result: EvidenceWindowPacket) -> String {

@@ -105,7 +105,7 @@ Swarm/Foursquare source
   -> raw payload preservation
   -> normalized SQLite evidence store
   -> derived observations and provisional pattern findings
-  -> source/derived pieces for Robut-composed Guide packets
+  -> source/derived pieces for Robut-composed Guides
   -> Food & Places Almanac + Lunch Guide
   -> Edits/corrections and future bundles
 ```
@@ -132,14 +132,14 @@ Early useful facets:
 - raw check-in counts and date ranges;
 - venue coverage: IDs, names, categories, lat/lng, closed/renamed status where available;
 - check-ins by local time, day, meal window, geography, and account;
-- candidate lunch venues by support, recency, and lapsed status;
-- correction records and their effects.
+- venue support by recency, windows, geography, and active/lapsed facts;
+- human-annotations and where they attach.
 
 This surface may use ad hoc SQL for investigation. It should be read-only by default and should not become the normal Robut chat contract.
 
 ### 2. Stable verb / evidence-substrate surface
 
-Purpose: provide bounded grounding for Robut and future Guides without making `swarm-cadence` own the final answer, evidence packet, or explorable interface.
+Purpose: provide bounded grounding for Robut and future Guides without making `swarm-cadence` own the final answer, Robut evidence packet, or explorable interface.
 
 Early target commands are provisional but should expose reusable evidence facts that Robut or a dedicated artifact layer can consume:
 
@@ -153,7 +153,7 @@ swarm-cadence evidence window --account julian --date 2026-04-27 --hour-from 11 
 
 Guide-specific bundle/packet shaping happens above the reusable query layer. It should consume venue support, cadence, recency, uncertainty, and source trails — not hide a final “best” answer in `swarm-cadence`.
 
-If the CLI keeps an experimental `evidence packet` command, treat it as a diagnostic/query envelope while the shape is being learned, not as the model every sibling tool must copy. The stable contract should be the smaller pieces: source rows, candidate sets, rollups, freshness, support counts, and drill-down handles.
+If the CLI keeps an experimental `evidence packet` command, treat it as a diagnostic/query envelope while the shape is being learned, not as the model every sibling tool must copy. The stable contract should be the smaller pieces: source rows, rollups, freshness, support counts, mechanical filter limits, and drill-down handles.
 
 ## Concrete Guide substrate requirements
 
@@ -163,7 +163,7 @@ Required fields:
 
 - query/scenario: lunch, account, geography, window, mode/lens;
 - source freshness and coverage;
-- candidate options with stable venue identity;
+- venue options with stable identity as assembled above the CLI;
 - source trails / drill-down commands;
 - support counts and denominators;
 - first/last seen and gap/lapse facts;
@@ -191,8 +191,8 @@ Candidate lenses:
 
 - repeated recent lunch-window visits;
 - lapsed-but-historically-strong venue;
-- active cuisine/place lane;
-- likely convenience repeat;
+- category/time-window support facts;
+- high-frequency or recent-repeat facts without preference meaning;
 - sparse/uncertain category metadata;
 - current evidence window and support counts.
 
@@ -247,7 +247,7 @@ recomputing timezone behavior at runtime.
 2. **Emit first reusable source/derived pieces for a concrete Guide example**
    - use the v0 Lunch artifacts as an acceptance test, while keeping the query layer generic;
    - include source trails and uncertainty;
-   - avoid scoring or recommendations until fields are stable.
+   - avoid scoring or recommendations in the CLI.
 3. **Generate static Guide entries above the CLI**
    - generate Markdown/HTML option entries from the pieces;
    - show lenses and why options move.
