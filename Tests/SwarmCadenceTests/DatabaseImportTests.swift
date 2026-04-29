@@ -1001,6 +1001,52 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertTrue(statsOutput.contains("\"checkins\" : 3"))
     }
 
+    func testSyntheticSourceShapeFixturesImportTogether() throws {
+        let directory = try makeTemporaryDirectory()
+        let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
+        let exportDirectory = directory.appendingPathComponent("export", isDirectory: true)
+        try FileManager.default.createDirectory(at: rawDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+
+        let v2Fixture = try Data(contentsOf: fixtureURL("Tests/Fixtures/FoursquareAPI/2026-04-29-users-self-checkins.json"))
+        try writeRawPair(
+            rawDirectory: rawDirectory,
+            baseName: "synthetic-v2-users-self-checkins-offset0-limit250",
+            rawBody: v2Fixture,
+            account: "default"
+        )
+        try FileManager.default.copyItem(
+            at: fixtureURL("Tests/Fixtures/FoursquareExport/2026-04-29-checkins1.json"),
+            to: exportDirectory.appendingPathComponent("checkins1.json")
+        )
+
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["db", "import-raw", "--account", "default", "--db", dbURL.path, "--raw-dir", rawDirectory.path],
+            output: { _ in },
+            errorOutput: { _ in }
+        ), 0)
+
+        var importOutput = ""
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["db", "import-files", "--account", "default", "--db", dbURL.path, "--path", exportDirectory.path, "--format", "json"],
+            output: { importOutput = $0 },
+            errorOutput: { _ in }
+        ), 0)
+        XCTAssertTrue(importOutput.contains("\"checkins_inserted\" : 1"))
+        XCTAssertTrue(importOutput.contains("\"skipped_checkins\" : 1"))
+
+        var statsOutput = ""
+        XCTAssertEqual(SwarmCadenceCommand.run(
+            arguments: ["db", "stats", "--account", "default", "--db", dbURL.path, "--format", "json"],
+            output: { statsOutput = $0 },
+            errorOutput: { _ in }
+        ), 0)
+        XCTAssertTrue(statsOutput.contains("\"raw_files\" : 2"))
+        XCTAssertTrue(statsOutput.contains("\"checkins\" : 4"))
+        XCTAssertTrue(statsOutput.contains("\"venues\" : 3"))
+    }
+
     func testAdapterFreshnessScopesCheckinWindowThroughRawFileAdapter() throws {
         let directory = try makeTemporaryDirectory()
         let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
@@ -2162,6 +2208,22 @@ final class DatabaseImportTests: XCTestCase {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let manifestURL = rawDirectory.appendingPathComponent(baseName).appendingPathExtension("manifest.json")
         try encoder.encode(manifest).write(to: manifestURL, options: [.atomic])
+    }
+
+    private func fixtureURL(_ relativePath: String) throws -> URL {
+        var directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        for _ in 0..<6 {
+            let candidate = directory.appendingPathComponent(relativePath)
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            directory.deleteLastPathComponent()
+        }
+        throw NSError(
+            domain: "SwarmCadenceTests",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "fixture not found: \(relativePath)"]
+        )
     }
 
     private func escapedJSONPath(_ path: String) -> String {

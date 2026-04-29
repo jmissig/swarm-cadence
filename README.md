@@ -142,6 +142,7 @@ omit them.
 - [docs/source-probe-setup.md](docs/source-probe-setup.md) — source setup, v2/historysearch probes, and schema notes
 - [docs/pattern-intelligence-proposal.md](docs/pattern-intelligence-proposal.md) — boundary between evidence substrate and Robut-composed Almanac/Guide work
 - [docs/pattern-boundary-and-corrections.md](docs/pattern-boundary-and-corrections.md) — annotations/corrections guidance and tool-boundary notes
+- [Tests/Fixtures](Tests/Fixtures) — synthetic source-shape fixtures for v2 and Foursquare export regression tests
 
 ---
 

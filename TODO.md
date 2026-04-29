@@ -181,6 +181,11 @@ safely as possible.
   - Keep any durable form minimal: attached target, note text, source, and updated time.
   - Do not allow LLM-written interpretations to become raw evidence or unmarked human preference; human notes should remain visibly annotations.
 
+- [ ] Support single-account use better.
+  - If exactly one account is configured, commands should be able to infer that account when `--account` is omitted.
+  - If multiple accounts are configured, `--account` should become required and errors should list the available labels.
+  - Preserve explicit `--account` support everywhere; this is a convenience for the common one-person install, not a return to silent account blending.
+
 - [ ] Keep these explicit non-goals while adding the above.
   - Do not add hidden “current-era weighted venue ranking” as a tool-owned score. Expose recent support, historical support, gaps, freshness, and sort modes instead.
   - Do not add “convenience-risk” as tool truth. Expose features that let Robut say “this might be convenience” and ask for correction.

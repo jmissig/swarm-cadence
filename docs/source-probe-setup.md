@@ -178,7 +178,7 @@ Import local file-based sources with `db import-files`. The default source is
 `checkins*.json` files:
 
 ```bash
-swift run swarm-cadence db import-files --account default --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/<person>/Foursquare" --format json
+swift run swarm-cadence db import-files --account default --path <foursquare-export-dir> --format json
 ```
 
 When export rows overlap existing v2/API check-ins by id, the importer preserves
@@ -189,7 +189,7 @@ check-ins have null values in fields the importer expects, such as `venue`.
 Audit raw v2 pages against an official export by check-in id:
 
 ```bash
-swift run swarm-cadence audit overlap --account default --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/<person>/Foursquare" --format json
+swift run swarm-cadence audit overlap --account default --path <foursquare-export-dir> --format json
 ```
 
 The audit is read-only and compares preserved source files directly; it does not

@@ -34,7 +34,7 @@ make install-config-example
 
 Keep real tokens out of git. Non-interactive auth login should pass both `--account <label>` and `--access-token <token>`; JSON mode never prompts.
 
-Account labels are explicit and simultaneous. There is no silent account/account blending. Each account has its own credentials, raw provenance, and SQLite evidence DB.
+Account labels are explicit and simultaneous. There is no silent account blending. Each account has its own credentials, raw provenance, and SQLite evidence DB.
 
 Named geography presets also live in config. Top-level `geographies.<name>` are shared; `accounts.<account>.geographies.<name>` override shared presets for that account. Supported kinds are:
 
@@ -112,7 +112,7 @@ The default SQLite path is:
 Import official Foursquare export/takeout files:
 
 ```bash
-swarm-cadence db import-files --account default --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/<person>/Foursquare" --format json
+swarm-cadence db import-files --account default --path <foursquare-export-dir> --format json
 ```
 
 When export rows overlap existing v2/API check-ins by id, the importer preserves the richer API row and inserts only export-only historical rows. It writes `quality/checkins-missing-values.csv` next to the SQLite DB when imported check-ins have null values in expected fields such as `venue`.
@@ -120,7 +120,7 @@ When export rows overlap existing v2/API check-ins by id, the importer preserves
 Audit raw v2 pages against an official export by check-in id:
 
 ```bash
-swarm-cadence audit overlap --account default --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/<person>/Foursquare" --format json
+swarm-cadence audit overlap --account default --path <foursquare-export-dir> --format json
 ```
 
 The audit is read-only and compares preserved source files directly.

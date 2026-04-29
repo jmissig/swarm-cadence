@@ -1,0 +1,60 @@
+{
+  "meta": { "code": 200 },
+  "response": {
+    "checkins": {
+      "count": 3,
+      "items": [
+        {
+          "id": "synthetic-checkin-v2-1",
+          "createdAt": 1700000000,
+          "timeZoneOffset": -480,
+          "venue": {
+            "id": "synthetic-venue-cafe",
+            "name": "Synthetic Cafe",
+            "timeZone": "America/Los_Angeles",
+            "location": {
+              "lat": 37.100001,
+              "lng": -122.200001,
+              "city": "Example City",
+              "state": "CA",
+              "postalCode": "94000",
+              "cc": "US",
+              "country": "United States"
+            },
+            "categories": [
+              {
+                "id": "synthetic-category-coffee",
+                "name": "Coffee Shop",
+                "pluralName": "Coffee Shops",
+                "shortName": "Coffee"
+              }
+            ]
+          }
+        },
+        {
+          "id": "synthetic-checkin-v2-no-venue",
+          "createdAt": 1700000100,
+          "timeZoneOffset": -480
+        },
+        {
+          "id": "synthetic-checkin-v2-no-category",
+          "createdAt": 1700000200,
+          "timeZoneOffset": -480,
+          "venue": {
+            "id": "synthetic-venue-park",
+            "name": "Synthetic Park",
+            "location": {
+              "lat": 37.100002,
+              "lng": -122.200002,
+              "city": "Example City",
+              "state": "CA",
+              "cc": "US",
+              "country": "United States"
+            },
+            "categories": []
+          }
+        }
+      ]
+    }
+  }
+}

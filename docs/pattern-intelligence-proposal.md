@@ -11,7 +11,7 @@ One near-term acceptance test is concrete:
 Lunch is an example Guide to validate the theory, not the center of the tool. The next implementation move is a thin, reusable evidence-query slice, not “the connector,” not a lunch-specific recommender, and not a general-purpose packet/workbench generator:
 
 ```text
-proven v2 path + preserved account/account raw pages
+proven v2 path + preserved separate per-account raw pages
   -> parallel offline SQLite evidence stores with explicit account attribution
   -> first venue/date/window/cadence evidence queries
   -> stable source/derived pieces for Robut to compose
@@ -21,15 +21,10 @@ proven v2 path + preserved account/account raw pages
 
 ## Source research notes
 
-This proposal adapts the Obsidian research notes and artifacts:
-
-- `Foursquare Swarm Connector` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Foursquare Swarm Connector.md`
-- `Pattern Extraction Tooling` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Pattern Extraction Tooling.md`
-- `Pattern Intelligence Research Index` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Pattern Intelligence Research Index.md`
-- `Almanacs and Guides` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Almanacs and Guides.md`
-- `Food & Places Almanac v0` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Food & Places Almanac v0.md`
-- `Lunch Guide Source Bundle v0` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Lunch Guide Source Bundle v0.md`
-- `Lunch Guide v0` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Lunch Guide v0.md`
+This proposal was adapted from private local research notes about Swarm/Foursquare
+connectors, pattern extraction, Almanacs/Guides, and lunch/place evidence
+artifacts. Those private note paths are intentionally not part of the public
+repository.
 
 ## Vocabulary boundary
 

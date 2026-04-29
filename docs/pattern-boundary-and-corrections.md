@@ -68,7 +68,7 @@ Useful attachment targets for `swarm-cadence`:
 - a check-in or visit window, for travel/social obligation/one-off context;
 - a category/group, for bad metadata or household meaning;
 - a geography/anchor/area, for local-vs-travel interpretation;
-- a person/family context, for account/account/shared distinction.
+- a person/family context, for per-person/shared distinction.
 
 Example annotations:
 

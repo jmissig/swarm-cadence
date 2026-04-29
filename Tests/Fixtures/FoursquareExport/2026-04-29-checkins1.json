@@ -1,0 +1,29 @@
+{
+  "count": 2,
+  "items": [
+    {
+      "id": "synthetic-checkin-v2-1",
+      "createdAt": "2023-11-14 22:13:20.000000",
+      "type": "checkin",
+      "timeZoneOffset": -480,
+      "venue": null,
+      "comments": { "count": 0 },
+      "lat": 37.900001,
+      "lng": -122.900001
+    },
+    {
+      "id": "synthetic-export-only-1",
+      "createdAt": "2020-01-01 12:00:00.000000",
+      "type": "checkin",
+      "timeZoneOffset": -480,
+      "venue": {
+        "id": "synthetic-export-venue",
+        "name": "Synthetic Export Cafe",
+        "url": "https://app.foursquare.com/v/synthetic-export-cafe/synthetic-export-venue"
+      },
+      "comments": { "count": 0 },
+      "lat": 37.300001,
+      "lng": -122.400001
+    }
+  ]
+}
