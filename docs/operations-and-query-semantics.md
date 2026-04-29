@@ -13,17 +13,17 @@ The normal config location is:
 `auth login` creates or updates that JSON without hand-editing:
 
 ```bash
-swarm-cadence auth login      # prompts for account label; default: julian
-swarm-cadence auth login --account alice
+swarm-cadence auth login      # prompts for account label; default: default
+swarm-cadence auth login --account partner
 ```
 
-On first run, omitted `--account` defaults to `julian`. When accounts already exist, `auth login` lists them and lets the operator update an existing label or add a new one such as `alice`. It can store a pasted Foursquare v2 access token or perform the documented OAuth code exchange. It never prints tokens or client secrets. `swarm-cadence setup` remains a compatibility alias for `auth login`.
+On first run, omitted `--account` defaults to `default`. When accounts already exist, `auth login` lists them and lets the operator update an existing label or add a new one such as `partner`. It can store a pasted Foursquare v2 access token or perform the documented OAuth code exchange. It never prints tokens or client secrets. `swarm-cadence setup` remains a compatibility alias for `auth login`.
 
 Check auth state without changing files:
 
 ```bash
-swarm-cadence auth status --account julian
-swarm-cadence auth status --account julian --format json
+swarm-cadence auth status --account default
+swarm-cadence auth status --account default --format json
 ```
 
 Use `config/swarm-cadence.config.example.json` as a template for manual config:
@@ -34,7 +34,7 @@ make install-config-example
 
 Keep real tokens out of git. Non-interactive auth login should pass both `--account <label>` and `--access-token <token>`; JSON mode never prompts.
 
-Account labels are explicit and simultaneous. There is no silent Julian/Alice blending. Each account has its own credentials, raw provenance, and SQLite evidence DB.
+Account labels are explicit and simultaneous. There is no silent account/account blending. Each account has its own credentials, raw provenance, and SQLite evidence DB.
 
 Named geography presets also live in config. Top-level `geographies.<name>` are shared; `accounts.<account>.geographies.<name>` override shared presets for that account. Supported kinds are:
 
@@ -49,7 +49,7 @@ Do not commit real private coordinates.
 
 ```bash
 swarm-cadence source status --format json
-swarm-cadence source status --account julian --format json
+swarm-cadence source status --account default --format json
 ```
 
 It reports whether v2/historysearch inputs are present and whether default raw/SQLite paths exist. It does not query SQLite, read raw payloads, call Foursquare, or print tokens/cookies/session values.
@@ -57,14 +57,14 @@ It reports whether v2/historysearch inputs are present and whether default raw/S
 Dry probes validate local config shape only:
 
 ```bash
-swarm-cadence source probe --account julian --adapter v2 --format json
-swarm-cadence source probe --account julian --adapter historysearch --format json
+swarm-cadence source probe --account default --adapter v2 --format json
+swarm-cadence source probe --account default --adapter historysearch --format json
 ```
 
 A live v2 probe is one explicit read-only source viability check:
 
 ```bash
-swarm-cadence source probe --account julian --adapter v2 --format json --live
+swarm-cadence source probe --account default --adapter v2 --format json --live
 ```
 
 It performs one `GET /v2/users/self/checkins` request with `limit=1`. It does not ingest, backfill, preserve raw payloads, or write SQLite.
@@ -74,7 +74,7 @@ It performs one `GET /v2/users/self/checkins` request with `limit=1`. It does no
 Preserve one raw v2 check-ins page explicitly:
 
 ```bash
-swarm-cadence raw fetch --account julian --adapter v2 --limit 250 --offset 0
+swarm-cadence raw fetch --account default --adapter v2 --limit 250 --offset 0
 ```
 
 `raw fetch` performs exactly one request per invocation. `--limit` defaults to `250` and cannot exceed `250`; `--offset` defaults to `0` and must be non-negative. By default, raw files are written under:
@@ -88,7 +88,7 @@ The command writes one unmodified `*.raw.json` response and one adjacent redacte
 Use `ingest` for bounded cron-friendly collection:
 
 ```bash
-swarm-cadence ingest --account julian --adapter v2 --format json
+swarm-cadence ingest --account default --adapter v2 --format json
 ```
 
 Defaults are intentionally small: `--pages 4`, `--limit 250`, and `--delay-ms 1000`. It preserves each raw page and manifest, imports after each successful page, and stops when it reaches an existing local check-in id, a short page, or the page cap. Status values include `updated`, `no_new_checkins`, `updated_partial`, `config_missing`, `source_blocked`, and `import_failed`.
@@ -98,7 +98,7 @@ Defaults are intentionally small: `--pages 4`, `--limit 250`, and `--delay-ms 10
 Import preserved v2 raw files into SQLite:
 
 ```bash
-swarm-cadence db import-raw --account julian
+swarm-cadence db import-raw --account default
 ```
 
 The importer performs no network calls. It verifies each raw file against its manifest SHA256, then upserts raw files, check-ins, venues, categories, and check-in/category links.
@@ -112,7 +112,7 @@ The default SQLite path is:
 Import official Foursquare export/takeout files:
 
 ```bash
-swarm-cadence db import-files --account julian --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/Julian/Foursquare" --format json
+swarm-cadence db import-files --account default --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/<person>/Foursquare" --format json
 ```
 
 When export rows overlap existing v2/API check-ins by id, the importer preserves the richer API row and inserts only export-only historical rows. It writes `quality/checkins-missing-values.csv` next to the SQLite DB when imported check-ins have null values in expected fields such as `venue`.
@@ -120,7 +120,7 @@ When export rows overlap existing v2/API check-ins by id, the importer preserves
 Audit raw v2 pages against an official export by check-in id:
 
 ```bash
-swarm-cadence audit overlap --account julian --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/Julian/Foursquare" --format json
+swarm-cadence audit overlap --account default --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/<person>/Foursquare" --format json
 ```
 
 The audit is read-only and compares preserved source files directly.

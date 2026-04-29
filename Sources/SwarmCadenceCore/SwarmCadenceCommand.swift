@@ -137,13 +137,13 @@ private struct SwarmCadenceCLI: ParsableCommand {
           swarm-cadence auth login [--account <label>]
           swarm-cadence setup [--account <label>]
           swarm-cadence source status [--account <label>]
-          swarm-cadence ingest --account julian --adapter v2
-          swarm-cadence query visits --account julian --date 2026-03-25
-          swarm-cadence annotations add --account julian --target-kind venue --target-id <venue-id> --body "Annotation"
-          swarm-cadence annotations list --account julian --target-kind venue --target-id <venue-id>
-          swarm-cadence query compare --account julian --baseline-from 2026-03-01 --recent-from 2026-04-01
-          swarm-cadence query lapses --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01
-          swarm-cadence evidence packet --account julian --date 2026-03-25 --baseline-from 2026-03-01 --recent-from 2026-04-01
+          swarm-cadence ingest --account default --adapter v2
+          swarm-cadence query visits --account default --date 2026-03-25
+          swarm-cadence annotations add --account default --target-kind venue --target-id <venue-id> --body "Annotation"
+          swarm-cadence annotations list --account default --target-kind venue --target-id <venue-id>
+          swarm-cadence query compare --account default --baseline-from 2026-03-01 --recent-from 2026-04-01
+          swarm-cadence query lapses --account default --baseline-from 2024-01-01 --recent-from 2026-01-01
+          swarm-cadence evidence packet --account default --date 2026-03-25 --baseline-from 2026-03-01 --recent-from 2026-04-01
 
         Defaults live under ~/Library/Application Support/swarm-cadence: config.json
         plus per-account raw archives and SQLite DBs under accounts/<label>/.
@@ -214,7 +214,7 @@ private struct AuthStatusCommand: ParsableCommand {
         abstract: "Show configured account/auth readiness."
     )
 
-    @Option(help: "Account label to inspect, such as julian or alice.") var account: String?
+    @Option(help: "Account label to inspect, such as default or partner.") var account: String?
     @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
     @Option(help: "Output format: auto, text, or json.") var format = "auto"
     @Flag(help: "Shortcut for --format json.") var json = false
@@ -262,7 +262,7 @@ private struct AuthClearCommand: ParsableCommand {
         abstract: "Remove saved account auth."
     )
 
-    @Option(help: "Account label to clear, such as julian or alice.") var account: String?
+    @Option(help: "Account label to clear, such as default or partner.") var account: String?
     @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
     @Option(help: "Output format: auto, text, or json.") var format = "auto"
     @Flag(help: "Required to remove stored credentials.") var force = false
@@ -1875,7 +1875,7 @@ struct EvidencePacketOptions {
 }
 
 private struct SetupArguments: ParsableArguments {
-    @Option(help: "Account label to configure, such as julian or alice. Text mode prompts when omitted.") var account: String?
+    @Option(help: "Account label to configure, such as default or partner. Text mode prompts when omitted.") var account: String?
     @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
     @Option(help: "Output format: auto, text, or json. JSON mode never prompts.") var format = "auto"
     @Option(name: .customLong("access-token"), help: "Existing Foursquare v2 access token. Fastest path; skips the browser OAuth flow.") var accessToken: String?
@@ -1903,7 +1903,7 @@ private struct SourceProbeArguments: ParsableArguments {
 }
 
 private struct RawFetchArguments: ParsableArguments {
-    @Option(help: "Account label to fetch for, such as julian or alice.") var account: String?
+    @Option(help: "Account label to fetch for, such as default or partner.") var account: String?
     @Option(help: "Source adapter to use. Currently only v2 is supported for live raw fetches.") var adapter = "v2"
     @Option(help: "Output format: auto, text, or json.") var format = "auto"
     @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
@@ -1914,7 +1914,7 @@ private struct RawFetchArguments: ParsableArguments {
 }
 
 private struct RawFetchPagesArguments: ParsableArguments {
-    @Option(help: "Account label to fetch for, such as julian or alice.") var account: String?
+    @Option(help: "Account label to fetch for, such as default or partner.") var account: String?
     @Option(help: "Source adapter to use. Currently only v2 is supported for live raw fetches.") var adapter = "v2"
     @Option(help: "Output format: auto, text, or json.") var format = "auto"
     @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
@@ -1927,7 +1927,7 @@ private struct RawFetchPagesArguments: ParsableArguments {
 }
 
 private struct IngestUpdateArguments: ParsableArguments {
-    @Option(help: "Account label to update, such as julian or alice.") var account: String?
+    @Option(help: "Account label to update, such as default or partner.") var account: String?
     @Option(help: "Source adapter to use. Ingest currently supports v2 only.") var adapter = "v2"
     @Option(help: "Output format: auto, text, or json.") var format = "auto"
     @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?

@@ -254,11 +254,11 @@ final class SetupAuthTests: XCTestCase {
         )
 
         XCTAssertEqual(exit, 0)
-        XCTAssertTrue(output.contains("Account label [julian]:"))
-        XCTAssertTrue(output.contains("Account: julian"))
+        XCTAssertTrue(output.contains("Account label [default]:"))
+        XCTAssertTrue(output.contains("Account: default"))
         XCTAssertFalse(output.contains("first-token"))
         let flattened = try JSONConfig.load(path: config.path)
-        XCTAssertEqual(flattened["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN"], "first-token")
+        XCTAssertEqual(flattened["SWARM_CADENCE_DEFAULT_V2_ACCESS_TOKEN"], "first-token")
     }
 
     func testAuthLoginWithoutAccountCanAddSecondAccountWhenConfigExists() throws {

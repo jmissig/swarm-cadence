@@ -23,9 +23,9 @@ query sidecar.
 
 ```bash
 swift run swarm-cadence auth login
-swift run swarm-cadence auth status --account julian --format json
-swift run swarm-cadence source probe --account julian --adapter v2 --format json
-swift run swarm-cadence source probe --account julian --adapter historysearch --format json
+swift run swarm-cadence auth status --account default --format json
+swift run swarm-cadence source probe --account default --adapter v2 --format json
+swift run swarm-cadence source probe --account default --adapter historysearch --format json
 ```
 
 Default config:
@@ -36,7 +36,7 @@ Default config:
 
 Use `swarm-cadence auth login` for the normal first-run auth path. If
 `--account` is omitted in auto/text mode, it prompts for an account label: default
-`julian` when no accounts exist, or an existing/new label when accounts are
+`default` when no accounts exist, or an existing/new label when accounts are
 already present. It creates or merges the JSON config, preserving other accounts
 and fallback adapter sections. `swarm-cadence setup` is kept only as a
 compatibility alias for `auth login`, so the command shape stays aligned with
@@ -45,8 +45,8 @@ compatibility alias for `auth login`, so the command shape stays aligned with
 template, or run `make install-config-example` to copy it into the default
 location without overwriting an existing config.
 
-The JSON config is account-structured with first-class `accounts.julian` and
-`accounts.alice` sections. Environment variables override values from the config
+The JSON config is account-structured with first-class `accounts.default` and
+`accounts.partner` sections. Environment variables override values from the config
 file. All configured values are reported as present or missing only; values are
 never printed.
 
@@ -77,7 +77,7 @@ Run only when a real v2 OAuth token has been stored outside git:
 
 ```bash
 swift run swarm-cadence source probe \
-  --account julian \
+  --account default \
   --adapter v2 \
   --format json \
   --live
@@ -110,7 +110,7 @@ Run only after a live v2 source probe succeeds:
 
 ```bash
 swift run swarm-cadence raw fetch \
-  --account julian \
+  --account default \
   --adapter v2 \
   --format json \
   --limit 250 \
@@ -146,10 +146,10 @@ To preserve a deliberate four-page sample of roughly 1000 check-ins, run four
 separate invocations:
 
 ```bash
-swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --limit 250 --offset 0
-swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --limit 250 --offset 250
-swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --limit 250 --offset 500
-swift run swarm-cadence raw fetch --account julian --adapter v2 --format json --limit 250 --offset 750
+swift run swarm-cadence raw fetch --account default --adapter v2 --format json --limit 250 --offset 0
+swift run swarm-cadence raw fetch --account default --adapter v2 --format json --limit 250 --offset 250
+swift run swarm-cadence raw fetch --account default --adapter v2 --format json --limit 250 --offset 500
+swift run swarm-cadence raw fetch --account default --adapter v2 --format json --limit 250 --offset 750
 ```
 
 This is intentionally manual paging. Each command performs one request only; the
@@ -160,7 +160,7 @@ CLI does not follow cursors or loop through pages.
 After preserving one or more raw v2 pages, import them into that account's local SQLite sidecar:
 
 ```bash
-swift run swarm-cadence db import-raw --account julian
+swift run swarm-cadence db import-raw --account default
 ```
 
 Safety boundary:
@@ -178,7 +178,7 @@ Import local file-based sources with `db import-files`. The default source is
 `checkins*.json` files:
 
 ```bash
-swift run swarm-cadence db import-files --account julian --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/Julian/Foursquare" --format json
+swift run swarm-cadence db import-files --account default --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/<person>/Foursquare" --format json
 ```
 
 When export rows overlap existing v2/API check-ins by id, the importer preserves
@@ -189,7 +189,7 @@ check-ins have null values in fields the importer expects, such as `venue`.
 Audit raw v2 pages against an official export by check-in id:
 
 ```bash
-swift run swarm-cadence audit overlap --account julian --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/Julian/Foursquare" --format json
+swift run swarm-cadence audit overlap --account default --path "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Robut/<person>/Foursquare" --format json
 ```
 
 The audit is read-only and compares preserved source files directly; it does not
@@ -212,7 +212,7 @@ The initial schema is intentionally small:
 Audit aggregate coverage:
 
 ```bash
-swift run swarm-cadence db stats --account julian
+swift run swarm-cadence db stats --account default
 ```
 
 `db stats` reports raw file, check-in, venue, and category counts plus oldest
@@ -221,34 +221,34 @@ and latest check-in timestamps. It does not print raw payload contents.
 Read aggregate venue evidence from the account DB:
 
 ```bash
-swift run swarm-cadence query venues --account julian --format json
-swift run swarm-cadence query venues --account julian --from 2024-01-01 --to 2024-12-31 --limit 50
-swift run swarm-cadence query venues --account julian --locality "San Mateo" --region CA --country-code US --format json
-swift run swarm-cadence query venues --account julian --locality "San Mateo" --near-lat 37.563 --near-lng -122.325 --radius-meters 5000 --format json
-swift run swarm-cadence query venues --account julian --near-place jackson-square --radius-meters 900 --format json
-swift run swarm-cadence query venues --account julian --area peninsula --category "Coffee Shop" --format json
+swift run swarm-cadence query venues --account default --format json
+swift run swarm-cadence query venues --account default --from 2024-01-01 --to 2024-12-31 --limit 50
+swift run swarm-cadence query venues --account default --locality "San Mateo" --region CA --country-code US --format json
+swift run swarm-cadence query venues --account default --locality "San Mateo" --near-lat 37.563 --near-lng -122.325 --radius-meters 5000 --format json
+swift run swarm-cadence query venues --account default --near-place jackson-square --radius-meters 900 --format json
+swift run swarm-cadence query venues --account default --area peninsula --category "Coffee Shop" --format json
 ```
 
 Drill into supporting rows without printing raw payloads:
 
 ```bash
-swift run swarm-cadence query visits --account julian --venue-id <venue-id> --format json
+swift run swarm-cadence query visits --account default --venue-id <venue-id> --format json
 ```
 
 For Almanac-style local calendar/time questions, filter with the imported
 sidecar fields:
 
 ```bash
-swift run swarm-cadence query visits --account julian --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
-swift run swarm-cadence query venues --account julian --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
+swift run swarm-cadence query visits --account default --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
+swift run swarm-cadence query venues --account default --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
 ```
 
 For generic cadence comparison, compare a baseline window against a recent
 window. This returns venue-level support facts rather than recommendations:
 
 ```bash
-swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --hour-from 11 --hour-to 14 --locality "San Mateo" --region CA --format json
-swift run swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --area peninsula --format json
+swift run swarm-cadence query compare --account default --baseline-from 2024-01-01 --recent-from 2026-01-01 --hour-from 11 --hour-to 14 --locality "San Mateo" --region CA --format json
+swift run swarm-cadence query compare --account default --baseline-from 2024-01-01 --recent-from 2026-01-01 --area peninsula --format json
 ```
 
 For active/lapsed evidence, use the same explicit windows through `query lapses`.
@@ -257,7 +257,7 @@ freshness, categories, geography, and drill-downs; it does not assert that a
 venue was abandoned or is preferred:
 
 ```bash
-swift run swarm-cadence query lapses --account julian --baseline-from 2018-01-01 --recent-from 2024-01-01 --min-baseline-visits 10 --area peninsula --format json
+swift run swarm-cadence query lapses --account default --baseline-from 2018-01-01 --recent-from 2024-01-01 --min-baseline-visits 10 --area peninsula --format json
 ```
 
 For factual venue time/cadence rollups, use `query cadence`. It returns support
@@ -266,16 +266,16 @@ weekday/weekend counts, observed gap days, freshness, and visit drill-downs; it
 does not assign meal labels or choose a recommended venue:
 
 ```bash
-swift run swarm-cadence query cadence --account julian --venue-id <venue-id> --from 2024-01-01 --to 2026-04-28 --format json
-swift run swarm-cadence query cadence --account julian --locality "San Mateo" --hour-from 11 --hour-to 14 --limit 25 --format json
-swift run swarm-cadence query cadence --account julian --near-place jackson-square --hour-from 11 --hour-to 14 --limit 25 --format json
+swift run swarm-cadence query cadence --account default --venue-id <venue-id> --from 2024-01-01 --to 2026-04-28 --format json
+swift run swarm-cadence query cadence --account default --locality "San Mateo" --hour-from 11 --hour-to 14 --limit 25 --format json
+swift run swarm-cadence query cadence --account default --near-place jackson-square --hour-from 11 --hour-to 14 --limit 25 --format json
 ```
 
 For builder-facing packets, use the same explicit window without adding fuzzy
 labels inside the CLI:
 
 ```bash
-swift run swarm-cadence evidence window --account julian --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
+swift run swarm-cadence evidence window --account default --date 2025-12-23 --hour-from 8 --hour-to 11 --format json
 ```
 
 `query venues`, `query cadence`, and `query compare` support factual Foursquare venue-location
@@ -305,7 +305,7 @@ match/return counts, categories when present, and local-time fields for visits.
 
 ## v2 OAuth path
 
-Primary path for Julian after the successful live v2 probe. Alice is a first-class simultaneous account for this tool: run the same credential probe for Alice before fetching or importing Alice's data.
+Primary path for a configured account after the successful live v2 probe. Additional people are first-class simultaneous accounts for this tool: run the same credential probe for each account before fetching or importing that account's data.
 
 Current Foursquare v2 docs identify the target read endpoint as:
 
@@ -321,15 +321,15 @@ account.
 Required for a live v2 probe:
 
 ```text
-SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN
+SWARM_CADENCE_DEFAULT_V2_ACCESS_TOKEN
 ```
 
 Useful setup breadcrumbs, stored outside git:
 
 ```text
-SWARM_CADENCE_JULIAN_V2_CLIENT_ID
-SWARM_CADENCE_JULIAN_V2_CLIENT_SECRET
-SWARM_CADENCE_JULIAN_V2_REDIRECT_URI
+SWARM_CADENCE_DEFAULT_V2_CLIENT_ID
+SWARM_CADENCE_DEFAULT_V2_CLIENT_SECRET
+SWARM_CADENCE_DEFAULT_V2_REDIRECT_URI
 ```
 
 External setup steps for a new or repaired v2 credential:
@@ -358,15 +358,15 @@ check-in history for an account.
 Required for a future live historysearch probe:
 
 ```text
-SWARM_CADENCE_JULIAN_HISTORYSEARCH_USERID
-SWARM_CADENCE_JULIAN_HISTORYSEARCH_WSID
-SWARM_CADENCE_JULIAN_HISTORYSEARCH_OAUTH_TOKEN
+SWARM_CADENCE_DEFAULT_HISTORYSEARCH_USERID
+SWARM_CADENCE_DEFAULT_HISTORYSEARCH_WSID
+SWARM_CADENCE_DEFAULT_HISTORYSEARCH_OAUTH_TOKEN
 ```
 
 Optional, only if a future live historysearch probe proves it is needed:
 
 ```text
-SWARM_CADENCE_JULIAN_HISTORYSEARCH_COOKIE
+SWARM_CADENCE_DEFAULT_HISTORYSEARCH_COOKIE
 ```
 
 External setup steps for a historysearch fallback credential:
@@ -377,7 +377,7 @@ External setup steps for a historysearch fallback credential:
 4. Copy only the minimal request parameters needed for a future live probe:
    `userid`, `wsid`, and `oauth_token`.
 5. Store those values outside git in the matching
-   `SWARM_CADENCE_JULIAN_HISTORYSEARCH_*` inputs.
+   `SWARM_CADENCE_DEFAULT_HISTORYSEARCH_*` inputs.
 6. Rerun the dry probe and confirm it reports `ready_for_live_probe`.
 
 Treat these values as browser-session secrets. They are more brittle and more
@@ -388,16 +388,16 @@ sensitive than normal app configuration.
 The CLI requires an explicit account label:
 
 ```bash
---account julian
---account alice
+--account default
+--account partner
 ```
 
 The label becomes part of the expected variable name. Hyphens are converted to
 underscores and the label is uppercased:
 
 ```text
---account julian       -> SWARM_CADENCE_JULIAN_...
---account alice        -> SWARM_CADENCE_ALICE_...
+--account default       -> SWARM_CADENCE_DEFAULT_...
+--account partner        -> SWARM_CADENCE_PARTNER_...
 --account test-person  -> SWARM_CADENCE_TEST_PERSON_...
 ```
 

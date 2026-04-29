@@ -67,7 +67,7 @@ safely as possible.
 - [x] Add a first explicit source-overlap/audit command.
   - Implemented `audit overlap` as a read-only raw-source comparison.
   - It compares export vs v2 by check-in id and summarizes timestamp, venue, coordinate, category, and field-coverage differences.
-  - Current full Julian audit: 9,292 overlapping v2/export ids; timestamps match for all overlaps; venue id matches 9,287 and mismatches 5; v2 has categories for 9,284 overlapping rows and export has 0.
+  - Current full account audit: 9,292 overlapping v2/export ids; timestamps match for all overlaps; venue id matches 9,287 and mismatches 5; v2 has categories for 9,284 overlapping rows and export has 0.
 
 - [x] Run first real evidence reads from the now-imported data.
   - Snapshot stored under `.tmp/real-evidence-20260427T055137Z/` (ignored scratch).
@@ -142,8 +142,8 @@ safely as possible.
   - Preserve the existing semantic distinction: “in place” = factual locality/region/postal/country filters; “near place” = anchor/radius evidence that can include neighboring localities.
   - Start with explicit local presets that have proven useful in Almanac work, for example `home`, `jackson-square`, `peninsula`, and maybe `ferry-building` if needed.
   - Implemented command shapes:
-    - `query venues --account julian --near-place jackson-square --radius-meters 900 --format json`
-    - `query venues --account julian --area peninsula --category "Coffee Shop" --format json`
+    - `query venues --account default --near-place jackson-square --radius-meters 900 --format json`
+    - `query venues --account default --area peninsula --category "Coffee Shop" --format json`
   - `query venues`, `query cadence`, `query compare`, and the experimental diagnostic envelope now resolve config-defined `anchor` and `area` presets in the CLI/options layer.
   - Output includes requested/resolved geography definitions, semantics, and effective primitive filters or area-locality selectors.
   - Kept named areas as transparent query expansion / geography evidence, not recommendation logic.
@@ -152,7 +152,7 @@ safely as possible.
   - Added `query lapses` as a thin evidence-shaped wrapper over the comparison substrate.
   - `query compare` / `query lapses` now include source freshness and observed gap-day facts alongside support counts, first/last seen, comparison windows, categories, geography, and drill-downs.
   - Example command:
-    - `query lapses --account julian --baseline-from 2018-01-01 --recent-from 2024-01-01 --min-baseline-visits 10 --format json`
+    - `query lapses --account default --baseline-from 2018-01-01 --recent-from 2024-01-01 --min-baseline-visits 10 --format json`
   - The tool may say “historically strong, absent recently” or “recently active”; it must not infer “disliked,” “abandoned,” or “favorite” as a final judgment.
 
 - [x] Add a narrow venue identity audit for export/API merge checks.
@@ -160,13 +160,13 @@ safely as possible.
   - It reports same-name/same-address and same-name/nearby venue-ID candidates with source-adapter support counts.
   - This is intentionally read-only audit evidence, not aliasing, canonical venue grouping, or automatic merge logic.
   - Example command:
-    - `audit identity --account julian --format json`
+    - `audit identity --account default --format json`
 
 - [ ] Add trip / travel-burst clustering after local source/derived pieces are usable.
   - Motivation: airports, hotels, ski trips, Hong Kong/Taiwan clusters, and other bursts should be separable from ordinary local food/place evidence.
   - The tool can expose bounded travel clusters by country/locality/date gaps; Robut decides how to use them in Almanacs/Guides.
   - Possible command shape:
-    - `query trips --account julian --country-code TW --gap-days 3 --include localities,categories,top-venues --format json`
+    - `query trips --account default --country-code TW --gap-days 3 --include localities,categories,top-venues --format json`
   - Keep this descriptive: dates, places, support, top venues/categories, and drill-downs; no travel-personality conclusions.
 
 - [ ] Consider transparent category groups later, only if exact category selection remains too repetitive.
@@ -189,10 +189,10 @@ safely as possible.
 
 ## Recently completed
 
-- [x] Migrated ignored repo-local Julian evidence into the new Application Support layout.
+- [x] Migrated ignored repo-local account evidence into the new Application Support layout.
   - Source: `data/raw/v2/checkins` and `data/swarm-cadence.sqlite`.
-  - Destination: `~/Library/Application Support/swarm-cadence/accounts/julian/`.
-  - Result: 4 imported v2 pages / 1,000 check-ins / 642 venues / 175 categories in the default Julian DB.
+  - Destination: `~/Library/Application Support/swarm-cadence/accounts/<account>/`.
+  - Result: 4 imported v2 pages / 1,000 check-ins / 642 venues / 175 categories in the default account DB.
   - Also migrated `.swarm-cadence.env` into local `config.json` without committing secrets.
 - [x] Build the raw-file manifest index in SQLite.
   - `raw_files` tracks source path/name, SHA, bytes, fetched_at, adapter,
@@ -202,7 +202,7 @@ safely as possible.
   - Existing ignored repo-local data includes offsets `0`, `250`, `500`, and
     `750` at `limit=250`, all HTTP/API 200, now migrated to defaults.
 - [x] Add first two-account fixture/default coverage.
-  - Julian and Alice are first-class account profiles under Application Support.
+  - Multiple people are first-class account profiles under Application Support.
   - Per-account raw and SQLite defaults are separate; no silent blending.
 - [x] Add first evidence queries over imported v2 SQLite.
   - `query venues` and `query visits` expose visit counts, first/last seen,
@@ -228,8 +228,8 @@ safely as possible.
   - Implemented `raw fetch-pages` with `--pages` capped at 200, `--limit` capped at 250, and `--delay-ms` defaulting to 1000.
   - The command writes raw files/manifests only; import remains a separate `db import-raw` step.
   - It stops early on non-success status or a short page.
-  - Ran Julian backfill from offset 2000 with 30 requested pages; fetched 30 pages / 7,315 raw items, stopping at offset 9250 with a short 65-item page. Last observed rate-limit remaining: 466/500.
-  - Imported raw v2 backfill: default Julian DB now has 48 raw files, 9,359 check-ins, 4,348 venues, and 389 categories; retained rows are 9,314 v2 + 45 export-only.
+  - Ran account backfill from offset 2000 with 30 requested pages; fetched 30 pages / 7,315 raw items, stopping at offset 9250 with a short 65-item page. Last observed rate-limit remaining: 466/500.
+  - Imported raw v2 backfill: default account DB now has 48 raw files, 9,359 check-ins, 4,348 venues, and 389 categories; retained rows are 9,314 v2 + 45 export-only.
   - Full post-fetch audit: 9,292 overlapping v2/export ids; timestamps match for all overlaps; venue id matches 9,287 and mismatches 5; v2 has categories for 9,284 overlapping rows and export has 0.
 - [ ] Keep `historysearch` as a narrow fallback if v2 becomes blocked for an
   account.
@@ -248,5 +248,5 @@ safely as possible.
 - No write/sync-back to Swarm/Foursquare.
 - No hidden background sync.
 - No opaque recommender or hidden score.
-- No silent Julian/Alice blending.
+- No silent account blending.
 - No cross-source joins without a visible purpose and boundary.

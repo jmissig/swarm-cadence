@@ -6,12 +6,12 @@
 
 One near-term acceptance test is concrete:
 
-> Julian asks: “Where should I grab lunch today?”
+> A person asks: “Where should I grab lunch today?”
 
 Lunch is an example Guide to validate the theory, not the center of the tool. The next implementation move is a thin, reusable evidence-query slice, not “the connector,” not a lunch-specific recommender, and not a general-purpose packet/workbench generator:
 
 ```text
-proven v2 path + preserved Julian/Alice raw pages
+proven v2 path + preserved account/account raw pages
   -> parallel offline SQLite evidence stores with explicit account attribution
   -> first venue/date/window/cadence evidence queries
   -> stable source/derived pieces for Robut to compose
@@ -27,7 +27,7 @@ This proposal adapts the Obsidian research notes and artifacts:
 - `Pattern Extraction Tooling` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Pattern Extraction Tooling.md`
 - `Pattern Intelligence Research Index` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Pattern Intelligence Research Index.md`
 - `Almanacs and Guides` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Almanacs and Guides.md`
-- `Julian’s Food & Places Almanac v0` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Julian’s Food & Places Almanac v0.md`
+- `Food & Places Almanac v0` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Food & Places Almanac v0.md`
 - `Lunch Guide Source Bundle v0` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Lunch Guide Source Bundle v0.md`
 - `Lunch Guide v0` — `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Lunch Guide v0.md`
 
@@ -39,7 +39,7 @@ Human-facing artifacts should use friendlier terms:
 
 - **Food & Places Almanac** — durable sourced understanding over time.
 - **Lunch Guide** — situated help for “where should I grab lunch today?”
-- **Lens** — reliable nearby, revive lapsed, quick, outing, rainy day, with Alice.
+- **Lens** — reliable nearby, revive lapsed, quick, outing, rainy day, with another person.
 - **Option** — a possible place/venue with reasons.
 - **Source trail** — how to inspect where the claim came from.
 - **Edit** — human correction or policy override.
@@ -59,16 +59,16 @@ implemented.
 Implemented dry probe commands:
 
 ```bash
-swarm-cadence source probe --account julian --adapter v2 --format json
-swarm-cadence source probe --account julian --adapter historysearch --format json
+swarm-cadence source probe --account default --adapter v2 --format json
+swarm-cadence source probe --account default --adapter historysearch --format json
 ```
 
-These commands inspect environment/config shape only, redact sensitive values, and report `network_performed: false`. They intentionally stop at `external_setup_required` until Julian provides v2 OAuth token material or Swarm web `historysearch` session material outside git.
+These commands inspect environment/config shape only, redact sensitive values, and report `network_performed: false`. They intentionally stop at `external_setup_required` until the operator provides v2 OAuth token material or Swarm web `historysearch` session material outside git.
 
 Implemented live v2 probe:
 
 ```bash
-swarm-cadence source probe --account julian --adapter v2 --format json --live
+swarm-cadence source probe --account default --adapter v2 --format json --live
 ```
 
 The live v2 probe performs one read-only `GET /v2/users/self/checkins` request
@@ -78,7 +78,7 @@ no evidence database or fixtures.
 Implemented raw v2 preservation:
 
 ```bash
-swarm-cadence raw fetch --account julian --adapter v2 --limit 250
+swarm-cadence raw fetch --account default --adapter v2 --limit 250
 ```
 
 This command performs exactly one v2 check-ins request, defaults to `limit=250`,
@@ -88,8 +88,8 @@ adjacent manifest, and does not write SQLite.
 Implemented offline v2 SQLite import:
 
 ```bash
-swarm-cadence db import-raw --account julian
-swarm-cadence db stats --account julian
+swarm-cadence db import-raw --account default
+swarm-cadence db stats --account default
 ```
 
 The importer performs no network calls, verifies raw SHA256 against adjacent
@@ -144,11 +144,11 @@ Purpose: provide bounded grounding for Robut and future Guides without making `s
 Early target commands are provisional but should expose reusable evidence facts that Robut or a dedicated artifact layer can consume:
 
 ```bash
-swarm-cadence source probe --account julian --format json
-swarm-cadence ingest fixture --account julian --source ./fixtures/julian-checkins.json --db ./.tmp/swarm.sqlite
-swarm-cadence query visits --account julian --venue-id VENUE_ID --from 2024-01-01 --format json
-swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --hour-from 11 --hour-to 14 --format json
-swarm-cadence evidence window --account julian --date 2026-04-27 --hour-from 11 --hour-to 14 --format json
+swarm-cadence source probe --account default --format json
+swarm-cadence ingest fixture --account default --source ./fixtures/checkins.json --db ./.tmp/swarm.sqlite
+swarm-cadence query visits --account default --venue-id VENUE_ID --from 2024-01-01 --format json
+swarm-cadence query compare --account default --baseline-from 2024-01-01 --recent-from 2026-01-01 --hour-from 11 --hour-to 14 --format json
+swarm-cadence evidence window --account default --date 2026-04-27 --hour-from 11 --hour-to 14 --format json
 ```
 
 Guide-specific bundle/packet shaping happens above the reusable query layer. It should consume venue support, cadence, recency, uncertainty, and source trails — not hide a final “best” answer in `swarm-cadence`.
@@ -182,7 +182,7 @@ Candidate lenses:
 - destination-if-time;
 - avoid recent repeats;
 - not Mexican today;
-- with Alice / ask-first shared context;
+- with another person / ask-first shared context;
 - rainy day / walking matters.
 
 ## Derived observations vs edits
@@ -203,9 +203,9 @@ Meaning-changing records require human authority:
 - “convenience, not preference”;
 - “still loved, just forgotten”;
 - “do not suggest this for lunch”;
-- “ask before joining Alice context”;
+- “ask before joining another person’s context”;
 - “that venue is closed/renamed” when not independently sourced;
-- “this is Alice’s preference, not Julian’s.”
+- “this is one person’s preference, not another’s.”
 
 Raw check-ins stay untouched. Edits/corrections apply visibly to future bundles and Guides.
 
@@ -263,7 +263,7 @@ recomputing timezone behavior at runtime.
 ## Privacy and agency boundaries
 
 - Location history is sensitive. Treat it as private evidence.
-- Keep Julian and Alice accounts explicit and separate.
+- Keep multiple people accounts explicit and separate.
 - Do not blend accounts or infer household/shared preferences unless explicitly scoped.
 - Do not join Swarm with cameras, messages, calendar, Paprika, or `clime` unless the query or Guide makes that join visible and justified.
 - Avoid stale identity claims. A 2018 favorite should not silently become a 2026 preference.
@@ -289,7 +289,7 @@ The Obsidian `Foursquare Swarm Connector` research note compared source paths an
 
 Decision criteria:
 
-- ongoing ingest matters because Julian and Alice continue using Swarm;
+- ongoing ingest matters because multiple people continue using Swarm;
 - data completeness matters: check-in id, timestamp, venue id/name, location, photos when possible, and raw JSON for later modeling;
 - credential practicality matters more than theoretical API cleanliness;
 - multi-account separation is a first-order architecture constraint;
@@ -322,8 +322,8 @@ Existing-project signals worth borrowing:
 
 First `source probe` should answer:
 
-1. Can Julian’s configured source read recent check-ins?
-2. Can Alice’s configured source read recent check-ins?
+1. Can the first configured source read recent check-ins?
+2. Can the second configured source read recent check-ins?
 3. Which adapter works for each account: v2 OAuth, `historysearch`, or export-only for now?
 4. What fields are present/missing/source-specific?
 5. Are secrets redacted and source/account provenance preserved in JSON output?

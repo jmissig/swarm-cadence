@@ -18,7 +18,7 @@
     }
   },
   "accounts": {
-    "julian": {
+    "default": {
       "geographies": {
         "home": {
           "kind": "anchor",
@@ -29,7 +29,7 @@
         }
       },
       "v2": {
-        "access_token": "replace-with-julian-oauth-access-token",
+        "access_token": "replace-with-default-oauth-access-token",
         "client_id": "replace-with-developer-app-client-id",
         "client_secret": "replace-with-developer-app-secret-if-issued",
         "redirect_uri": "http://localhost:17342/foursquare/callback"
@@ -41,7 +41,7 @@
         "cookie": "replace-with-cookie-only-if-needed"
       }
     },
-    "alice": {
+    "partner": {
       "geographies": {
         "home": {
           "kind": "anchor",
@@ -52,7 +52,7 @@
         }
       },
       "v2": {
-        "access_token": "replace-with-alice-oauth-access-token",
+        "access_token": "replace-with-partner-oauth-access-token",
         "client_id": "replace-with-developer-app-client-id",
         "client_secret": "replace-with-developer-app-secret-if-issued",
         "redirect_uri": "http://localhost:17342/foursquare/callback"

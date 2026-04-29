@@ -5,7 +5,7 @@ description: Local read/query access to Foursquare Swarm check-in evidence for p
 
 # swarm-cadence
 
-Local, read-only evidence tool for Foursquare Swarm check-in history. Use it when answering questions about places Julian/Alice have visited, local venue support, coffee/lunch/place options, category history, geography-bounded patterns, or freshness of Swarm evidence.
+Local, read-only evidence tool for Foursquare Swarm check-in history. Use it when answering questions about places a configured account has visited, local venue support, coffee/lunch/place options, category history, geography-bounded patterns, or freshness of Swarm evidence.
 
 `swarm-cadence` provides evidence, not recommendations. Robut chooses the human framing.
 
@@ -14,7 +14,7 @@ Local, read-only evidence tool for Foursquare Swarm check-in history. Use it whe
 ## Safety and scope
 
 - Read/query local evidence first; do not write to Swarm/Foursquare.
-- Keep `--account` explicit (`julian`, `alice`, or a configured label). Do not silently blend accounts.
+- Keep `--account` explicit (`default`, `partner`, or a configured label). Do not silently blend accounts.
 - When account scope is unclear or multiple people are possible, run `swarm-cadence source status --format json` first, then use an explicit `--account`.
 - Treat check-ins as evidence of visits, not proof of preference.
 - Keep facts separate from inference; surface uncertainty and stale data.
@@ -35,15 +35,15 @@ Default local paths:
 
 ```bash
 swarm-cadence source status --format json
-swarm-cadence auth status --account julian --format json
-swarm-cadence db stats --account julian --format json
-swarm-cadence ingest --account julian --adapter v2 --format json
-swarm-cadence query categories --account julian --format json
-swarm-cadence query venues --account julian --format json
-swarm-cadence query visits --account julian --venue-id <venue-id> --format json
-swarm-cadence query cadence --account julian --venue-id <venue-id> --from 2024-01-01 --format json
-swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --format json
-swarm-cadence evidence packet --account julian --date 2026-04-27 --baseline-from 2024-01-01 --recent-from 2026-01-01 --format json
+swarm-cadence auth status --account default --format json
+swarm-cadence db stats --account default --format json
+swarm-cadence ingest --account default --adapter v2 --format json
+swarm-cadence query categories --account default --format json
+swarm-cadence query venues --account default --format json
+swarm-cadence query visits --account default --venue-id <venue-id> --format json
+swarm-cadence query cadence --account default --venue-id <venue-id> --from 2024-01-01 --format json
+swarm-cadence query compare --account default --baseline-from 2024-01-01 --recent-from 2026-01-01 --format json
+swarm-cadence evidence packet --account default --date 2026-04-27 --baseline-from 2024-01-01 --recent-from 2026-01-01 --format json
 ```
 
 Use `swarm-cadence --help` for the current surface.
@@ -70,7 +70,7 @@ Use `ingest` only when the user asks for a refresh or the workflow explicitly ca
 When the user asks for a kind of place, inspect categories before querying:
 
 ```bash
-swarm-cadence query categories --account julian --format json
+swarm-cadence query categories --account default --format json
 ```
 
 Choose explicit Foursquare category names and pass them with repeated `--category` flags. Examples:
@@ -172,7 +172,7 @@ If the human approves, attach an annotation rather than changing source evidence
 
 ```bash
 swarm-cadence annotations add \
-  --account julian \
+  --account default \
   --target-kind venue \
   --target-id <venue-id> \
   --body "This venue is a duplicate/old identity for <current venue>; treat historical check-ins as support for the current place, not a separate option." \

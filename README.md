@@ -30,8 +30,8 @@ for deeper operator notes.
 Create or update account auth interactively:
 
 ```bash
-swarm-cadence auth login --account julian
-swarm-cadence auth status --account julian --format json
+swarm-cadence auth login --account default
+swarm-cadence auth status --account default --format json
 ```
 
 Then check local readiness without touching credentials, raw payloads, SQLite
@@ -41,7 +41,7 @@ rows, or the network:
 swarm-cadence source status --format json
 ```
 
-Account labels are explicit (`julian`, `alice`, or another configured label).
+Account labels are explicit (`default`, `partner`, or another configured label).
 There is no silent account blending.
 
 ## A Few Useful Things
@@ -49,21 +49,21 @@ There is no silent account blending.
 Pull in recent check-ins, then check the local evidence coverage:
 
 ```bash
-swarm-cadence ingest --account julian --adapter v2 --format json
-swarm-cadence db stats --account julian --format json
+swarm-cadence ingest --account default --adapter v2 --format json
+swarm-cadence db stats --account default --format json
 ```
 
 Ask what places the local history supports:
 
 ```bash
-swarm-cadence query venues --account julian --area peninsula --category "Coffee Shop" --format json
-swarm-cadence query visits --account julian --venue-id <venue-id> --format json
+swarm-cadence query venues --account default --area peninsula --category "Coffee Shop" --format json
+swarm-cadence query visits --account default --venue-id <venue-id> --format json
 ```
 
 Compare broad history with recent activity:
 
 ```bash
-swarm-cadence query compare --account julian --baseline-from 2024-01-01 --recent-from 2026-01-01 --format json
+swarm-cadence query compare --account default --baseline-from 2024-01-01 --recent-from 2026-01-01 --format json
 ```
 
 Import and audit commands, cadence/lapse rollups, source probes, and evidence
@@ -76,14 +76,14 @@ Place wording matters:
 
 ```bash
 # "in San Mateo" — factual Foursquare venue locality fields
-swarm-cadence query venues --account julian --locality "San Mateo" --region CA --country-code US --format json
+swarm-cadence query venues --account default --locality "San Mateo" --region CA --country-code US --format json
 
 # "near San Carlos" — geometry around an anchor, allowing nearby cities too
-swarm-cadence query venues --account julian --near-lat 37.5072 --near-lng -122.2605 --radius-meters 7000 --format json
+swarm-cadence query venues --account default --near-lat 37.5072 --near-lng -122.2605 --radius-meters 7000 --format json
 
 # named presets from config
-swarm-cadence query venues --account julian --near-place jackson-square --radius-meters 900 --format json
-swarm-cadence query venues --account julian --area peninsula --category "Coffee Shop" --format json
+swarm-cadence query venues --account default --near-place jackson-square --radius-meters 900 --format json
+swarm-cadence query venues --account default --area peninsula --category "Coffee Shop" --format json
 ```
 
 Foursquare venue identity can be retrospective: old check-ins may come back from
@@ -99,14 +99,14 @@ are not source rows, derived facts, ratings, favorites, or recommendations.
 
 ```bash
 swarm-cadence annotations kinds --format json
-swarm-cadence annotations targets --account julian --format json
+swarm-cadence annotations targets --account default --format json
 swarm-cadence annotations add \
-  --account julian \
+  --account default \
   --target-kind venue \
   --target-id <venue-id> \
   --body "This venue is closed; treat historical check-ins as closed-venue evidence, not a current place option." \
   --source human
-swarm-cadence annotations list --account julian --target-kind venue --target-id <venue-id> --format json
+swarm-cadence annotations list --account default --target-kind venue --target-id <venue-id> --format json
 ```
 
 Inline annotations are included by default where query outputs naturally
@@ -142,3 +142,7 @@ omit them.
 - [docs/source-probe-setup.md](docs/source-probe-setup.md) — source setup, v2/historysearch probes, and schema notes
 - [docs/pattern-intelligence-proposal.md](docs/pattern-intelligence-proposal.md) — boundary between evidence substrate and Robut-composed Almanac/Guide work
 - [docs/pattern-boundary-and-corrections.md](docs/pattern-boundary-and-corrections.md) — annotations/corrections guidance and tool-boundary notes
+
+---
+
+Made with OpenClaw and Codex.

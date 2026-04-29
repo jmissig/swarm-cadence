@@ -298,7 +298,7 @@ enum SetupAuth {
         if existingAccounts.isEmpty {
             return try AccountLabel.validate(promptWithDefault(
                 "Account label",
-                defaultValue: "julian",
+                defaultValue: "default",
                 input: input,
                 output: output
             ))

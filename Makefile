@@ -32,11 +32,9 @@ clean:
 	$(SWIFT) package clean
 
 show-defaults:
-	@printf 'config:        %s\n' '$(APP_SUPPORT_DIR)/config.json'
-	@printf 'julian raw:    %s\n' '$(APP_SUPPORT_DIR)/accounts/julian/raw/v2/checkins'
-	@printf 'julian sqlite: %s\n' '$(APP_SUPPORT_DIR)/accounts/julian/swarm-cadence.sqlite'
-	@printf 'alice raw:     %s\n' '$(APP_SUPPORT_DIR)/accounts/alice/raw/v2/checkins'
-	@printf 'alice sqlite:  %s\n' '$(APP_SUPPORT_DIR)/accounts/alice/swarm-cadence.sqlite'
+	@printf 'config:      %s\n' '$(APP_SUPPORT_DIR)/config.json'
+	@printf 'raw dir:     %s\n' '$(APP_SUPPORT_DIR)/accounts/<account>/raw/v2/checkins'
+	@printf 'sqlite db:   %s\n' '$(APP_SUPPORT_DIR)/accounts/<account>/swarm-cadence.sqlite'
 
 install: release
 	install -d '$(BINDIR)'

@@ -47,7 +47,7 @@ Good tool-layer work:
 
 Do not make the CLI decide:
 
-- where Julian should eat today;
+- where someone should eat today;
 - whether a venue is a favorite, convenience artifact, identity-significant, or socially meaningful;
 - current open-now suitability unless joined with a separate current source;
 - cross-domain joins with Paprika, clime, calendar, family context, or messages;
@@ -68,7 +68,7 @@ Useful attachment targets for `swarm-cadence`:
 - a check-in or visit window, for travel/social obligation/one-off context;
 - a category/group, for bad metadata or household meaning;
 - a geography/anchor/area, for local-vs-travel interpretation;
-- a person/family context, for Julian/Alice/shared distinction.
+- a person/family context, for account/account/shared distinction.
 
 Example annotations:
 
