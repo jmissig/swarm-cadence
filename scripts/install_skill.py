@@ -124,6 +124,16 @@ def rewrite_general_examples(text: str, mode: str, accounts: list[str]) -> str:
     return text
 
 
+def install_docs(dest: Path, source_root: Path) -> None:
+    docs_dest = dest / "docs"
+    docs_dest.mkdir(exist_ok=True)
+    for name in ["readonly-sqlite-exploration.md"]:
+        source = source_root / "docs" / name
+        if not source.exists():
+            raise SystemExit(f"Missing installable skill doc: {source}")
+        (docs_dest / name).write_text(source.read_text())
+
+
 def add_install_state(dest: Path, source_root: Path, skill_name: str, version: str, mode: str, accounts: list[str]) -> None:
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=source_root, text=True).strip()
     dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=source_root, text=True).strip())
@@ -159,6 +169,7 @@ def main() -> int:
     text = re.sub(r"\n<!-- repo-version: .*? -->\n?", "\n", text)
     text = text.rstrip() + f"\n\n<!-- repo-version: {version} -->\n"
     skill.write_text(text)
+    install_docs(args.dest, args.source_root)
 
     add_install_state(args.dest, args.source_root, args.skill_name, version, mode, accounts)
     return 0

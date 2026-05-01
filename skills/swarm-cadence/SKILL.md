@@ -128,7 +128,8 @@ Evidence packets include labeled views (`strongest`, `recent`, `stale`, and `nea
 3. For place-type questions, run `query categories` and select explicit categories.
 4. Choose geography semantics (`locality`, named `area`, or anchor/radius).
 5. Run `evidence packet` for multi-view evidence, `query cadence` for venue time-pattern rollups, `query lapses` for active/lapsed comparison evidence, or lower-level `query venues` / `query compare` for narrower debugging.
-6. Answer in human terms:
+6. If the stable CLI verbs are too slow or too narrow for schema/coverage/debugging exploration, read `docs/readonly-sqlite-exploration.md` in this installed skill and use its read-only SQLite workflow. Prefer this for Datasette-style inspection, not normal human answers.
+7. Answer in human terms:
    - summarize the most relevant evidence views
    - mention freshness and selected categories/geography
    - separate observed facts from inferred suggestions
@@ -139,6 +140,31 @@ Good answer shape:
 ```text
 I checked Swarm evidence through <date>. For coffee near San Carlos, using Coffee Shop/Café within ~6 km of the anchor, the evidence splits this way: strongest historical support ..., nearest ..., recent .... I’d treat this as visit-history evidence, not open-now/current-quality data.
 ```
+
+---
+
+## Direct SQLite exploration
+
+The installed skill includes `docs/readonly-sqlite-exploration.md`. Use it only when direct SQL will materially speed up inspection or debugging beyond the stable CLI surface.
+
+Good reasons to use it:
+
+- inspect schema or table/column availability
+- check coverage, row counts, date ranges, or category completeness
+- sample evidence carefully to understand source quirks
+- debug a surprising CLI result
+- prototype a repeated query shape before promoting it to a stable command
+
+Rules:
+
+- open SQLite with `sqlite3 -readonly` and `PRAGMA query_only = ON`
+- always scope by account unless intentionally comparing accounts
+- keep `LIMIT` on exploratory row queries
+- prefer normalized columns before reading `raw_json`
+- never mutate tables, annotations, schema, or raw evidence
+- report direct SQL findings as read-only inspection, with caveats and source freshness
+
+Do not use direct SQL to create hidden recommendation scores or bypass the CLI's account/provenance/freshness semantics in normal answers.
 
 ---
 

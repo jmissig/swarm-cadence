@@ -119,11 +119,12 @@ safely as possible.
 
 - [ ] Use [docs/pattern-boundary-and-corrections.md](docs/pattern-boundary-and-corrections.md) to keep `swarm-cadence` as place/visit evidence substrate with simple attached annotations, not the lunch recommender or correction machinery.
 
-- [ ] Create an OpenClaw skill for `swarm-cadence`.
+- [x] Create an OpenClaw skill for `swarm-cadence`.
   - Mirror the local-tool pattern used by `protect-cadence`, `clime`, and `paprika-pantry`.
   - Document when to use Swarm evidence, safe read-only/query commands, ingest/update expectations, default paths, and provenance/freshness interpretation.
   - Include guidance for LLM category selection: run `query categories`, choose explicit categories for the task, pass repeated `--category`, and surface selected categories in answers.
   - Keep human-facing answers in Guide/Almanac language; do not expose repo jargon unless debugging.
+  - Installed skill now includes a read-only SQLite exploration guide for Datasette-style schema/coverage/debugging inspection when stable CLI verbs are too narrow.
 
 - [x] Add explicit sorting / multiple evidence views.
   - Current near-radius venue rows sort by distance first, so “top” means nearest, not strongest evidence.
@@ -244,7 +245,7 @@ safely as possible.
   support, gaps, and geography clusters; leave favorite/preference labels above the CLI.
 - [ ] Add correction/edit storage after drafted examples show which scoped corrections need machine application.
 - [ ] Add Paprika and `clime` join inputs only above the CLI, with explicit join boundaries; avoid making `swarm-cadence` orchestrate sibling-tool packets.
-- [ ] Document the SQLite exploration surface with read-only inspection queries for
+- [x] Document the SQLite exploration surface with read-only inspection queries for
   coverage, date ranges, venues, and category completeness.
 
 ## Not now
