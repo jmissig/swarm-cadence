@@ -291,11 +291,11 @@ enum SetupAuth {
             return try AccountLabel.validate(rawAccount)
         }
 
-        guard format != .json else {
-            throw CLIError("auth login --format json requires --account <label>.")
-        }
-
         if existingAccounts.isEmpty {
+            guard format != .json else {
+                throw CLIError("auth login --format json requires --account <label>.")
+            }
+
             return try AccountLabel.validate(promptWithDefault(
                 "Account label",
                 defaultValue: "default",
@@ -304,13 +304,11 @@ enum SetupAuth {
             ))
         }
 
-        output("Existing accounts: \(existingAccounts.joined(separator: ", "))")
-        return try AccountLabel.validate(promptWithDefault(
-            "Account label to update or add",
-            defaultValue: existingAccounts[0],
-            input: input,
-            output: output
-        ))
+        if existingAccounts.count == 1 {
+            return try AccountLabel.validate(existingAccounts[0])
+        }
+
+        throw CLIError("missing required --account <label>; configured accounts: \(existingAccounts.joined(separator: ", ")).")
     }
 
     private static func credentialPresent(_ name: String, environment: [String: String], config: [String: String]) -> Bool {

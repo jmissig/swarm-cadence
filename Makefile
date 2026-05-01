@@ -53,8 +53,19 @@ install-config-example:
 install-skill:
 	@test -f "$(SKILL_DIR)/SKILL.md" || (echo "Missing $(SKILL_DIR)/SKILL.md" && exit 1)
 	@test -f "$(VERSION_FILE)" || (echo "Missing $(VERSION_FILE)" && exit 1)
+	@if [ -z "$(ACCOUNTS)" ]; then \
+		echo 'Usage: make install-skill ACCOUNTS="single-account"'; \
+		echo '   or: make install-skill ACCOUNTS="account1 account2"'; \
+		exit 1; \
+	fi
+	python3 scripts/install_skill.py --validate-accounts "$(ACCOUNTS)"
 	mkdir -p "$(OPENCLAW_SKILLS_DIR)"
 	rm -rf "$(SKILL_DEST)"
 	cp -R "$(SKILL_DIR)" "$(SKILL_DEST)"
-	python3 -c 'from pathlib import Path; import json, re, subprocess; root = Path.cwd(); dest = Path("$(SKILL_DEST)"); version = Path("$(VERSION_FILE)").read_text().strip(); skill = dest / "SKILL.md"; text = skill.read_text(); text = re.sub(r"\n<!-- repo-version: .*? -->\n?", "\n", text); text = text.rstrip() + "\n\n<!-- repo-version: %s -->\n" % version; skill.write_text(text); commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(); dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], text=True).strip()); state = {"schema": "swarm-cadence.skill-install.v1", "skill": "$(SKILL_NAME)", "sourceRepo": str(root), "sourceCommit": commit, "sourceDirtyAtInstall": dirty, "repoVersion": version}; (dest / ".openclaw-skill-install.json").write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")'
+	python3 scripts/install_skill.py \
+		--source-root "$(CURDIR)" \
+		--dest "$(SKILL_DEST)" \
+		--version-file "$(VERSION_FILE)" \
+		--skill-name "$(SKILL_NAME)" \
+		--accounts "$(ACCOUNTS)"
 	@echo "Installed skill $(SKILL_NAME) to $(SKILL_DEST)"

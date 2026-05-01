@@ -261,39 +261,64 @@ final class SetupAuthTests: XCTestCase {
         XCTAssertEqual(flattened["SWARM_CADENCE_DEFAULT_V2_ACCESS_TOKEN"], "first-token")
     }
 
-    func testAuthLoginWithoutAccountCanAddSecondAccountWhenConfigExists() throws {
+    func testAuthLoginWithoutAccountUsesOnlyConfiguredAccount() throws {
         let directory = temporaryDirectory()
         let config = directory.appendingPathComponent("config.json")
         try """
         {
           "accounts": {
-            "julian": {
+            "primary": {
               "v2": {
-                "access_token": "julian-token"
+                "access_token": "primary-token"
               }
             }
           }
         }
         """.write(to: config, atomically: true, encoding: .utf8)
         var output = ""
-        var inputs = ["alice", "alice-token"]
 
         let exit = SwarmCadenceCommand.run(
-            arguments: ["auth", "login", "--config", config.path],
+            arguments: ["auth", "login", "--config", config.path, "--access-token", "replacement-token"],
             environment: ["HOME": directory.path],
-            input: { inputs.removeFirst() },
+            input: { XCTFail("single-account auth login should not prompt for an account label"); return nil },
             output: { output += $0 + "\n" },
             errorOutput: { output += $0 + "\n" }
         )
 
         XCTAssertEqual(exit, 0)
-        XCTAssertTrue(output.contains("Existing accounts: julian"))
-        XCTAssertTrue(output.contains("Account label to update or add [julian]:"))
-        XCTAssertTrue(output.contains("Account: alice"))
-        XCTAssertFalse(output.contains("alice-token"))
+        XCTAssertTrue(output.contains("Account: primary"))
+        XCTAssertFalse(output.contains("replacement-token"))
         let flattened = try JSONConfig.load(path: config.path)
-        XCTAssertEqual(flattened["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN"], "julian-token")
-        XCTAssertEqual(flattened["SWARM_CADENCE_ALICE_V2_ACCESS_TOKEN"], "alice-token")
+        XCTAssertEqual(flattened["SWARM_CADENCE_PRIMARY_V2_ACCESS_TOKEN"], "replacement-token")
+    }
+
+    func testAuthLoginWithoutAccountFailsWhenMultipleAccountsConfigured() throws {
+        let directory = temporaryDirectory()
+        let config = directory.appendingPathComponent("config.json")
+        try """
+        {
+          "accounts": {
+            "primary": { "v2": { "access_token": "primary-token" } },
+            "secondary": { "v2": { "access_token": "secondary-token" } }
+          }
+        }
+        """.write(to: config, atomically: true, encoding: .utf8)
+        var error = ""
+
+        let exit = SwarmCadenceCommand.run(
+            arguments: ["auth", "login", "--config", config.path, "--access-token", "replacement-token"],
+            environment: ["HOME": directory.path],
+            input: { XCTFail("multi-account auth login should not prompt"); return nil },
+            output: { _ in },
+            errorOutput: { error += $0 + "\n" }
+        )
+
+        XCTAssertEqual(exit, 2)
+        XCTAssertTrue(error.contains("missing required --account <label>"))
+        XCTAssertTrue(error.contains("primary, secondary"))
+        let flattened = try JSONConfig.load(path: config.path)
+        XCTAssertEqual(flattened["SWARM_CADENCE_PRIMARY_V2_ACCESS_TOKEN"], "primary-token")
+        XCTAssertEqual(flattened["SWARM_CADENCE_SECONDARY_V2_ACCESS_TOKEN"], "secondary-token")
     }
 
     func testJSONAuthLoginRequiresExplicitAccountWhenNoAccountExists() throws {
@@ -312,6 +337,38 @@ final class SetupAuthTests: XCTestCase {
         XCTAssertEqual(exit, 2)
         XCTAssertTrue(error.contains("requires --account <label>"))
         XCTAssertFalse(FileManager.default.fileExists(atPath: config.path))
+    }
+
+    func testJSONAuthLoginWithoutAccountUsesOnlyConfiguredAccount() throws {
+        let directory = temporaryDirectory()
+        let config = directory.appendingPathComponent("config.json")
+        try """
+        {
+          "accounts": {
+            "primary": {
+              "historysearch": {
+                "userid": "kept-user"
+              }
+            }
+          }
+        }
+        """.write(to: config, atomically: true, encoding: .utf8)
+        var output = ""
+
+        let exit = SwarmCadenceCommand.run(
+            arguments: ["auth", "login", "--config", config.path, "--format", "json", "--access-token", "new-token"],
+            environment: ["HOME": directory.path],
+            input: { XCTFail("JSON login should not prompt"); return nil },
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertTrue(output.contains("\"account\" : \"primary\""))
+        XCTAssertFalse(output.contains("new-token"))
+        let flattened = try JSONConfig.load(path: config.path)
+        XCTAssertEqual(flattened["SWARM_CADENCE_PRIMARY_V2_ACCESS_TOKEN"], "new-token")
+        XCTAssertEqual(flattened["SWARM_CADENCE_PRIMARY_HISTORYSEARCH_USERID"], "kept-user")
     }
 
     func testHelpIncludesSetupAndAuthCommands() {

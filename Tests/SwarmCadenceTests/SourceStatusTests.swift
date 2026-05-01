@@ -44,7 +44,7 @@ final class SourceStatusTests: XCTestCase {
         XCTAssertFalse(result.networkPerformed)
     }
 
-    func testSourceStatusListsConfiguredAccountsWithoutLeakingSecrets() throws {
+    func testSourceStatusUsesExplicitAccountWithoutLeakingSecrets() throws {
         let home = temporaryDirectory()
         let appSupport = home
             .appendingPathComponent("Library", isDirectory: true)
@@ -89,7 +89,7 @@ final class SourceStatusTests: XCTestCase {
 
         var rendered = ""
         let exit = SwarmCadenceCommand.run(
-            arguments: ["source", "status", "--format", "json"],
+            arguments: ["source", "status", "--account", "julian", "--format", "json"],
             environment: ["HOME": home.path],
             liveTransport: FailingSourceStatusTransport(),
             output: { rendered = $0 },
@@ -97,27 +97,20 @@ final class SourceStatusTests: XCTestCase {
         )
 
         let result = try decodeStatus(rendered)
-        let accounts = Dictionary(uniqueKeysWithValues: result.accounts.map { ($0.label, $0) })
-        let julian = try XCTUnwrap(accounts["julian"])
-        let alice = try XCTUnwrap(accounts["alice"])
+        let account = try XCTUnwrap(result.accounts.first)
 
         XCTAssertEqual(exit, 0)
         XCTAssertFalse(rendered.contains("julian-secret-token"))
         XCTAssertFalse(rendered.contains("alice-history-secret"))
         XCTAssertFalse(rendered.contains("alice-cookie-secret"))
-        XCTAssertEqual(result.accountCount, 2)
-        XCTAssertTrue(julian.v2Configured)
-        XCTAssertTrue(julian.v2AccessTokenPresent)
-        XCTAssertFalse(julian.historysearchConfigured)
-        XCTAssertTrue(julian.defaultRawV2PathExists)
-        XCTAssertFalse(julian.defaultSqliteDbPathExists)
-        XCTAssertTrue(julian.localEvidenceAvailable)
-        XCTAssertFalse(alice.v2Configured)
-        XCTAssertFalse(alice.v2AccessTokenPresent)
-        XCTAssertTrue(alice.historysearchConfigured)
-        XCTAssertFalse(alice.defaultRawV2PathExists)
-        XCTAssertTrue(alice.defaultSqliteDbPathExists)
-        XCTAssertTrue(alice.localEvidenceAvailable)
+        XCTAssertEqual(result.accountCount, 1)
+        XCTAssertEqual(account.label, "julian")
+        XCTAssertTrue(account.v2Configured)
+        XCTAssertTrue(account.v2AccessTokenPresent)
+        XCTAssertFalse(account.historysearchConfigured)
+        XCTAssertTrue(account.defaultRawV2PathExists)
+        XCTAssertFalse(account.defaultSqliteDbPathExists)
+        XCTAssertTrue(account.localEvidenceAvailable)
     }
 
     func testSourceStatusForExplicitAccountWorksWithoutConfiguredAccount() throws {

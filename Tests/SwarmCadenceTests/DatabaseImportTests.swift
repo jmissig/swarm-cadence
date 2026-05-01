@@ -402,6 +402,69 @@ final class DatabaseImportTests: XCTestCase {
         XCTAssertFalse(visitsOutput.contains("network"))
     }
 
+    func testCLICommandsUseSingleConfiguredAccountWhenAccountOmitted() throws {
+        let directory = try makeTemporaryDirectory()
+        try writeConfig(accounts: ["primary"], home: directory)
+        let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
+        try FileManager.default.createDirectory(at: rawDirectory, withIntermediateDirectories: true)
+        let dbURL = directory.appendingPathComponent("swarm.sqlite")
+
+        try writeRawPair(
+            rawDirectory: rawDirectory,
+            baseName: "fixture-v2-primary-checkins-offset0-limit250",
+            rawBody: rawBody
+        )
+
+        var importOutput = ""
+        let importExit = SwarmCadenceCommand.run(
+            arguments: [
+                "db", "import-raw",
+                "--db", dbURL.path,
+                "--raw-dir", rawDirectory.path,
+                "--format", "json"
+            ],
+            environment: ["HOME": directory.path],
+            output: { importOutput = $0 },
+            errorOutput: { _ in }
+        )
+
+        var categoriesOutput = ""
+        let categoriesExit = SwarmCadenceCommand.run(
+            arguments: [
+                "query", "categories",
+                "--db", dbURL.path,
+                "--limit", "10",
+                "--format", "json"
+            ],
+            environment: ["HOME": directory.path],
+            output: { categoriesOutput = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(importExit, 0)
+        XCTAssertEqual(categoriesExit, 0)
+        XCTAssertTrue(importOutput.contains("\"account\" : \"primary\""))
+        XCTAssertTrue(categoriesOutput.contains("\"account\" : \"primary\""))
+        XCTAssertTrue(categoriesOutput.contains("\"command\" : \"query categories\""))
+    }
+
+    func testCLICommandsRequireAccountWhenMultipleAccountsConfigured() throws {
+        let directory = try makeTemporaryDirectory()
+        try writeConfig(accounts: ["primary", "secondary"], home: directory)
+        var error = ""
+
+        let exit = SwarmCadenceCommand.run(
+            arguments: ["query", "categories", "--format", "json"],
+            environment: ["HOME": directory.path],
+            output: { _ in },
+            errorOutput: { error += $0 + "\n" }
+        )
+
+        XCTAssertEqual(exit, 2)
+        XCTAssertTrue(error.contains("missing required --account <label>"))
+        XCTAssertTrue(error.contains("primary, secondary"))
+    }
+
     func testCLIQueryVenuesSupportsNearnessFiltersAndDistanceEvidence() throws {
         let directory = try makeTemporaryDirectory()
         let rawDirectory = directory.appendingPathComponent("raw", isDirectory: true)
@@ -2228,6 +2291,25 @@ final class DatabaseImportTests: XCTestCase {
 
     private func escapedJSONPath(_ path: String) -> String {
         path.replacingOccurrences(of: "/", with: "\\/")
+    }
+
+    private func writeConfig(accounts labels: [String], home: URL) throws {
+        let configURL = home
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("swarm-cadence", isDirectory: true)
+            .appendingPathComponent("config.json")
+        try FileManager.default.createDirectory(at: configURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let accounts = labels.map { label in
+            "\"\(label)\": { \"v2\": { \"access_token\": \"\(label)-token\" } }"
+        }.joined(separator: ",\n")
+        try """
+        {
+          "accounts": {
+            \(accounts)
+          }
+        }
+        """.write(to: configURL, atomically: true, encoding: .utf8)
     }
 
     private func assertOutput(

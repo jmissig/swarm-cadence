@@ -221,8 +221,9 @@ private struct AuthStatusCommand: ParsableCommand {
 
     mutating func run() throws {
         let runtime = CommandRuntime.current
+        let account = try resolveConfiguredAccount(account, configPath: config, environment: runtime.environment)
         let result = try SetupAuth.status(
-            account: try AccountLabel.validate(account),
+            account: account,
             configPath: config,
             environment: runtime.environment
         )
@@ -271,8 +272,9 @@ private struct AuthClearCommand: ParsableCommand {
     mutating func run() throws {
         let outputFormat = try parseFormat(format: format, json: json)
         let runtime = CommandRuntime.current
+        let account = try resolveConfiguredAccount(account, configPath: config, environment: runtime.environment)
         let result = try SetupAuth.clear(
-            account: try AccountLabel.validate(account),
+            account: account,
             configPath: config,
             environment: runtime.environment,
             force: force
@@ -982,7 +984,7 @@ struct SourceStatusOptions {
     let configPath: String?
 
     fileprivate init(parsed: SourceStatusArguments) throws {
-        self.account = try parsed.account.map(AccountLabel.validate)
+        self.account = try resolveConfiguredAccountIfPresent(parsed.account, configPath: parsed.config, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.configPath = parsed.config
     }
@@ -1006,7 +1008,7 @@ struct SourceProbeOptions {
             format = .json
         }
 
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: parsed.config, environment: CommandRuntime.current.environment)
         self.adapter = try SourceAdapter(rawValue: parsed.adapter)
             .orThrow("unsupported --adapter. Use `v2` or `historysearch`.")
         self.format = format
@@ -1035,7 +1037,7 @@ struct RawFetchOptions {
             format = .json
         }
 
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: parsed.config, environment: CommandRuntime.current.environment)
         self.adapter = try SourceAdapter(rawValue: parsed.adapter)
             .orThrow("unsupported --adapter. Use `v2`.")
         guard self.adapter == .v2 else {
@@ -1085,7 +1087,7 @@ struct RawFetchPagesOptions {
             format = .json
         }
 
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: parsed.config, environment: CommandRuntime.current.environment)
         self.adapter = try SourceAdapter(rawValue: parsed.adapter)
             .orThrow("unsupported --adapter. Use `v2`.")
         guard self.adapter == .v2 else {
@@ -1125,7 +1127,7 @@ struct IngestUpdateOptions {
     let delayMilliseconds: Int
 
     fileprivate init(parsed: IngestUpdateArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: parsed.config, environment: CommandRuntime.current.environment)
         self.adapter = try SourceAdapter(rawValue: parsed.adapter)
             .orThrow("unsupported --adapter. Use `v2`.")
         guard self.adapter == .v2 else {
@@ -1163,7 +1165,7 @@ struct DBImportRawOptions {
     let format: OutputFormat
 
     fileprivate init(parsed: DBImportRawArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: nil, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
         self.rawDirectory = parsed.rawDirectory
@@ -1178,7 +1180,7 @@ struct DBImportFilesOptions {
     let format: OutputFormat
 
     fileprivate init(parsed: DBImportFilesArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: nil, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
         guard let path = parsed.path, !path.isEmpty else {
@@ -1197,7 +1199,7 @@ struct DBMigrateOptions {
     let format: OutputFormat
 
     fileprivate init(parsed: DBMigrateArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: nil, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         if let dbPath = parsed.dbPath, dbPath.isEmpty {
             throw CLIError("--db must not be empty.")
@@ -1212,7 +1214,7 @@ struct DBStatsOptions {
     let format: OutputFormat
 
     fileprivate init(parsed: DBStatsArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: nil, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
     }
@@ -1227,7 +1229,7 @@ struct AuditOverlapOptions {
     let format: OutputFormat
 
     fileprivate init(parsed: AuditOverlapArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: nil, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         if let rawDirectory = parsed.rawDirectory, rawDirectory.isEmpty {
             throw CLIError("--raw-dir must not be empty.")
@@ -1252,7 +1254,7 @@ struct AuditIdentityOptions {
     let format: OutputFormat
 
     fileprivate init(parsed: AuditIdentityArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: nil, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         if let dbPath = parsed.dbPath, dbPath.isEmpty {
             throw CLIError("--db must not be empty.")
@@ -1274,7 +1276,7 @@ struct QueryCategoriesOptions {
     let includeAnnotations: Bool
 
     fileprivate init(parsed: QueryCategoriesArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: nil, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
         self.limit = parsed.limit
@@ -1308,7 +1310,7 @@ struct QueryVenuesOptions {
     let includeAnnotations: Bool
 
     fileprivate init(parsed: QueryVenuesArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: parsed.config, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
         self.configPath = parsed.config
@@ -1399,7 +1401,7 @@ struct QueryVisitsOptions {
     let includeAnnotations: Bool
 
     fileprivate init(parsed: QueryVisitsArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: nil, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
         if let venueID = parsed.venueID, venueID.isEmpty {
@@ -1449,7 +1451,7 @@ struct QueryCadenceOptions {
     let limit: Int
 
     fileprivate init(parsed: QueryCadenceArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: parsed.config, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
         self.configPath = parsed.config
@@ -1556,7 +1558,7 @@ struct QueryCompareOptions {
     let limit: Int
 
     fileprivate init(parsed: QueryCompareArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: parsed.config, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
         self.configPath = parsed.config
@@ -1659,7 +1661,7 @@ struct AnnotationsAddOptions {
     let format: OutputFormat
 
     fileprivate init(parsed: AnnotationsAddArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: nil, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         if let dbPath = parsed.dbPath, dbPath.isEmpty {
             throw CLIError("--db must not be empty.")
@@ -1690,7 +1692,7 @@ struct AnnotationsListOptions {
     let format: OutputFormat
 
     fileprivate init(parsed: AnnotationsListArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: nil, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         if let dbPath = parsed.dbPath, dbPath.isEmpty {
             throw CLIError("--db must not be empty.")
@@ -1712,7 +1714,7 @@ struct AnnotationsTargetsOptions {
     let format: OutputFormat
 
     fileprivate init(parsed: AnnotationsTargetsArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: nil, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         if let dbPath = parsed.dbPath, dbPath.isEmpty {
             throw CLIError("--db must not be empty.")
@@ -1734,7 +1736,7 @@ struct EvidenceWindowOptions {
     let limit: Int
 
     fileprivate init(parsed: EvidenceWindowArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: nil, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
         guard let date = parsed.date else {
@@ -1782,7 +1784,7 @@ struct EvidencePacketOptions {
     let limit: Int
 
     fileprivate init(parsed: EvidencePacketArguments) throws {
-        self.account = try AccountLabel.validate(parsed.account)
+        self.account = try resolveConfiguredAccount(parsed.account, configPath: parsed.config, environment: CommandRuntime.current.environment)
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
         self.dbPath = parsed.dbPath
         self.configPath = parsed.config
@@ -2177,6 +2179,56 @@ private func parseFormat(format rawFormat: String, json: Bool) throws -> OutputF
     }
 
     return format
+}
+
+private func resolveConfiguredAccount(
+    _ rawAccount: String?,
+    configPath explicitConfigPath: String?,
+    environment: [String: String]
+) throws -> String {
+    if let rawAccount {
+        return try AccountLabel.validate(rawAccount)
+    }
+
+    let labels = try configuredAccountLabels(configPath: explicitConfigPath, environment: environment)
+    if labels.count == 1 {
+        return labels[0]
+    }
+    if labels.count > 1 {
+        throw CLIError("missing required --account <label>; configured accounts: \(labels.joined(separator: ", ")).")
+    }
+    throw CLIError("missing required --account <label>.")
+}
+
+private func resolveConfiguredAccountIfPresent(
+    _ rawAccount: String?,
+    configPath explicitConfigPath: String?,
+    environment: [String: String]
+) throws -> String? {
+    if let rawAccount {
+        return try AccountLabel.validate(rawAccount)
+    }
+
+    let labels = try configuredAccountLabels(configPath: explicitConfigPath, environment: environment)
+    if labels.count == 1 {
+        return labels[0]
+    }
+    if labels.count > 1 {
+        throw CLIError("missing required --account <label>; configured accounts: \(labels.joined(separator: ", ")).")
+    }
+    return nil
+}
+
+private func configuredAccountLabels(configPath explicitConfigPath: String?, environment: [String: String]) throws -> [String] {
+    let configPath = explicitConfigPath ?? AppSupportDefaults.configPath(environment: environment)
+    guard configPath.lowercased().hasSuffix(".json"),
+          FileManager.default.fileExists(atPath: configPath) else {
+        return []
+    }
+
+    return try SetupConfigStore.accountLabels(in: SetupConfigStore.loadObjectIfPresent(path: configPath))
+        .map(AccountLabel.validate)
+        .sorted()
 }
 
 private func validateNamedGeographyOptions(
