@@ -362,6 +362,23 @@ Command names are provisional, but prefer `source probe` because the command sho
 
 The tool should not answer “best lunch” by itself. It should provide source/derived outputs that let Robut compose any evidence packet, Almanac, or Guide above the CLI.
 
+### Research and redesign posture
+
+This repo is especially vulnerable to overfitting because it sits near several successful sibling tools and an attractive Almanac/Guide layer. Use the `deep-researcher` anti-anchoring rule for design-heavy work:
+
+> Improvements to local tools can be output, but only vibes should be input.
+
+Start with the human problem, desired outcome, privacy boundary, and acceptance feel. Treat existing tools, current envelopes, and sibling CLIs as constraints, taste signals, and later acceptance tests, not as the search space.
+
+Default sequence for research-shaped changes:
+- frame the question and the decision or workflow it should support
+- survey outward: prior art, current APIs, local-first evidence tools, geography semantics, search/indexing patterns, and comparable guide/almanac products
+- map options before choosing a command, schema, packet, or correction model
+- unblind the local implementation and adapt the broader map to `swarm-cadence`’s early-exploration posture
+- turn the result into a small implementation slice, focused TODO/doc update, or explicit decision
+
+Keep survey, decision, and implementation plan distinct. A sibling command shape is useful evidence of house style, not a substitute for deciding what this tool itself needs.
+
 Useful pattern-extraction verbs for this project:
 
 - prepare/scope the query;
