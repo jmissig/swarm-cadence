@@ -179,6 +179,7 @@ Use repo-local, fixture, sandboxed, or temporary paths for tests and smoke check
 - Treat separate Julian/Alice sourcing as a core architecture constraint, not an afterthought.
 - Keep account identity explicit; do not silently blend Julian and Alice.
 - The CLI exposes evidence. OpenClaw/Robut handles judgment, phrasing, and conversation.
+- Treat check-ins as evidence of visits, not proof of preference.
 - Derived labels are provisional handles, not permanent facts about a person.
 - Prefer boring, inspectable facts: counts, first/last visits, gaps, windows, support, freshness, provenance, drill-downs.
 - Prefer source/derived rows, explicit filters, alternatives, and visible exclusions over one hidden “best” answer.
@@ -266,6 +267,7 @@ not a broad connector or Foursquare SDK.
 ### Credential and account handling
 
 - Keep credentials outside git in `~/Library/Application Support/swarm-cadence/config.json` by default; do not use repo dotfiles as the normal config home.
+- Keep credentials, raw payloads, generated data, and SQLite evidence files out of git; checked-in fixtures must be synthetic.
 - Avoid printing tokens, cookies, OAuth params, or browser-session details in logs, test failures, or examples.
 - Account profiles should be explicit, e.g. `julian`, `alice`, or another configured label.
 - Each account has its own source credentials, sync state, provenance, raw payloads, raw archive, and SQLite evidence database under the same local Application Support app root unless explicitly overridden.
