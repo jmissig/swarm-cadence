@@ -1,7 +1,10 @@
 # swarm-cadence
 
-`swarm-cadence` lets you keep a private local copy of your Foursquare Swarm
-check-in history and ask simple questions about it later.
+`swarm-cadence` is a macOS command-line tool for preserving and querying a
+private local copy of your Foursquare Swarm check-in history.
+
+The repository also includes skills that help OpenClaw, ChatGPT, and Claude use
+the tool to answer questions grounded in that history.
 
 Use it to answer things like:
 
@@ -16,14 +19,56 @@ places, infer favorites, or make recommendations by itself.
 
 ## Install
 
+### Command-Line Tool
+
 ```bash
 make install
 swarm-cadence --version
 ```
 
+That installs `swarm-cadence` to `~/bin/swarm-cadence` by default. If
+`~/bin` is not already on your `PATH`, add it first.
+
+To install elsewhere:
+
+```bash
+sudo make install PREFIX="/usr/local"
+```
+
 For development, use `make build` and `make test`. See
 [docs/operations-and-query-semantics.md](docs/operations-and-query-semantics.md)
 for deeper operator notes.
+
+### Agent Skills
+
+Install the repository's skill for OpenClaw (the default), Codex, or Claude
+Code:
+
+```bash
+make install-skill ACCOUNTS="single-account"
+make install-skill ACCOUNTS="single-account" SKILL_TARGET=codex
+make install-skill ACCOUNTS="single-account" SKILL_TARGET=claude
+```
+
+Use `ACCOUNTS="single-account"` when the skill should use the CLI's sole
+configured account without passing `--account`. To bake explicit account
+choices into its examples instead, use the configured labels:
+
+```bash
+make install-skill ACCOUNTS="account1 account2"
+```
+
+The default destinations are:
+
+- OpenClaw: `$OPENCLAW_HOME/skills/swarm-cadence`, with `OPENCLAW_HOME`
+  defaulting to `~/.openclaw`
+- Codex: `$CODEX_HOME/skills/swarm-cadence`, with `CODEX_HOME` defaulting to
+  `~/.codex`
+- Claude Code: `$CLAUDE_CONFIG_DIR/skills/swarm-cadence`, with
+  `CLAUDE_CONFIG_DIR` defaulting to `~/.claude`
+
+Set the corresponding home/config variable to install elsewhere. `SKILLS_DIR`
+can also override the final skills directory directly.
 
 ## First Run
 

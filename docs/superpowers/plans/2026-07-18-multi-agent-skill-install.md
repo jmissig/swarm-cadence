@@ -28,7 +28,7 @@
 - Consumes: `SKILL_TARGET`, `OPENCLAW_HOME`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, `SKILLS_DIR`, and the existing `ACCOUNTS` argument
 - Produces: `SKILL_DEST=$(SKILLS_DIR)/swarm-cadence` for the selected agent
 
-- [ ] **Step 1: Verify unsupported target selection currently fails the desired contract**
+- [x] **Step 1: Verify unsupported target selection currently fails the desired contract**
 
 Run:
 
@@ -38,7 +38,7 @@ make -n install-skill ACCOUNTS="single-account" SKILL_TARGET=invalid
 
 Expected before implementation: exit 0 and output still targets the OpenClaw skill directory, demonstrating that `SKILL_TARGET` is ignored.
 
-- [ ] **Step 2: Add target resolution to the Makefile**
+- [x] **Step 2: Add target resolution to the Makefile**
 
 Replace the current OpenClaw-only variables with:
 
@@ -67,7 +67,7 @@ In `install-skill`, create `$(SKILLS_DIR)` instead of `$(OPENCLAW_SKILLS_DIR)` a
 	@echo "Installed skill $(SKILL_NAME) for $(SKILL_TARGET) to $(SKILL_DEST)"
 ```
 
-- [ ] **Step 3: Verify target path resolution and rejection**
+- [x] **Step 3: Verify target path resolution and rejection**
 
 Run:
 
@@ -80,7 +80,7 @@ make -n install-skill ACCOUNTS="single-account" SKILL_TARGET=invalid
 
 Expected: the first three dry runs target `/tmp/swarm-{agent}/skills/swarm-cadence`; the fourth exits nonzero with `Unsupported SKILL_TARGET` before printing install commands.
 
-- [ ] **Step 4: Perform isolated installs for all targets**
+- [x] **Step 4: Perform isolated installs for all targets**
 
 Run:
 
@@ -98,7 +98,7 @@ done
 
 Expected: all assertions pass and no real agent skill directory is touched.
 
-- [ ] **Step 5: Commit target-aware installation**
+- [x] **Step 5: Commit target-aware installation**
 
 ```bash
 git add Makefile
@@ -114,7 +114,7 @@ git commit -m "Support multi-agent skill installation"
 - Consumes: the Makefile interface from Task 1
 - Produces: public macOS CLI introduction plus OpenClaw, Codex, and Claude Code skill installation instructions
 
-- [ ] **Step 1: Verify the README does not yet document all targets**
+- [x] **Step 1: Verify the README does not yet document all targets**
 
 Run:
 
@@ -124,7 +124,7 @@ rg -n 'macOS command-line tool|SKILL_TARGET=codex|SKILL_TARGET=claude|CODEX_HOME
 
 Expected before implementation: no matches.
 
-- [ ] **Step 2: Rewrite the lightweight introduction**
+- [x] **Step 2: Rewrite the lightweight introduction**
 
 Begin the README with these two distinct ideas:
 
@@ -136,7 +136,7 @@ The repository also includes skills that help OpenClaw, ChatGPT, and Claude use 
 
 Keep the existing task examples and evidence-boundary explanation after this introduction.
 
-- [ ] **Step 3: Document binary and agent-skill installation separately**
+- [x] **Step 3: Document binary and agent-skill installation separately**
 
 Keep `make install` first. Add an `### Agent Skills` subsection showing:
 
@@ -153,7 +153,7 @@ Explain that `ACCOUNTS="account1 account2"` installs named-account examples. Lis
 - Claude Code: `$CLAUDE_CONFIG_DIR/skills/swarm-cadence`, default `~/.claude`
 - `SKILLS_DIR` directly overrides the final skills directory
 
-- [ ] **Step 4: Verify documentation and repository behavior**
+- [x] **Step 4: Verify documentation and repository behavior**
 
 Run:
 
@@ -165,7 +165,7 @@ make test
 
 Expected: each documentation term is present, no whitespace errors are reported, and the Swift test suite passes.
 
-- [ ] **Step 5: Commit documentation**
+- [x] **Step 5: Commit documentation**
 
 ```bash
 git add README.md docs/superpowers/plans/2026-07-18-multi-agent-skill-install.md
