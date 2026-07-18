@@ -79,6 +79,10 @@ swarm-cadence auth login --account default
 swarm-cadence auth status --account default --format json
 ```
 
+Interactive terminals can guide missing auth values. JSON output, non-TTY
+input, `--non-interactive`, and its `--no-input` alias never prompt; provide
+`--account` and complete one-shot credential options instead.
+
 Then check local readiness without touching credentials, raw payloads, SQLite
 rows, or the network:
 

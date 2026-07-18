@@ -6,6 +6,7 @@ public enum SwarmCadenceCommand {
         arguments: [String],
         environment: [String: String] = ProcessInfo.processInfo.environment,
         liveTransport: ProbeHTTPTransport = URLSessionProbeHTTPTransport(),
+        isInputTTY: Bool = true,
         input: @escaping () -> String? = { readLine(strippingNewline: true) },
         output: @escaping (String) -> Void = { print($0) },
         errorOutput: @escaping (String) -> Void = { fputs($0 + "\n", stderr) }
@@ -14,6 +15,7 @@ public enum SwarmCadenceCommand {
             arguments: Self.normalizeSignedValues(arguments),
             environment: environment,
             liveTransport: liveTransport,
+            isInputTTY: isInputTTY,
             input: input,
             output: output,
             errorOutput: errorOutput,
@@ -101,6 +103,7 @@ private struct CommandRuntime {
     var arguments: [String]
     var environment: [String: String]
     var liveTransport: ProbeHTTPTransport
+    var isInputTTY: Bool
     var input: () -> String?
     var output: (String) -> Void
     var errorOutput: (String) -> Void
@@ -110,6 +113,7 @@ private struct CommandRuntime {
         arguments: [],
         environment: [:],
         liveTransport: URLSessionProbeHTTPTransport(),
+        isInputTTY: false,
         input: { nil },
         output: { _ in },
         errorOutput: { _ in },
@@ -189,7 +193,7 @@ private struct SetupCommand: ParsableCommand {
             action: "login",
             account: options.account,
             configPath: options.configPath,
-            format: options.format,
+            allowsPrompts: options.allowsPrompts(isInputTTY: runtime.isInputTTY),
             inputs: options.inputs,
             environment: runtime.environment,
             transport: runtime.liveTransport,
@@ -246,7 +250,7 @@ private struct AuthLoginCommand: ParsableCommand {
             action: "login",
             account: options.account,
             configPath: options.configPath,
-            format: options.format,
+            allowsPrompts: options.allowsPrompts(isInputTTY: runtime.isInputTTY),
             inputs: options.inputs,
             environment: runtime.environment,
             transport: runtime.liveTransport,
@@ -962,12 +966,14 @@ struct SetupOptions {
     let account: String?
     let configPath: String?
     let format: OutputFormat
+    let nonInteractive: Bool
     let inputs: SetupAuthInputs
 
     fileprivate init(parsed: SetupArguments) throws {
         self.account = parsed.account
         self.configPath = parsed.config
         self.format = try parseFormat(format: parsed.format, json: parsed.json)
+        self.nonInteractive = parsed.nonInteractive
         self.inputs = SetupAuthInputs(
             accessToken: parsed.accessToken,
             clientID: parsed.clientID,
@@ -975,6 +981,10 @@ struct SetupOptions {
             redirectURI: parsed.redirectURI,
             authorizationCode: parsed.authorizationCode
         )
+    }
+
+    func allowsPrompts(isInputTTY: Bool) -> Bool {
+        format != .json && !nonInteractive && isInputTTY
     }
 }
 
@@ -1885,6 +1895,10 @@ private struct SetupArguments: ParsableArguments {
     @Option(name: .customLong("client-secret"), help: "Foursquare developer app client secret, used only when exchanging an authorization code.") var clientSecret: String?
     @Option(name: .customLong("redirect-uri"), help: "Developer app redirect URI. Defaults to a local callback URI and must match the Foursquare app setting.") var redirectURI: String?
     @Option(name: .customLong("authorization-code"), help: "Code copied from the browser redirect after opening the printed authorization URL.") var authorizationCode: String?
+    @Flag(
+        name: [.customLong("non-interactive"), .customLong("no-input")],
+        help: "Never prompt; require complete one-shot options. Non-TTY and JSON modes also never prompt."
+    ) var nonInteractive = false
     @Flag(help: "Shortcut for --format json.") var json = false
 }
 

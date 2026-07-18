@@ -37,14 +37,14 @@ Source of truth:
 - Raw source payloads: preserved in the evidence DB or adjacent raw archive so future schemas can be re-derived.
 - Derived/cached data: model/derived tables or sidecar DBs for cadence, venue rollups, source/derived outputs, and human-annotations; these should be rebuildable from local evidence plus annotation storage. Evidence packets are Robut/LLM-composed artifacts above the stable CLI pieces, except for explicitly experimental diagnostic envelopes.
 - Research/design sources:
-  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Foursquare Swarm Connector.md`
-  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Pattern Extraction Tooling.md`
+  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/Coding/Foursquare Swarm Connector.md`
+  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/Coding/Pattern Extraction Tooling.md`
   - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Pattern Intelligence Research Index.md`
   - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Almanacs and Guides.md`
-  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Julian’s Food & Places Almanac v0.md`
+  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/Family/Julian’s Food & Places Almanac v0.md`
   - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Lunch Guide Source Bundle v0.md`
   - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Lunch Guide v0.md`
-  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Canonical AGENTS.md`
+  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/Coding/Canonical AGENTS.md`
 - Human-facing usage guide: `README.md`.
 - Active backlog: `TODO.md`.
 - Focused design/API/schema docs: `docs/`, especially `docs/pattern-intelligence-proposal.md`.
@@ -320,6 +320,7 @@ This tool should feel like Julian’s other local-first CLIs:
 - structured output via `--format json` for agents/scripts;
 - narrow evidence-oriented commands;
 - clear `doctor`, `status`, or `validate` commands when useful;
+- interactive setup/auth/config flows only where they help humans, with complete one-shot forms for agents and scripts;
 - no hidden background behavior in v1.
 
 Likely early command surface:
@@ -344,6 +345,13 @@ swarm-cadence evidence lunch --account julian --near home --format json
 ```
 
 Command names are provisional, but prefer `source probe` because the command should cover adapter viability, field coverage, and credential health without implying an auth-only task. Prefer the smallest coherent command set that answers real questions.
+
+Align shared verbs where they mean the same thing across tools, and use Swarm-specific verbs only when they name a real source or evidence shape.
+
+Interactive vs one-shot:
+- human setup/auth/config flows may be guided, but `source`, `ingest`, `import`, `query`, and `doctor` forms should stay scriptable
+- JSON, non-TTY, and `--non-interactive` / `--no-input` modes must never prompt
+- destructive repairs or identity/account changes need explicit scope plus preview or confirmation; bounded source fetches, ingests, and imports remain one-shot and non-interactive
 
 ### Output
 

@@ -261,6 +261,81 @@ final class SetupAuthTests: XCTestCase {
         XCTAssertEqual(flattened["SWARM_CADENCE_DEFAULT_V2_ACCESS_TOKEN"], "first-token")
     }
 
+    func testNonTTYAuthLoginDoesNotPrompt() {
+        let directory = temporaryDirectory()
+        let config = directory.appendingPathComponent("config.json")
+        var output = ""
+        var error = ""
+
+        let exit = SwarmCadenceCommand.run(
+            arguments: ["auth", "login", "--account", "julian", "--config", config.path],
+            environment: ["HOME": directory.path],
+            isInputTTY: false,
+            input: { XCTFail("non-TTY auth login must not read input"); return nil },
+            output: { output += $0 + "\n" },
+            errorOutput: { error += $0 + "\n" }
+        )
+
+        XCTAssertEqual(exit, 2)
+        XCTAssertTrue(output.isEmpty)
+        XCTAssertTrue(error.contains("interactive input is disabled"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: config.path))
+    }
+
+    func testNonInteractiveAuthLoginAcceptsCompleteOneShotInput() throws {
+        let directory = temporaryDirectory()
+        let config = directory.appendingPathComponent("config.json")
+        var output = ""
+
+        let exit = SwarmCadenceCommand.run(
+            arguments: [
+                "auth", "login",
+                "--account", "julian",
+                "--config", config.path,
+                "--non-interactive",
+                "--access-token", "one-shot-token"
+            ],
+            environment: ["HOME": directory.path],
+            input: { XCTFail("--non-interactive must not read input"); return nil },
+            output: { output += $0 + "\n" },
+            errorOutput: { output += $0 + "\n" }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertFalse(output.contains("Choose one setup path"))
+        XCTAssertFalse(output.contains("paste token"))
+        XCTAssertFalse(output.contains("one-shot-token"))
+        let flattened = try JSONConfig.load(path: config.path)
+        XCTAssertEqual(flattened["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN"], "one-shot-token")
+    }
+
+    func testNoInputAliasSuppressesSetupPrompts() throws {
+        let directory = temporaryDirectory()
+        let config = directory.appendingPathComponent("config.json")
+        var output = ""
+
+        let exit = SwarmCadenceCommand.run(
+            arguments: [
+                "setup",
+                "--account", "julian",
+                "--config", config.path,
+                "--no-input",
+                "--access-token", "alias-token"
+            ],
+            environment: ["HOME": directory.path],
+            input: { XCTFail("--no-input must not read input"); return nil },
+            output: { output += $0 + "\n" },
+            errorOutput: { output += $0 + "\n" }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertFalse(output.contains("Choose one setup path"))
+        XCTAssertFalse(output.contains("paste token"))
+        XCTAssertFalse(output.contains("alias-token"))
+        let flattened = try JSONConfig.load(path: config.path)
+        XCTAssertEqual(flattened["SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN"], "alias-token")
+    }
+
     func testAuthLoginWithoutAccountUsesOnlyConfiguredAccount() throws {
         let directory = temporaryDirectory()
         let config = directory.appendingPathComponent("config.json")
@@ -383,6 +458,19 @@ final class SetupAuthTests: XCTestCase {
         XCTAssertTrue(output.contains("swarm-cadence setup [--account <label>]"))
         XCTAssertTrue(output.contains("swarm-cadence auth status --account <label>"))
         XCTAssertTrue(output.contains("swarm-cadence auth login [--account <label>]"))
+    }
+
+    func testAuthLoginHelpDocumentsNonInteractiveAliases() {
+        var output = ""
+        let exit = SwarmCadenceCommand.run(
+            arguments: ["auth", "login", "--help"],
+            output: { output = $0 },
+            errorOutput: { _ in }
+        )
+
+        XCTAssertEqual(exit, 0)
+        XCTAssertTrue(output.contains("--non-interactive"))
+        XCTAssertTrue(output.contains("--no-input"))
     }
 
     private func temporaryDirectory() -> URL {
