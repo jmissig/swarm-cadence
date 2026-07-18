@@ -39,6 +39,14 @@ data/
 .env.*
 !.env.example
 
+# Local SQLite evidence stores and sidecars
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-*
+*.sqlite3-*
+*.db-*
+
 # CocoaPods
 #
 # We recommend against adding the Pods directory to your .gitignore. However

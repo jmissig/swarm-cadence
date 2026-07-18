@@ -36,15 +36,7 @@ Source of truth:
 - Canonical local evidence: the local `swarm-cadence` SQLite database once records are ingested.
 - Raw source payloads: preserved in the evidence DB or adjacent raw archive so future schemas can be re-derived.
 - Derived/cached data: model/derived tables or sidecar DBs for cadence, venue rollups, source/derived outputs, and human-annotations; these should be rebuildable from local evidence plus annotation storage. Evidence packets are Robut/LLM-composed artifacts above the stable CLI pieces, except for explicitly experimental diagnostic envelopes.
-- Research/design sources:
-  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/Coding/Foursquare Swarm Connector.md`
-  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/Coding/Pattern Extraction Tooling.md`
-  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Pattern Intelligence Research Index.md`
-  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Almanacs and Guides.md`
-  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/Family/Julian’s Food & Places Almanac v0.md`
-  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Lunch Guide Source Bundle v0.md`
-  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/OpenClaw/Lunch Guide v0.md`
-  - `/Users/robut/Library/Mobile Documents/iCloud~md~obsidian/Documents/ChingMi/Coding/Canonical AGENTS.md`
+- Private research, design notes, and household artifacts live outside this repository. Do not name or link them from tracked files.
 - Human-facing usage guide: `README.md`.
 - Active backlog: `TODO.md`.
 - Focused design/API/schema docs: `docs/`, especially `docs/pattern-intelligence-proposal.md`.
