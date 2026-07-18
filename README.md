@@ -82,9 +82,8 @@ authorization URL, and copying the returned authorization code back into the
 terminal. The CLI exchanges that code and stores the resulting access token
 locally.
 
-This tool uses Foursquare's legacy v2 API for personal check-in history.
-Foursquare provisions newer developer accounts for v3 by default, so a new
-account may need help from Foursquare Developer Support to obtain v2 access.
+This tool currently uses Foursquare's legacy v2 API for personal check-in
+history.
 
 Create or update account auth interactively:
 
