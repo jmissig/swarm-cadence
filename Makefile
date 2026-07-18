@@ -6,9 +6,22 @@ BINDIR ?= $(PREFIX)/bin
 PRODUCT ?= swarm-cadence
 SKILL_NAME := swarm-cadence
 SKILL_DIR := skills/$(SKILL_NAME)
+SKILL_TARGET ?= openclaw
 OPENCLAW_HOME ?= $(HOME)/.openclaw
-OPENCLAW_SKILLS_DIR ?= $(OPENCLAW_HOME)/skills
-SKILL_DEST := $(OPENCLAW_SKILLS_DIR)/$(SKILL_NAME)
+CODEX_HOME ?= $(HOME)/.codex
+CLAUDE_CONFIG_DIR ?= $(HOME)/.claude
+
+ifeq ($(SKILL_TARGET),openclaw)
+SKILLS_DIR ?= $(OPENCLAW_HOME)/skills
+else ifeq ($(SKILL_TARGET),codex)
+SKILLS_DIR ?= $(CODEX_HOME)/skills
+else ifeq ($(SKILL_TARGET),claude)
+SKILLS_DIR ?= $(CLAUDE_CONFIG_DIR)/skills
+else
+$(error Unsupported SKILL_TARGET '$(SKILL_TARGET)'; expected openclaw, codex, or claude)
+endif
+
+SKILL_DEST := $(SKILLS_DIR)/$(SKILL_NAME)
 VERSION_FILE := VERSION
 VERSION_SYNC_FILE := Sources/SwarmCadenceCore/SwarmCadenceVersion.swift
 VERSION := $(shell tr -d '\n' < $(VERSION_FILE))
@@ -59,7 +72,7 @@ install-skill:
 		exit 1; \
 	fi
 	python3 scripts/install_skill.py --validate-accounts "$(ACCOUNTS)"
-	mkdir -p "$(OPENCLAW_SKILLS_DIR)"
+	mkdir -p "$(SKILLS_DIR)"
 	rm -rf "$(SKILL_DEST)"
 	cp -R "$(SKILL_DIR)" "$(SKILL_DEST)"
 	python3 scripts/install_skill.py \
@@ -68,4 +81,4 @@ install-skill:
 		--version-file "$(VERSION_FILE)" \
 		--skill-name "$(SKILL_NAME)" \
 		--accounts "$(ACCOUNTS)"
-	@echo "Installed skill $(SKILL_NAME) to $(SKILL_DEST)"
+	@echo "Installed skill $(SKILL_NAME) for $(SKILL_TARGET) to $(SKILL_DEST)"
