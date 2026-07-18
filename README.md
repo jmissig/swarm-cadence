@@ -72,22 +72,37 @@ can also override the final skills directory directly.
 
 ## First Run
 
+Connecting a Swarm account for the first time requires a Foursquare developer
+project. Sign in to the
+[Foursquare Developer Console](https://docs.foursquare.com/developer/docs/developer-console-get-started),
+create a developer account if needed, accept the developer terms, and create or
+select a project. The interactive login then guides you through setting its
+redirect URI, pasting the Client ID and Client Secret, opening the printed
+authorization URL, and copying the returned authorization code back into the
+terminal. The CLI exchanges that code and stores the resulting access token
+locally.
+
+This tool uses Foursquare's legacy v2 API for personal check-in history.
+Foursquare provisions newer developer accounts for v3 by default, so a new
+account may need help from Foursquare Developer Support to obtain v2 access.
+
 Create or update account auth interactively:
 
 ```bash
 swarm-cadence auth login --account default
-swarm-cadence auth status --account default --format json
+swarm-cadence auth status --account default
 ```
 
-Interactive terminals can guide missing auth values. JSON output, non-TTY
-input, `--non-interactive`, and its `--no-input` alias never prompt; provide
-`--account` and complete one-shot credential options instead.
+Interactive terminals can guide missing auth values. Non-TTY input,
+`--non-interactive`, and its `--no-input` alias never prompt; provide
+`--account` and complete one-shot credential options instead. For scripting,
+`--format json` also disables prompts.
 
 Then check local readiness without touching credentials, raw payloads, SQLite
 rows, or the network:
 
 ```bash
-swarm-cadence source status --format json
+swarm-cadence source status
 ```
 
 Account labels are explicit (`default`, `partner`, or another configured label).
@@ -98,21 +113,21 @@ There is no silent account blending.
 Pull in recent check-ins, then check the local evidence coverage:
 
 ```bash
-swarm-cadence ingest --account default --adapter v2 --format json
-swarm-cadence db stats --account default --format json
+swarm-cadence ingest --account default --adapter v2
+swarm-cadence db stats --account default
 ```
 
 Ask what places the local history supports:
 
 ```bash
-swarm-cadence query venues --account default --area peninsula --category "Coffee Shop" --format json
-swarm-cadence query visits --account default --venue-id <venue-id> --format json
+swarm-cadence query venues --account default --area peninsula --category "Coffee Shop"
+swarm-cadence query visits --account default --venue-id <venue-id>
 ```
 
 Compare broad history with recent activity:
 
 ```bash
-swarm-cadence query compare --account default --baseline-from 2024-01-01 --recent-from 2026-01-01 --format json
+swarm-cadence query compare --account default --baseline-from 2024-01-01 --recent-from 2026-01-01
 ```
 
 Import and audit commands, cadence/lapse rollups, source probes, and evidence
