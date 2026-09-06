@@ -47,6 +47,8 @@ public struct DatabaseMigrateResult: Codable, Equatable {
 }
 
 public struct DatabaseStatsResult: Codable, Equatable {
+    public let sync: SourceSyncState
+    public let unverifiedSourceFiles: Int
     public let schemaVersion: Int
     public let command: String
     public let account: String?
@@ -65,6 +67,7 @@ public struct DatabaseStatsResult: Codable, Equatable {
 }
 
 public struct DatabaseFreshness: Codable, Equatable {
+    public let sync: SourceSyncState
     public let account: String?
     public let adapter: String?
     public let lastFetchedAtISO8601: String?
@@ -129,7 +132,8 @@ public enum SwarmDatabase {
         rawDirectory: String,
         account: String? = nil,
         importedAt: Date = Date(),
-        manifestFileNames: Set<String>?
+        manifestFileNames: Set<String>?,
+        observationOnly: Bool = false
     ) throws -> RawImportResult {
         guard !dbPath.isEmpty else {
             throw CLIError("missing required --db <path>.")
@@ -166,7 +170,8 @@ public enum SwarmDatabase {
                         manifestURL: manifestURL,
                         rawDirectoryURL: rawDirectoryURL,
                         expectedAccount: expectedAccount,
-                        importedAt: importedAtString
+                        importedAt: importedAtString,
+                        observationOnly: observationOnly
                     )
                     accumulator.rawFilesImported += 1
                     accumulator.rawFilesInserted += imported.rawFileInserted ? 1 : 0
@@ -177,7 +182,7 @@ public enum SwarmDatabase {
                     accumulator.categoriesUpserted += imported.categoriesUpserted
                     accumulator.categoriesInserted += imported.categoriesInserted
                     accumulator.skippedCheckins += imported.skippedCheckins
-                } catch let error as RawImportSkip {
+                } catch let error as SourceValidationError {
                     accumulator.skippedFiles += 1
                     accumulator.warnings.append("skipped manifest: \(error.message)")
                 }
@@ -270,7 +275,7 @@ public enum SwarmDatabase {
                     accumulator.categoriesUpserted += imported.categoriesUpserted
                     accumulator.categoriesInserted += imported.categoriesInserted
                     accumulator.skippedCheckins += imported.skippedCheckins
-                } catch let error as RawImportSkip {
+                } catch let error as SourceValidationError {
                     accumulator.skippedFiles += 1
                     accumulator.warnings.append("skipped export file: \(error.message)")
                 }
@@ -326,7 +331,12 @@ public enum SwarmDatabase {
 
             let freshness = try freshness(db: db, account: account, adapter: nil)
 
+            let unverified = try db.columns(in: "raw_files").contains { $0.name == "provenance_verified" }
+                ? Int.fetchOne(db, sql: "SELECT COUNT(*) FROM raw_files r WHERE provenance_verified = 0 AND (? IS NULL OR r.account = ? OR EXISTS (SELECT 1 FROM checkins c WHERE c.raw_file_id = r.id AND c.account = ?))", arguments: [account, account, account]) ?? 0
+                : Int.fetchOne(db, sql: "SELECT COUNT(*) FROM raw_files WHERE (? IS NULL OR account = ?)", arguments: [account, account]) ?? 0
             return DatabaseStatsResult(
+                sync: freshness.sync,
+                unverifiedSourceFiles: unverified,
                 schemaVersion: 1,
                 command: "db stats",
                 account: account,
@@ -571,6 +581,31 @@ public enum SwarmDatabase {
             CREATE INDEX idx_annotations_account_updated_at ON annotations(account, updated_at);
             """)
         }
+        migrator.registerMigration("v5_source_artifacts") { db in
+            try db.execute(sql: """
+            ALTER TABLE raw_files ADD COLUMN provenance_verified INTEGER NOT NULL DEFAULT 0;
+            CREATE TABLE source_observations (
+                id INTEGER PRIMARY KEY,
+                observation_key TEXT NOT NULL UNIQUE,
+                raw_file_id INTEGER NOT NULL REFERENCES raw_files(id),
+                source_path TEXT NOT NULL,
+                fetched_at TEXT,
+                imported_at TEXT
+            );
+            CREATE INDEX idx_source_observations_artifact ON source_observations(raw_file_id);
+            """)
+        }
+        migrator.registerMigration("v6_ingestion_runs") { db in
+            try db.execute(sql: """
+            CREATE TABLE ingestion_runs (
+                id TEXT PRIMARY KEY, account TEXT NOT NULL, adapter TEXT NOT NULL,
+                started_at TEXT NOT NULL, last_successful_check_at TEXT, status TEXT NOT NULL,
+                recent_complete INTEGER NOT NULL DEFAULT 0,
+                history_verified INTEGER NOT NULL DEFAULT 0, next_offset_hint INTEGER
+            );
+            CREATE INDEX idx_ingestion_runs_account ON ingestion_runs(account, adapter, started_at);
+            """)
+        }
         try migrator.migrate(dbQueue)
     }
 
@@ -579,42 +614,16 @@ public enum SwarmDatabase {
         manifestURL: URL,
         rawDirectoryURL: URL,
         expectedAccount: String?,
-        importedAt: String
+        importedAt: String,
+        observationOnly: Bool
     ) throws -> ManifestImportCounts {
-        let manifest: RawFetchManifest
-        do {
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            manifest = try decoder.decode(RawFetchManifest.self, from: Data(contentsOf: manifestURL))
-        } catch {
-            throw RawImportSkip("manifest could not be decoded")
-        }
-
-        guard manifest.adapter == .v2 else {
-            throw RawImportSkip("only v2 raw files can be imported")
-        }
-        if let expectedAccount, manifest.account != expectedAccount {
-            throw RawImportSkip("manifest account \(manifest.account) does not match requested account \(expectedAccount)")
-        }
-
-        let rawURL = rawDirectoryURL.appendingPathComponent(manifest.rawFileName)
-        guard FileManager.default.fileExists(atPath: rawURL.path) else {
-            throw RawImportSkip("matching raw file is missing")
-        }
-
-        let rawData = try Data(contentsOf: rawURL)
-        guard rawData.count == manifest.rawBytes else {
-            throw RawImportSkip("raw byte count does not match manifest")
-        }
-        guard RawFetch.sha256Hex(rawData) == manifest.rawSha256 else {
-            throw RawImportSkip("raw sha256 does not match manifest")
-        }
-
-        let envelope = try parseEnvelope(rawData)
+        let source = try ValidatedV2Source.read(manifestURL: manifestURL, expectedAccount: expectedAccount)
+        let manifest = source.manifest
+        let relativePath = SourceArtifacts.identity(account: manifest.account, adapter: "v2", sha256: manifest.rawSha256)
         let existingRawFileID = try Int.fetchOne(
             db,
             sql: "SELECT id FROM raw_files WHERE relative_path = ?",
-            arguments: [manifest.rawFileName]
+            arguments: [relativePath]
         )
 
         try db.execute(
@@ -625,26 +634,10 @@ public enum SwarmDatabase {
                 "offset", http_status, api_meta_code, returned_count, total_count,
                 imported_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(relative_path) DO UPDATE SET
-                raw_file_name = excluded.raw_file_name,
-                manifest_file_name = excluded.manifest_file_name,
-                sha256 = excluded.sha256,
-                bytes = excluded.bytes,
-                fetched_at = excluded.fetched_at,
-                adapter = excluded.adapter,
-                account = excluded.account,
-                endpoint = excluded.endpoint,
-                api_version = excluded.api_version,
-                "limit" = excluded."limit",
-                "offset" = excluded."offset",
-                http_status = excluded.http_status,
-                api_meta_code = excluded.api_meta_code,
-                returned_count = excluded.returned_count,
-                total_count = excluded.total_count,
-                imported_at = excluded.imported_at
+            ON CONFLICT(relative_path) DO NOTHING
             """,
             arguments: [
-                manifest.rawFileName,
+                relativePath,
                 manifest.rawFileName,
                 manifestURL.lastPathComponent,
                 manifest.rawSha256,
@@ -667,17 +660,22 @@ public enum SwarmDatabase {
         let rawFileID = try Int.fetchOne(
             db,
             sql: "SELECT id FROM raw_files WHERE relative_path = ?",
-            arguments: [manifest.rawFileName]
+            arguments: [relativePath]
         ).orThrow("raw file row was not available after import.")
 
+        try db.execute(sql: "UPDATE raw_files SET provenance_verified = 1 WHERE id = ?", arguments: [rawFileID])
+        try SourceArtifacts.observe(db: db, rawFileID: rawFileID, path: source.rawURL.path, fetchedAt: manifest.fetchedAt, importedAt: observationOnly ? nil : importedAt)
         var counts = ManifestImportCounts(rawFileInserted: existingRawFileID == nil)
 
-        for item in envelope.items {
+        if observationOnly { return counts }
+
+        for item in source.items {
             guard let checkinID = nonEmptyString(item["id"]) else {
                 counts.skippedCheckins += 1
                 continue
             }
 
+            try SourceArtifacts.requireOwnership(db: db, checkinID: checkinID, account: manifest.account)
             let existingCheckin = try String.fetchOne(
                 db,
                 sql: "SELECT checkin_id FROM checkins WHERE checkin_id = ?",
@@ -770,13 +768,11 @@ public enum SwarmDatabase {
         importedAt: String,
         qualityIssues: inout [ImportQualityIssue]
     ) throws -> ManifestImportCounts {
-        let rawData = try Data(contentsOf: fileURL)
-        guard let object = (try? JSONSerialization.jsonObject(with: rawData)) as? [String: Any],
-              let items = object["items"] as? [[String: Any]] else {
-            throw RawImportSkip("export checkins file could not be decoded")
-        }
+        let source = try ValidatedExportSource.read(fileURL)
+        let rawData = source.data
+        let items = source.items
         let sha = RawFetch.sha256Hex(rawData)
-        let relativePath = fileURL.lastPathComponent
+        let relativePath = SourceArtifacts.identity(account: account, adapter: "export", sha256: sha)
         let existingRawFileID = try Int.fetchOne(db, sql: "SELECT id FROM raw_files WHERE relative_path = ?", arguments: [relativePath])
         let ordinal = exportCheckinsFileOrdinal(fileURL.lastPathComponent)
         try db.execute(
@@ -787,23 +783,7 @@ public enum SwarmDatabase {
                 "offset", http_status, api_meta_code, returned_count, total_count,
                 imported_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(relative_path) DO UPDATE SET
-                raw_file_name = excluded.raw_file_name,
-                manifest_file_name = excluded.manifest_file_name,
-                sha256 = excluded.sha256,
-                bytes = excluded.bytes,
-                fetched_at = excluded.fetched_at,
-                adapter = excluded.adapter,
-                account = excluded.account,
-                endpoint = excluded.endpoint,
-                api_version = excluded.api_version,
-                "limit" = excluded."limit",
-                "offset" = excluded."offset",
-                http_status = excluded.http_status,
-                api_meta_code = excluded.api_meta_code,
-                returned_count = excluded.returned_count,
-                total_count = excluded.total_count,
-                imported_at = excluded.imported_at
+            ON CONFLICT(relative_path) DO NOTHING
             """,
             arguments: [
                 relativePath,
@@ -821,12 +801,14 @@ public enum SwarmDatabase {
                 0,
                 nil,
                 items.count,
-                object["count"] as? Int ?? items.count,
+                source.totalCount,
                 importedAt
             ]
         )
         let rawFileID = try Int.fetchOne(db, sql: "SELECT id FROM raw_files WHERE relative_path = ?", arguments: [relativePath])
             .orThrow("raw file row was not available after export import.")
+        try db.execute(sql: "UPDATE raw_files SET provenance_verified = 1 WHERE id = ?", arguments: [rawFileID])
+        try SourceArtifacts.observe(db: db, rawFileID: rawFileID, path: fileURL.path, fetchedAt: nil, importedAt: importedAt)
         var counts = ManifestImportCounts(rawFileInserted: existingRawFileID == nil)
 
         for item in items {
@@ -834,6 +816,7 @@ public enum SwarmDatabase {
                 counts.skippedCheckins += 1
                 continue
             }
+            try SourceArtifacts.requireOwnership(db: db, checkinID: checkinID, account: account)
             let existingCheckin = try String.fetchOne(db, sql: "SELECT checkin_id FROM checkins WHERE checkin_id = ?", arguments: [checkinID])
 
             let exportVenue = item["venue"] as? [String: Any]
@@ -1091,17 +1074,6 @@ public enum SwarmDatabase {
         )
     }
 
-    private static func parseEnvelope(_ data: Data) throws -> V2CheckinsEnvelope {
-        guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let response = object["response"] as? [String: Any],
-              let checkins = response["checkins"] as? [String: Any],
-              let items = checkins["items"] as? [[String: Any]] else {
-            throw RawImportSkip("raw response.checkins.items was not present")
-        }
-
-        return V2CheckinsEnvelope(items: items)
-    }
-
     private static func upsertVenue(
         db: Database,
         venueID: String,
@@ -1271,6 +1243,16 @@ public enum SwarmDatabase {
         return formatter.string(from: date)
     }
 
+    private static func latestTimestamp(_ values: [String?]) -> String? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let wholeSeconds = ISO8601DateFormatter()
+        return values.compactMap { $0 }.max {
+            (fractional.date(from: $0) ?? wholeSeconds.date(from: $0) ?? .distantPast)
+                < (fractional.date(from: $1) ?? wholeSeconds.date(from: $1) ?? .distantPast)
+        }
+    }
+
     static func freshness(
         db: Database,
         account: String?,
@@ -1312,32 +1294,49 @@ public enum SwarmDatabase {
             """,
             arguments: [account, account, adapter, adapter]
         )
+        let hasObservations = try db.tableExists("source_observations")
+        let observedFetch = hasObservations ? try String.fetchOne(db, sql: """
+            SELECT o.fetched_at FROM source_observations o JOIN raw_files r ON r.id = o.raw_file_id
+            WHERE (? IS NULL OR r.account = ?) AND (? IS NULL OR r.adapter = ?)
+            ORDER BY julianday(o.fetched_at) DESC LIMIT 1
+            """, arguments: [account, account, adapter, adapter]) : nil
+        let observedImport = hasObservations ? try String.fetchOne(db, sql: """
+            SELECT o.imported_at FROM source_observations o JOIN raw_files r ON r.id = o.raw_file_id
+            WHERE (? IS NULL OR r.account = ?) AND (? IS NULL OR r.adapter = ?)
+            ORDER BY julianday(o.imported_at) DESC LIMIT 1
+            """, arguments: [account, account, adapter, adapter]) : nil
+        let legacyPredicate = hasObservations ? "AND provenance_verified = 0" : ""
         let lastFetchedAt = try String.fetchOne(
             db,
             sql: """
-            SELECT MAX(fetched_at)
+            SELECT fetched_at
             FROM raw_files
             WHERE (? IS NULL OR account = ?)
               AND (? IS NULL OR adapter = ?)
+              \(legacyPredicate)
+            ORDER BY julianday(fetched_at) DESC LIMIT 1
             """,
             arguments: [account, account, adapter, adapter]
         )
         let lastImportedAt = try String.fetchOne(
             db,
             sql: """
-            SELECT MAX(imported_at)
+            SELECT imported_at
             FROM raw_files
             WHERE (? IS NULL OR account = ?)
               AND (? IS NULL OR adapter = ?)
+              \(legacyPredicate)
+            ORDER BY julianday(imported_at) DESC LIMIT 1
             """,
             arguments: [account, account, adapter, adapter]
         )
 
         return DatabaseFreshness(
+            sync: try SyncState.read(db: db, account: account, adapter: adapter),
             account: account,
             adapter: adapter,
-            lastFetchedAtISO8601: lastFetchedAt,
-            lastImportedAtISO8601: lastImportedAt,
+            lastFetchedAtISO8601: latestTimestamp([lastFetchedAt, observedFetch]),
+            lastImportedAtISO8601: latestTimestamp([lastImportedAt, observedImport]),
             oldestCreatedAt: minCreatedAt,
             oldestCreatedAtISO8601: minCreatedAt.map(iso8601String(timestamp:)),
             latestCreatedAt: maxCreatedAt,
@@ -1347,9 +1346,6 @@ public enum SwarmDatabase {
     }
 }
 
-private struct V2CheckinsEnvelope {
-    let items: [[String: Any]]
-}
 
 private struct ImportAccumulator {
     var rawFilesImported = 0
@@ -1374,12 +1370,4 @@ private struct ManifestImportCounts {
     var categoriesUpserted = 0
     var categoriesInserted = 0
     var skippedCheckins = 0
-}
-
-private struct RawImportSkip: Error {
-    let message: String
-
-    init(_ message: String) {
-        self.message = message
-    }
 }

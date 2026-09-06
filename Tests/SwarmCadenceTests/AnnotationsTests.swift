@@ -1,6 +1,7 @@
 import Foundation
 import XCTest
 @testable import SwarmCadenceCore
+@testable import SwarmCadenceCommands
 
 final class AnnotationsTests: XCTestCase {
     func testAddAndListAnnotationsByTarget() throws {

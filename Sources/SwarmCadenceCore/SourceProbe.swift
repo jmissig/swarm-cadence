@@ -219,7 +219,7 @@ public enum SourceProbe {
         }
 
         if let rawValue {
-            state = isPlaceholder(rawValue) ? .placeholder : .presentRedacted
+            state = CredentialValue.isPlaceholder(rawValue) ? .placeholder : .presentRedacted
         } else {
             state = .missing
         }
@@ -235,14 +235,6 @@ public enum SourceProbe {
         )
     }
 
-    private static func isPlaceholder(_ value: String) -> Bool {
-        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalized.isEmpty ||
-            normalized.hasPrefix("replace-with-") ||
-            normalized == "changeme" ||
-            normalized == "change-me" ||
-            normalized == "todo"
-    }
 
     private static func resolvedInputValue(
         named name: String,
@@ -258,7 +250,7 @@ public enum SourceProbe {
             rawValue = nil
         }
 
-        guard let rawValue, !isPlaceholder(rawValue) else {
+        guard let rawValue, !CredentialValue.isPlaceholder(rawValue) else {
             return nil
         }
         return rawValue
@@ -682,8 +674,8 @@ struct InputSpec {
     let purpose: String
 }
 
-enum AccountLabel {
-    static func validate(_ label: String?) throws -> String {
+package enum AccountLabel {
+    package static func validate(_ label: String?) throws -> String {
         guard let label, !label.isEmpty else {
             throw CLIError("missing required --account <label>.")
         }
@@ -696,7 +688,7 @@ enum AccountLabel {
         return label
     }
 
-    static func environmentComponent(for label: String) -> String {
+    package static func environmentComponent(for label: String) -> String {
         label
             .uppercased()
             .map { $0 == "-" ? "_" : $0 }

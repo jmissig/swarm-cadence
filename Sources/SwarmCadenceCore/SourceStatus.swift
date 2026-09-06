@@ -34,7 +34,7 @@ public enum SourceStatus {
         let configPath = explicitConfigPath ?? AppSupportDefaults.configPath(environment: environment)
         let configExists = FileManager.default.fileExists(atPath: configPath)
         let object = try SetupConfigStore.loadObjectIfPresent(path: configPath)
-        let configValues = try object.map(JSONConfig.flatten) ?? [:]
+        let configuration = AccountConfiguration(object ?? [:])
         let labels: [String]
 
         if let requestedAccount {
@@ -45,8 +45,9 @@ public enum SourceStatus {
                 .sorted()
         }
 
-        let accounts = labels.map { label in
-            accountStatus(label: label, environment: environment, config: configValues)
+        let accounts = try labels.map { label in
+            let inputs = try configuration.resolve(account: label, environment: environment)
+            return accountStatus(label: label, environment: inputs.environment, config: inputs.config, pathEnvironment: environment)
         }
 
         return SourceStatusResult(
@@ -65,7 +66,8 @@ public enum SourceStatus {
     private static func accountStatus(
         label: String,
         environment: [String: String],
-        config: [String: String]
+        config: [String: String],
+        pathEnvironment: [String: String]
     ) -> SourceAccountStatus {
         let accountKey = AccountLabel.environmentComponent(for: label)
         let v2TokenPresent = credentialPresent(
@@ -80,8 +82,8 @@ public enum SourceStatus {
             "SWARM_CADENCE_\(accountKey)_HISTORYSEARCH_OAUTH_TOKEN"
         ].allSatisfy { credentialPresent($0, environment: environment, config: config) }
 
-        let rawPath = AppSupportDefaults.rawCheckinsDirectory(account: label, environment: environment)
-        let sqlitePath = AppSupportDefaults.sqlitePath(account: label, environment: environment)
+        let rawPath = AppSupportDefaults.rawCheckinsDirectory(account: label, environment: pathEnvironment)
+        let sqlitePath = AppSupportDefaults.sqlitePath(account: label, environment: pathEnvironment)
         let rawExists = FileManager.default.fileExists(atPath: rawPath)
         let sqliteExists = FileManager.default.fileExists(atPath: sqlitePath)
 
@@ -127,16 +129,6 @@ public enum SourceStatus {
     }
 
     private static func trimmedNonPlaceholder(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let normalized = trimmed.lowercased()
-        guard !normalized.hasPrefix("replace-with-"),
-              normalized != "changeme",
-              normalized != "change-me",
-              normalized != "todo" else {
-            return nil
-        }
-        return trimmed
+        CredentialValue.usable(value)
     }
 }

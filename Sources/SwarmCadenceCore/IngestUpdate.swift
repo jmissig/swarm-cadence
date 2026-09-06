@@ -50,7 +50,7 @@ public struct IngestUpdateResult: Codable, Equatable {
     public let freshnessAfter: DatabaseFreshness?
     public let pages: [IngestUpdatePageResult]
 
-    var exitCode: Int {
+    package var exitCode: Int {
         switch status {
         case .updated, .noNewCheckins:
             return 0
@@ -77,8 +77,14 @@ public enum IngestUpdate {
         delayMilliseconds: Int = RawFetch.fetchPagesDefaultDelayMilliseconds,
         command: String = "ingest",
         transport: ProbeHTTPTransport = URLSessionProbeHTTPTransport(),
+        now: () -> Date = Date.init,
         sleep: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) }
     ) throws -> IngestUpdateResult {
+        var runID: String?
+        var historyVerified = false
+        var observedIDs = Set<String>()
+        var sourceTotal: Int?
+        var consistentTotal = true
         let account = try AccountLabel.validate(account)
         guard adapter == .v2 else {
             throw CLIError("ingest is currently implemented only for --adapter v2.")
@@ -104,7 +110,9 @@ public enum IngestUpdate {
 
         let probe = SourceProbe.probe(account: account, adapter: adapter, environment: environment, config: config)
         guard probe.status != .externalSetupRequired else {
-            return result(
+            return try result(
+                runID: runID,
+                historyVerified: historyVerified,
                 command: command,
                 account: account,
                 adapter: adapter,
@@ -133,6 +141,10 @@ public enum IngestUpdate {
 
         _ = try SwarmDatabase.migrateDatabase(dbPath: dbPath, account: account)
         let freshnessBefore = try SwarmDatabase.freshness(dbPath: dbPath, account: account, adapter: adapter.rawValue)
+        runID = try SyncState.begin(dbPath: dbPath, account: account, adapter: adapter.rawValue, now: now())
+        defer {
+            if let runID { try? SyncState.abandonIfRunning(dbPath: dbPath, runID: runID) }
+        }
         var knownCheckinIDs = try SwarmDatabase.existingCheckinIDs(
             dbPath: dbPath,
             account: account,
@@ -161,11 +173,14 @@ public enum IngestUpdate {
                     outputDirectory: rawDirectory,
                     limit: limit,
                     offset: offset,
-                    transport: transport
+                    transport: transport,
+                    fetchedAt: now()
                 )
             } catch let error as CLIError {
                 let status: IngestUpdateStatus = totalCheckinsUpserted > 0 ? .updatedPartial : .sourceBlocked
-                return result(
+                return try result(
+                    runID: runID,
+                    historyVerified: historyVerified,
                     command: command,
                     account: account,
                     adapter: adapter,
@@ -192,7 +207,9 @@ public enum IngestUpdate {
                 )
             } catch {
                 let status: IngestUpdateStatus = totalCheckinsUpserted > 0 ? .updatedPartial : .sourceBlocked
-                return result(
+                return try result(
+                    runID: runID,
+                    historyVerified: historyVerified,
                     command: command,
                     account: account,
                     adapter: adapter,
@@ -221,7 +238,9 @@ public enum IngestUpdate {
 
             guard fetchResult.status == .success else {
                 let status: IngestUpdateStatus = totalCheckinsUpserted > 0 ? .updatedPartial : .sourceBlocked
-                return result(
+                return try result(
+                    runID: runID,
+                    historyVerified: historyVerified,
                     command: command,
                     account: account,
                     adapter: adapter,
@@ -252,7 +271,21 @@ public enum IngestUpdate {
             let pageIDs = V2RawCheckinsFetch.checkinIDs(data: rawData)
             let existingOnPage = pageIDs.filter { knownCheckinIDs.contains($0) }.count
 
+            if let total = fetchResult.totalCount {
+                if let sourceTotal, sourceTotal != total { consistentTotal = false }
+                sourceTotal = total
+            } else { consistentTotal = false }
+            observedIDs.formUnion(pageIDs)
+
             if !pageIDs.isEmpty, existingOnPage == pageIDs.count {
+                let observed = try SwarmDatabase.importRawV2Checkins(dbPath: dbPath, rawDirectory: rawDirectory,
+                    account: account, importedAt: now(),
+                    manifestFileNames: [URL(fileURLWithPath: fetchResult.manifestFilePath).lastPathComponent], observationOnly: true)
+                guard observed.rawFilesImported == 1 else { throw CLIError("fetched page could not be validated for source freshness") }
+                totalRawFilesInserted += observed.rawFilesInserted
+                try SyncState.checked(dbPath: dbPath, runID: runID!, at: fetchResult.fetchedAt)
+                historyVerified = consistentTotal && sourceTotal == observedIDs.count && fetchResult.returnedCount == pageIDs.count
+
                 complete = true
                 stopReason = "stopped before import at offset \(offset): all observed check-in ids already exist locally"
                 pageResults.append(IngestUpdatePageResult(
@@ -266,7 +299,7 @@ public enum IngestUpdate {
                     checkinIDsObserved: pageIDs.count,
                     existingCheckinIDsObserved: existingOnPage,
                     checkinsInserted: 0,
-                    rawFilesInserted: 0,
+                    rawFilesInserted: observed.rawFilesInserted,
                     warnings: []
                 ))
                 break
@@ -278,10 +311,18 @@ public enum IngestUpdate {
                     dbPath: dbPath,
                     rawDirectory: rawDirectory,
                     account: account,
+                    importedAt: now(),
                     manifestFileNames: [URL(fileURLWithPath: fetchResult.manifestFilePath).lastPathComponent]
                 )
+                guard importResult.rawFilesImported == 1, importResult.skippedCheckins == 0 else {
+                    throw CLIError("fetched page was skipped or contained invalid check-ins")
+                }
+                try SyncState.checked(dbPath: dbPath, runID: runID!, at: fetchResult.fetchedAt)
+                historyVerified = consistentTotal && sourceTotal == observedIDs.count && fetchResult.returnedCount == pageIDs.count
             } catch let error as CLIError {
-                return result(
+                return try result(
+                    runID: runID,
+                    historyVerified: historyVerified,
                     command: command,
                     account: account,
                     adapter: adapter,
@@ -307,7 +348,9 @@ public enum IngestUpdate {
                     pages: pageResults
                 )
             } catch {
-                return result(
+                return try result(
+                    runID: runID,
+                    historyVerified: historyVerified,
                     command: command,
                     account: account,
                     adapter: adapter,
@@ -382,7 +425,9 @@ public enum IngestUpdate {
             status = .updatedPartial
         }
 
-        return result(
+        return try result(
+            runID: runID,
+            historyVerified: historyVerified,
             command: command,
             account: account,
             adapter: adapter,
@@ -410,6 +455,8 @@ public enum IngestUpdate {
     }
 
     private static func result(
+        runID: String?,
+        historyVerified: Bool,
         command: String,
         account: String,
         adapter: SourceAdapter,
@@ -433,8 +480,13 @@ public enum IngestUpdate {
         freshnessBefore: DatabaseFreshness?,
         freshnessAfter: DatabaseFreshness?,
         pages: [IngestUpdatePageResult]
-    ) -> IngestUpdateResult {
-        IngestUpdateResult(
+    ) throws -> IngestUpdateResult {
+        if let runID {
+            try SyncState.finish(dbPath: dbPath, runID: runID, status: status.rawValue, complete: complete,
+                historyVerified: historyVerified && complete, nextOffset: nextOffset)
+        }
+        let recordedFreshness = runID == nil ? freshnessAfter : try SwarmDatabase.freshness(dbPath: dbPath, account: account, adapter: adapter.rawValue)
+        return IngestUpdateResult(
             schemaVersion: 1,
             command: command,
             account: account,
@@ -457,7 +509,7 @@ public enum IngestUpdate {
             sourceStatus: sourceStatus,
             errorMessage: errorMessage,
             freshnessBefore: freshnessBefore,
-            freshnessAfter: freshnessAfter,
+            freshnessAfter: recordedFreshness,
             pages: pages
         )
     }

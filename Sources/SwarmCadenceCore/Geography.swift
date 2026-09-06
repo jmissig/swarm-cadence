@@ -67,20 +67,20 @@ public struct QueryGeography: Codable, Equatable {
     }
 }
 
-struct GeographyExpansion {
-    let locality: String?
-    let region: String?
-    let postalCode: String?
-    let countryCode: String?
-    let nearLatitude: Double?
-    let nearLongitude: Double?
-    let radiusMeters: Double?
-    let areaLocalities: [GeographyAreaLocality]
-    let geography: QueryGeography
+package struct GeographyExpansion {
+    package let locality: String?
+    package let region: String?
+    package let postalCode: String?
+    package let countryCode: String?
+    package let nearLatitude: Double?
+    package let nearLongitude: Double?
+    package let radiusMeters: Double?
+    package let areaLocalities: [GeographyAreaLocality]
+    package let geography: QueryGeography
 }
 
-enum GeographyPresetResolver {
-    static func resolve(
+package enum GeographyPresetResolver {
+    package static func resolve(
         account: String,
         configPath explicitConfigPath: String?,
         environment: [String: String],
@@ -227,7 +227,7 @@ enum GeographyPresetResolver {
         )
     }
 
-    static func geographySemantics(
+    package static func geographySemantics(
         hasPlaceFields: Bool,
         hasRadius: Bool,
         hasArea: Bool,

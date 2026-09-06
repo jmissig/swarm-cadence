@@ -51,3 +51,11 @@ These are not active work:
   insufficient in repeated real cases.
 - Keep Paprika, weather, calendar, and other cross-source joins above this CLI
   and make each join boundary explicit.
+
+## Deferred review findings
+
+- Mask interactive auth secret input; currently terminal echo is unchanged.
+- Reconcile removed/changed check-in category associations on authoritative replay.
+- Define annotation backup/export and recovery independently of raw-evidence replay.
+- Reconcile unverified legacy provenance only against explicitly supplied original
+  archives; schema migration alone cannot recover overwritten metadata.

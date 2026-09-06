@@ -59,7 +59,7 @@ public enum SourceAudit {
         try requireDirectory(v2URL, option: "--raw-dir")
         try requireDirectory(exportURL, option: "--path")
 
-        let v2 = try readV2Checkins(directory: v2URL)
+        let v2 = try readV2Checkins(directory: v2URL, account: account)
         let exported = try readExportCheckins(directory: exportURL)
         let v2IDs = Set(v2.keys)
         let exportIDs = Set(exported.keys)
@@ -182,19 +182,22 @@ public enum SourceAudit {
         }
     }
 
-    private static func readV2Checkins(directory: URL) throws -> [String: AuditCheckin] {
+    private static func readV2Checkins(directory: URL, account: String) throws -> [String: AuditCheckin] {
         let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-            .filter { $0.lastPathComponent.hasSuffix(".raw.json") }
+            .filter { $0.lastPathComponent.hasSuffix(".manifest.json") }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
         var checkins: [String: AuditCheckin] = [:]
+        let hasRawFiles = try FileManager.default.contentsOfDirectory(atPath: directory.path).contains { $0.hasSuffix(".raw.json") }
+        guard !files.isEmpty || !hasRawFiles else {
+            throw CLIError("raw archive contains payloads without manifests; cannot validate audit provenance.")
+        }
+        var validatedNames = Set<String>()
         for file in files {
-            let data = try Data(contentsOf: file)
-            guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let response = object["response"] as? [String: Any],
-                  let envelope = response["checkins"] as? [String: Any],
-                  let items = envelope["items"] as? [[String: Any]] else {
-                continue
-            }
+            let source: ValidatedV2Source
+            do { source = try ValidatedV2Source.read(manifestURL: file, expectedAccount: account) }
+            catch let error as SourceValidationError { throw CLIError("audit rejected \(file.lastPathComponent): \(error.message)") }
+            validatedNames.insert(source.manifest.rawFileName)
+            let items = source.items
             for item in items {
                 guard let id = nonEmptyString(item["id"]) else { continue }
                 let venue = item["venue"] as? [String: Any]
@@ -211,6 +214,8 @@ public enum SourceAudit {
                 )
             }
         }
+        let rawNames = Set(try FileManager.default.contentsOfDirectory(atPath: directory.path).filter { $0.hasSuffix(".raw.json") })
+        guard rawNames.isSubset(of: validatedNames) else { throw CLIError("raw archive contains unmanifested payloads; audit coverage cannot be verified.") }
         return checkins
     }
 
@@ -220,11 +225,10 @@ public enum SourceAudit {
             .sorted { exportCheckinsFileOrdinal($0.lastPathComponent) < exportCheckinsFileOrdinal($1.lastPathComponent) }
         var checkins: [String: AuditCheckin] = [:]
         for file in files {
-            let data = try Data(contentsOf: file)
-            guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let items = object["items"] as? [[String: Any]] else {
-                continue
-            }
+            let source: ValidatedExportSource
+            do { source = try ValidatedExportSource.read(file) }
+            catch let error as SourceValidationError { throw CLIError("audit rejected \(file.lastPathComponent): \(error.message)") }
+            let items = source.items
             for item in items {
                 guard let id = nonEmptyString(item["id"]) else { continue }
                 let venue = item["venue"] as? [String: Any]

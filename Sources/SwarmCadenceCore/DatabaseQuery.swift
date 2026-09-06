@@ -53,6 +53,7 @@ public struct QueryDateFilters: Codable, Equatable {
 }
 
 public struct QueryVisitFilters: Codable, Equatable {
+    public let categoryNames: [String]
     public let fromCreatedAt: QueryDateBound?
     public let toCreatedAt: QueryDateBound?
     public let date: String?
@@ -241,6 +242,10 @@ public struct VenueCadenceEvidence: Codable, Equatable {
 }
 
 public struct VenueComparisonEvidence: Codable, Equatable {
+    /// first/last, gaps, previous support, and days-since refer to the baseline.
+    public let metricScope: String
+    public let baselineDrillDown: EvidenceDrillDown
+    public let recentDrillDown: EvidenceDrillDown
     public let venueID: String
     public let name: String?
     public let latitude: Double?
@@ -637,9 +642,13 @@ public extension SwarmDatabase {
         let dbQueue = try openReadOnlyDatabase(path: dbPath)
 
         return try dbQueue.read { db in
+            let selection = EvidenceSelection(account: account,
+                window: try EvidenceDateWindow(from: fromCreatedAt, through: toCreatedAt),
+                calendar: VisitCalendarFilter(date: date, hourFrom: hourFrom, hourTo: hourTo),
+                categories: categoryNames, venueID: nil, geography: VenueGeographyFilter(locality: locality, region: region, postalCode: postalCode,
+                    countryCode: countryCode, localities: areaLocalities, latitude: nearLatitude, longitude: nearLongitude, radius: radiusMeters) )
+            let membership = try selection.predicate()
             registerDistanceFunction(db)
-            let categoryNamesJSON = try categoryFilterJSON(categoryNames)
-            let areaLocalitiesJSON = try areaLocalitiesFilterJSON(areaLocalities)
             let total = try Int.fetchOne(
                 db,
                 sql: """
@@ -647,44 +656,11 @@ public extension SwarmDatabase {
                     SELECT c.venue_id
                     FROM checkins c
                     JOIN venues v ON v.venue_id = c.venue_id
-                    WHERE c.account = ?
-                      AND c.venue_id IS NOT NULL
-                      AND (? IS NULL OR c.created_at_unix >= ?)
-                      AND (? IS NULL OR c.created_at_unix <= ?)
-                      AND (? IS NULL OR c.local_date = ?)
-                      AND (? IS NULL OR c.local_hour >= ?)
-                      AND (? IS NULL OR c.local_hour <= ?)
-                      AND (? IS NULL OR lower(v.locality) = lower(?))
-                      AND (? IS NULL OR lower(v.region) = lower(?))
-                      AND (? IS NULL OR lower(v.postal_code) = lower(?))
-                      AND (? IS NULL OR lower(v.country_code) = lower(?))
-                      AND \(areaLocalitiesPredicate(alias: "v"))
-                      AND (? IS NULL OR EXISTS (
-                          SELECT 1
-                          FROM checkin_categories cc
-                          JOIN categories cat ON cat.category_id = cc.category_id
-                          WHERE cc.checkin_id = c.checkin_id
-                            AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
-                      ))
-                      AND (? IS NULL OR (v.lat IS NOT NULL AND v.lng IS NOT NULL AND distance_meters(v.lat, v.lng, ?, ?) <= ?))
+                    WHERE \(membership.sql)
                     GROUP BY c.venue_id
                 )
                 """,
-                arguments: [
-                    account,
-                    fromCreatedAt, fromCreatedAt,
-                    toCreatedAt, toCreatedAt,
-                    date, date,
-                    hourFrom, hourFrom,
-                    hourTo, hourTo,
-                    locality, locality,
-                    region, region,
-                    postalCode, postalCode,
-                    countryCode, countryCode,
-                    areaLocalitiesJSON, areaLocalitiesJSON,
-                    categoryNamesJSON, categoryNamesJSON,
-                    radiusMeters, nearLatitude, nearLongitude, radiusMeters
-                ]
+                arguments: membership.arguments
             ) ?? 0
 
             let orderClause = venueOrderClause(sort)
@@ -706,47 +682,12 @@ public extension SwarmDatabase {
                     MAX(c.created_at_unix) AS last_created_at
                 FROM checkins c
                 JOIN venues v ON v.venue_id = c.venue_id
-                WHERE c.account = ?
-                  AND c.venue_id IS NOT NULL
-                  AND (? IS NULL OR c.created_at_unix >= ?)
-                  AND (? IS NULL OR c.created_at_unix <= ?)
-                  AND (? IS NULL OR c.local_date = ?)
-                  AND (? IS NULL OR c.local_hour >= ?)
-                  AND (? IS NULL OR c.local_hour <= ?)
-                  AND (? IS NULL OR lower(v.locality) = lower(?))
-                  AND (? IS NULL OR lower(v.region) = lower(?))
-                  AND (? IS NULL OR lower(v.postal_code) = lower(?))
-                  AND (? IS NULL OR lower(v.country_code) = lower(?))
-                  AND \(areaLocalitiesPredicate(alias: "v"))
-                  AND (? IS NULL OR EXISTS (
-                      SELECT 1
-                      FROM checkin_categories cc
-                      JOIN categories cat ON cat.category_id = cc.category_id
-                      WHERE cc.checkin_id = c.checkin_id
-                        AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
-                  ))
-                  AND (? IS NULL OR (v.lat IS NOT NULL AND v.lng IS NOT NULL AND distance_meters(v.lat, v.lng, ?, ?) <= ?))
+                WHERE \(membership.sql)
                 GROUP BY v.venue_id, v.name, v.lat, v.lng, v.locality, v.region, v.postal_code, v.country_code
                 ORDER BY \(orderClause)
                 LIMIT ?
                 """,
-                arguments: [
-                    nearLatitude, nearLatitude, nearLongitude,
-                    account,
-                    fromCreatedAt, fromCreatedAt,
-                    toCreatedAt, toCreatedAt,
-                    date, date,
-                    hourFrom, hourFrom,
-                    hourTo, hourTo,
-                    locality, locality,
-                    region, region,
-                    postalCode, postalCode,
-                    countryCode, countryCode,
-                    areaLocalitiesJSON, areaLocalitiesJSON,
-                    categoryNamesJSON, categoryNamesJSON,
-                    radiusMeters, nearLatitude, nearLongitude, radiusMeters,
-                    limit
-                ]
+                arguments: StatementArguments([nearLatitude, nearLatitude, nearLongitude]) + membership.arguments + [limit]
             )
 
             let annotationTargets = includeAnnotations
@@ -789,16 +730,7 @@ public extension SwarmDatabase {
                         hourTo: hourTo
                     ),
                     annotations: includeAnnotations ? (annotationsByTarget[annotationKey] ?? []) : nil,
-                    drillDown: venueDrillDown(
-                        account: account,
-                        dbPath: dbPath,
-                        venueID: venueID,
-                        fromCreatedAt: fromCreatedAt,
-                        toCreatedAt: toCreatedAt,
-                        date: date,
-                        hourFrom: hourFrom,
-                        hourTo: hourTo
-                    )
+                    drillDown: selection.drillDown(dbPath: dbPath, venueID: venueID)
                 )
             }
 
@@ -845,6 +777,7 @@ public extension SwarmDatabase {
         date: String? = nil,
         hourFrom: Int? = nil,
         hourTo: Int? = nil,
+        categoryNames: [String] = [],
         limit: Int = queryDefaultLimit,
         includeAnnotations: Bool = true
     ) throws -> QueryVisitsResult {
@@ -859,31 +792,24 @@ public extension SwarmDatabase {
             throw CLIError("--venue-id must not be empty.")
         }
 
+        let categoryNames = try validateCategoryFilter(categoryNames)
         let dbQueue = try openReadOnlyDatabase(path: dbPath)
 
         return try dbQueue.read { db in
+            let selection = EvidenceSelection(account: account,
+                window: try EvidenceDateWindow(from: fromCreatedAt, through: toCreatedAt),
+                calendar: VisitCalendarFilter(date: date, hourFrom: hourFrom, hourTo: hourTo),
+                categories: categoryNames, venueID: venueID )
+            let membership = try selection.predicate()
+            registerDistanceFunction(db)
             let total = try Int.fetchOne(
                 db,
                 sql: """
                 SELECT COUNT(*)
-                FROM checkins c
-                WHERE c.account = ?
-                  AND (? IS NULL OR c.venue_id = ?)
-                  AND (? IS NULL OR c.created_at_unix >= ?)
-                  AND (? IS NULL OR c.created_at_unix <= ?)
-                  AND (? IS NULL OR c.local_date = ?)
-                  AND (? IS NULL OR c.local_hour >= ?)
-                  AND (? IS NULL OR c.local_hour <= ?)
+                FROM checkins c LEFT JOIN venues v ON v.venue_id = c.venue_id
+                WHERE \(membership.sql)
                 """,
-                arguments: [
-                    account,
-                    venueID, venueID,
-                    fromCreatedAt, fromCreatedAt,
-                    toCreatedAt, toCreatedAt,
-                    date, date,
-                    hourFrom, hourFrom,
-                    hourTo, hourTo
-                ]
+                arguments: membership.arguments
             ) ?? 0
 
             let rows = try Row.fetchAll(
@@ -905,26 +831,11 @@ public extension SwarmDatabase {
                     v.lng
                 FROM checkins c
                 LEFT JOIN venues v ON v.venue_id = c.venue_id
-                WHERE c.account = ?
-                  AND (? IS NULL OR c.venue_id = ?)
-                  AND (? IS NULL OR c.created_at_unix >= ?)
-                  AND (? IS NULL OR c.created_at_unix <= ?)
-                  AND (? IS NULL OR c.local_date = ?)
-                  AND (? IS NULL OR c.local_hour >= ?)
-                  AND (? IS NULL OR c.local_hour <= ?)
+                WHERE \(membership.sql)
                 ORDER BY c.created_at_unix DESC, c.checkin_id DESC
                 LIMIT ?
                 """,
-                arguments: [
-                    account,
-                    venueID, venueID,
-                    fromCreatedAt, fromCreatedAt,
-                    toCreatedAt, toCreatedAt,
-                    date, date,
-                    hourFrom, hourFrom,
-                    hourTo, hourTo,
-                    limit
-                ]
+                arguments: membership.arguments + [limit]
             )
 
             let annotationTargets = includeAnnotations
@@ -985,6 +896,7 @@ public extension SwarmDatabase {
                 account: account,
                 dbPath: dbPath,
                 filters: QueryVisitFilters(
+                    categoryNames: categoryNames,
                     fromCreatedAt: fromCreatedAt.map(queryDateBound(timestamp:)),
                     toCreatedAt: toCreatedAt.map(queryDateBound(timestamp:)),
                     date: date,
@@ -1052,9 +964,14 @@ public extension SwarmDatabase {
         let dbQueue = try openReadOnlyDatabase(path: dbPath)
 
         return try dbQueue.read { db in
+            let selection = EvidenceSelection(account: account,
+                window: try EvidenceDateWindow(from: fromCreatedAt, through: toCreatedAt),
+                calendar: VisitCalendarFilter(date: nil, hourFrom: hourFrom, hourTo: hourTo),
+                categories: categoryNames, venueID: venueID, geography: VenueGeographyFilter(locality: locality, region: region, postalCode: postalCode,
+                    countryCode: countryCode, localities: areaLocalities, latitude: nearLatitude, longitude: nearLongitude, radius: radiusMeters) )
+            let membership = try selection.predicate()
             registerDistanceFunction(db)
             let categoryNamesJSON = try categoryFilterJSON(categoryNames)
-            let areaLocalitiesJSON = try areaLocalitiesFilterJSON(areaLocalities)
             let sourceCoverage = try freshness(db: db, account: account, adapter: nil)
             let effectiveAsOf = sourceCoverage.latestCreatedAt
 
@@ -1065,44 +982,11 @@ public extension SwarmDatabase {
                     SELECT c.venue_id
                     FROM checkins c
                     JOIN venues v ON v.venue_id = c.venue_id
-                    WHERE c.account = ?
-                      AND c.venue_id IS NOT NULL
-                      AND (? IS NULL OR c.venue_id = ?)
-                      AND (? IS NULL OR c.created_at_unix >= ?)
-                      AND (? IS NULL OR c.created_at_unix <= ?)
-                      AND (? IS NULL OR c.local_hour >= ?)
-                      AND (? IS NULL OR c.local_hour <= ?)
-                      AND (? IS NULL OR lower(v.locality) = lower(?))
-                      AND (? IS NULL OR lower(v.region) = lower(?))
-                      AND (? IS NULL OR lower(v.postal_code) = lower(?))
-                      AND (? IS NULL OR lower(v.country_code) = lower(?))
-                      AND \(areaLocalitiesPredicate(alias: "v"))
-                      AND (? IS NULL OR EXISTS (
-                          SELECT 1
-                          FROM checkin_categories cc
-                          JOIN categories cat ON cat.category_id = cc.category_id
-                          WHERE cc.checkin_id = c.checkin_id
-                            AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
-                      ))
-                      AND (? IS NULL OR (v.lat IS NOT NULL AND v.lng IS NOT NULL AND distance_meters(v.lat, v.lng, ?, ?) <= ?))
+                    WHERE \(membership.sql)
                     GROUP BY c.venue_id
                 )
                 """,
-                arguments: [
-                    account,
-                    venueID, venueID,
-                    fromCreatedAt, fromCreatedAt,
-                    toCreatedAt, toCreatedAt,
-                    hourFrom, hourFrom,
-                    hourTo, hourTo,
-                    locality, locality,
-                    region, region,
-                    postalCode, postalCode,
-                    countryCode, countryCode,
-                    areaLocalitiesJSON, areaLocalitiesJSON,
-                    categoryNamesJSON, categoryNamesJSON,
-                    radiusMeters, nearLatitude, nearLongitude, radiusMeters
-                ]
+                arguments: membership.arguments
             ) ?? 0
 
             let rows = try Row.fetchAll(
@@ -1126,47 +1010,12 @@ public extension SwarmDatabase {
                     SUM(CASE WHEN c.local_weekday_iso IN (6, 7) THEN 1 ELSE 0 END) AS weekend_visit_count
                 FROM checkins c
                 JOIN venues v ON v.venue_id = c.venue_id
-                WHERE c.account = ?
-                  AND c.venue_id IS NOT NULL
-                  AND (? IS NULL OR c.venue_id = ?)
-                  AND (? IS NULL OR c.created_at_unix >= ?)
-                  AND (? IS NULL OR c.created_at_unix <= ?)
-                  AND (? IS NULL OR c.local_hour >= ?)
-                  AND (? IS NULL OR c.local_hour <= ?)
-                  AND (? IS NULL OR lower(v.locality) = lower(?))
-                  AND (? IS NULL OR lower(v.region) = lower(?))
-                  AND (? IS NULL OR lower(v.postal_code) = lower(?))
-                  AND (? IS NULL OR lower(v.country_code) = lower(?))
-                  AND \(areaLocalitiesPredicate(alias: "v"))
-                  AND (? IS NULL OR EXISTS (
-                      SELECT 1
-                      FROM checkin_categories cc
-                      JOIN categories cat ON cat.category_id = cc.category_id
-                      WHERE cc.checkin_id = c.checkin_id
-                        AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
-                  ))
-                  AND (? IS NULL OR (v.lat IS NOT NULL AND v.lng IS NOT NULL AND distance_meters(v.lat, v.lng, ?, ?) <= ?))
+                WHERE \(membership.sql)
                 GROUP BY v.venue_id, v.name, v.lat, v.lng, v.locality, v.region, v.postal_code, v.country_code
                 ORDER BY \(venueOrderClause(sort))
                 LIMIT ?
                 """,
-                arguments: [
-                    nearLatitude, nearLatitude, nearLongitude,
-                    account,
-                    venueID, venueID,
-                    fromCreatedAt, fromCreatedAt,
-                    toCreatedAt, toCreatedAt,
-                    hourFrom, hourFrom,
-                    hourTo, hourTo,
-                    locality, locality,
-                    region, region,
-                    postalCode, postalCode,
-                    countryCode, countryCode,
-                    areaLocalitiesJSON, areaLocalitiesJSON,
-                    categoryNamesJSON, categoryNamesJSON,
-                    radiusMeters, nearLatitude, nearLongitude, radiusMeters,
-                    limit
-                ]
+                arguments: StatementArguments([nearLatitude, nearLatitude, nearLongitude]) + membership.arguments + [limit]
             )
 
             let venues = try rows.map { row in
@@ -1238,16 +1087,7 @@ public extension SwarmDatabase {
                         hourTo: hourTo,
                         categoryNamesJSON: categoryNamesJSON
                     ),
-                    drillDown: venueDrillDown(
-                        account: account,
-                        dbPath: dbPath,
-                        venueID: venueID,
-                        fromCreatedAt: fromCreatedAt,
-                        toCreatedAt: toCreatedAt,
-                        date: nil,
-                        hourFrom: hourFrom,
-                        hourTo: hourTo
-                    )
+                    drillDown: selection.drillDown(dbPath: dbPath, venueID: venueID)
                 )
             }
 
@@ -1349,7 +1189,16 @@ public extension SwarmDatabase {
         return try dbQueue.read { db in
             registerDistanceFunction(db)
             let categoryNamesJSON = try categoryFilterJSON(categoryNames)
-            let areaLocalitiesJSON = try areaLocalitiesFilterJSON(areaLocalities)
+            let windows = EvidenceComparisonWindows(
+                baseline: try EvidenceDateWindow(from: baselineFromCreatedAt, through: baselineToCreatedAt),
+                recent: try EvidenceDateWindow(from: recentFromCreatedAt, through: recentToCreatedAt))
+            let selection = EvidenceSelection(account: account, window: try EvidenceDateWindow(),
+                calendar: VisitCalendarFilter(date: nil, hourFrom: hourFrom, hourTo: hourTo), categories: categoryNames,
+                geography: VenueGeographyFilter(locality: locality, region: region, postalCode: postalCode,
+                    countryCode: countryCode, localities: areaLocalities, latitude: nearLatitude, longitude: nearLongitude, radius: radiusMeters))
+            let membership = try selection.predicate()
+            var baselineSelection = selection; baselineSelection.window = windows.baseline
+            var recentSelection = selection; recentSelection.window = windows.recent
             let sourceCoverage = try freshness(db: db, account: account, adapter: nil)
             let effectiveAsOf = try asOfCreatedAt ?? Int.fetchOne(
                 db,
@@ -1363,149 +1212,36 @@ public extension SwarmDatabase {
                 arguments: [account, hourFrom, hourFrom, hourTo, hourTo]
             )
 
-            let total = try Int.fetchOne(
-                db,
-                sql: """
-                SELECT COUNT(*) FROM (
-                    SELECT c.venue_id
-                    FROM checkins c
-                    WHERE c.account = ?
-                      AND c.venue_id IS NOT NULL
-                      AND c.created_at_unix >= ?
-                      AND (? IS NULL OR c.created_at_unix <= ?)
-                      AND (? IS NULL OR c.local_hour >= ?)
-                      AND (? IS NULL OR c.local_hour <= ?)
-                      AND (? IS NULL OR EXISTS (
-                          SELECT 1 FROM venues v
-                          WHERE v.venue_id = c.venue_id
-                            AND lower(v.locality) = lower(?)
-                      ))
-                      AND (? IS NULL OR EXISTS (
-                          SELECT 1 FROM venues v
-                          WHERE v.venue_id = c.venue_id
-                            AND lower(v.region) = lower(?)
-                      ))
-                      AND (? IS NULL OR EXISTS (
-                          SELECT 1 FROM venues v
-                          WHERE v.venue_id = c.venue_id
-                            AND lower(v.postal_code) = lower(?)
-                      ))
-                      AND (? IS NULL OR EXISTS (
-                          SELECT 1 FROM venues v
-                          WHERE v.venue_id = c.venue_id
-                            AND lower(v.country_code) = lower(?)
-                      ))
-                      AND (? IS NULL OR EXISTS (
-                          SELECT 1 FROM venues v
-                          WHERE v.venue_id = c.venue_id
-                            AND \(areaLocalitiesMatchPredicate(alias: "v"))
-                      ))
-                      AND (? IS NULL OR EXISTS (
-                          SELECT 1
-                          FROM checkin_categories cc
-                          JOIN categories cat ON cat.category_id = cc.category_id
-                          WHERE cc.checkin_id = c.checkin_id
-                            AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
-                      ))
-                      AND (? IS NULL OR EXISTS (
-                          SELECT 1 FROM venues v
-                          WHERE v.venue_id = c.venue_id
-                            AND v.lat IS NOT NULL
-                            AND v.lng IS NOT NULL
-                            AND distance_meters(v.lat, v.lng, ?, ?) <= ?
-                      ))
-                    GROUP BY c.venue_id
-                    HAVING COUNT(c.checkin_id) >= ?
+            // Baseline determines candidate venues; recent support is not clipped
+            // by the baseline window. The shared non-window selection applies to both.
+            let cte = """
+                WITH filtered AS (
+                    SELECT c.* FROM checkins c JOIN venues v ON v.venue_id = c.venue_id
+                    WHERE \(membership.sql)
+                ), baseline AS (
+                    SELECT c.venue_id, COUNT(*) AS baseline_visit_count,
+                        SUM(CASE WHEN c.created_at_unix < ? THEN 1 ELSE 0 END) AS previous_visit_count,
+                        MIN(c.created_at_unix) AS first_created_at, MAX(c.created_at_unix) AS last_created_at
+                    FROM filtered c WHERE \(windows.baseline.predicate)
+                    GROUP BY c.venue_id HAVING COUNT(*) >= ?
+                ), recent AS (
+                    SELECT c.venue_id, COUNT(*) AS recent_visit_count
+                    FROM filtered c WHERE \(windows.recent.predicate) GROUP BY c.venue_id
                 )
-                """,
-                arguments: [
-                    account,
-                    baselineFromCreatedAt,
-                    baselineToCreatedAt, baselineToCreatedAt,
-                    hourFrom, hourFrom,
-                    hourTo, hourTo,
-                    locality, locality,
-                    region, region,
-                    postalCode, postalCode,
-                    countryCode, countryCode,
-                    areaLocalitiesJSON, areaLocalitiesJSON,
-                    categoryNamesJSON, categoryNamesJSON,
-                    radiusMeters, nearLatitude, nearLongitude, radiusMeters,
-                    minBaselineVisits
-                ]
-            ) ?? 0
-
+                """
+            let cteArguments = membership.arguments + [recentFromCreatedAt] + windows.baseline.arguments
+                + [minBaselineVisits] + windows.recent.arguments
+            let total = try Int.fetchOne(db, sql: cte + " SELECT COUNT(*) FROM baseline", arguments: cteArguments) ?? 0
             let orderClause = compareOrderClause(sort)
-            let rows = try Row.fetchAll(
-                db,
-                sql: """
-                SELECT
-                    v.venue_id,
-                    v.name,
-                    v.lat,
-                    v.lng,
-                    v.locality,
-                    v.region,
-                    v.postal_code,
-                    v.country_code,
+            let rows = try Row.fetchAll(db, sql: cte + """
+                SELECT v.venue_id, v.name, v.lat, v.lng, v.locality, v.region, v.postal_code, v.country_code,
                     CASE WHEN ? IS NULL THEN NULL ELSE distance_meters(v.lat, v.lng, ?, ?) END AS distance_meters,
-                    COUNT(c.checkin_id) AS baseline_visit_count,
-                    SUM(CASE
-                        WHEN c.created_at_unix >= ?
-                         AND (? IS NULL OR c.created_at_unix <= ?)
-                        THEN 1 ELSE 0 END) AS recent_visit_count,
-                    SUM(CASE
-                        WHEN c.created_at_unix < ?
-                        THEN 1 ELSE 0 END) AS previous_visit_count,
-                    MIN(c.created_at_unix) AS first_created_at,
-                    MAX(c.created_at_unix) AS last_created_at
-                FROM checkins c
-                JOIN venues v ON v.venue_id = c.venue_id
-                WHERE c.account = ?
-                  AND c.venue_id IS NOT NULL
-                  AND c.created_at_unix >= ?
-                  AND (? IS NULL OR c.created_at_unix <= ?)
-                  AND (? IS NULL OR c.local_hour >= ?)
-                  AND (? IS NULL OR c.local_hour <= ?)
-                  AND (? IS NULL OR lower(v.locality) = lower(?))
-                  AND (? IS NULL OR lower(v.region) = lower(?))
-                  AND (? IS NULL OR lower(v.postal_code) = lower(?))
-                  AND (? IS NULL OR lower(v.country_code) = lower(?))
-                  AND \(areaLocalitiesPredicate(alias: "v"))
-                  AND (? IS NULL OR EXISTS (
-                      SELECT 1
-                      FROM checkin_categories cc
-                      JOIN categories cat ON cat.category_id = cc.category_id
-                      WHERE cc.checkin_id = c.checkin_id
-                        AND lower(cat.name) IN (SELECT lower(value) FROM json_each(?))
-                  ))
-                  AND (? IS NULL OR (v.lat IS NOT NULL AND v.lng IS NOT NULL AND distance_meters(v.lat, v.lng, ?, ?) <= ?))
-                GROUP BY v.venue_id, v.name, v.lat, v.lng, v.locality, v.region, v.postal_code, v.country_code
-                HAVING baseline_visit_count >= ?
-                ORDER BY \(orderClause)
-                LIMIT ?
-                """,
-                arguments: [
-                    nearLatitude, nearLatitude, nearLongitude,
-                    recentFromCreatedAt,
-                    recentToCreatedAt, recentToCreatedAt,
-                    recentFromCreatedAt,
-                    account,
-                    baselineFromCreatedAt,
-                    baselineToCreatedAt, baselineToCreatedAt,
-                    hourFrom, hourFrom,
-                    hourTo, hourTo,
-                    locality, locality,
-                    region, region,
-                    postalCode, postalCode,
-                    countryCode, countryCode,
-                    areaLocalitiesJSON, areaLocalitiesJSON,
-                    categoryNamesJSON, categoryNamesJSON,
-                    radiusMeters, nearLatitude, nearLongitude, radiusMeters,
-                    minBaselineVisits,
-                    limit
-                ]
-            )
+                    b.baseline_visit_count, COALESCE(r.recent_visit_count, 0) AS recent_visit_count,
+                    b.previous_visit_count, b.first_created_at, b.last_created_at
+                FROM baseline b JOIN venues v ON v.venue_id = b.venue_id
+                LEFT JOIN recent r ON r.venue_id = b.venue_id
+                ORDER BY \(orderClause) LIMIT ?
+                """, arguments: cteArguments + [nearLatitude, nearLatitude, nearLongitude, limit])
 
             let venues = try rows.map { row in
                 let venueID: String = row["venue_id"]
@@ -1516,6 +1252,9 @@ public extension SwarmDatabase {
                     return max(0, (effectiveAsOf - lastCreatedAt) / 86_400)
                 }()
                 return VenueComparisonEvidence(
+                    metricScope: "baseline_window",
+                    baselineDrillDown: baselineSelection.drillDown(dbPath: dbPath, venueID: venueID),
+                    recentDrillDown: recentSelection.drillDown(dbPath: dbPath, venueID: venueID),
                     venueID: venueID,
                     name: row["name"],
                     latitude: row["lat"],
@@ -1554,21 +1293,12 @@ public extension SwarmDatabase {
                         hourFrom: hourFrom,
                         hourTo: hourTo
                     ),
-                    drillDown: venueDrillDown(
-                        account: account,
-                        dbPath: dbPath,
-                        venueID: venueID,
-                        fromCreatedAt: baselineFromCreatedAt,
-                        toCreatedAt: baselineToCreatedAt,
-                        date: nil,
-                        hourFrom: hourFrom,
-                        hourTo: hourTo
-                    )
+                    drillDown: baselineSelection.drillDown(dbPath: dbPath, venueID: venueID)
                 )
             }
 
             return QueryCompareResult(
-                schemaVersion: 1,
+                schemaVersion: 2,
                 command: commandName,
                 account: account,
                 dbPath: dbPath,
@@ -1683,9 +1413,9 @@ public extension SwarmDatabase {
         dateOnlyFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateOnlyFormatter.timeZone = TimeZone(secondsFromGMT: 0)
         dateOnlyFormatter.dateFormat = "yyyy-MM-dd"
-        if let date = dateOnlyFormatter.date(from: value) {
+        if let date = dateOnlyFormatter.date(from: value), dateOnlyFormatter.string(from: date) == value {
             let timestamp = Int(date.timeIntervalSince1970)
-            return optionName == "--to" ? timestamp + 86_399 : timestamp
+            return ["--to", "--baseline-to", "--recent-to"].contains(optionName) ? timestamp + 86_399 : timestamp
         }
 
         throw CLIError("\(optionName) must be a Unix timestamp, ISO8601 instant, or YYYY-MM-DD date.")
@@ -1735,31 +1465,6 @@ private func categoryFilterJSON(_ categoryNames: [String]) throws -> String? {
     guard !categoryNames.isEmpty else { return nil }
     let data = try JSONEncoder().encode(categoryNames)
     return String(decoding: data, as: UTF8.self)
-}
-
-private func areaLocalitiesFilterJSON(_ areaLocalities: [GeographyAreaLocality]) throws -> String? {
-    guard !areaLocalities.isEmpty else { return nil }
-    let encoder = JSONEncoder()
-    encoder.keyEncodingStrategy = .convertToSnakeCase
-    let data = try encoder.encode(areaLocalities)
-    return String(decoding: data, as: UTF8.self)
-}
-
-private func areaLocalitiesPredicate(alias: String) -> String {
-    "(? IS NULL OR \(areaLocalitiesMatchPredicate(alias: alias)))"
-}
-
-private func areaLocalitiesMatchPredicate(alias: String) -> String {
-    """
-    EXISTS (
-        SELECT 1
-        FROM json_each(?) area
-        WHERE lower(\(alias).locality) = lower(json_extract(area.value, '$.locality'))
-          AND (json_extract(area.value, '$.region') IS NULL OR lower(\(alias).region) = lower(json_extract(area.value, '$.region')))
-          AND (json_extract(area.value, '$.postal_code') IS NULL OR lower(\(alias).postal_code) = lower(json_extract(area.value, '$.postal_code')))
-          AND (json_extract(area.value, '$.country_code') IS NULL OR lower(\(alias).country_code) = lower(json_extract(area.value, '$.country_code')))
-    )
-    """
 }
 
 private func queryGeography(
@@ -1862,7 +1567,7 @@ private func validateCalendarFilters(date: String?, hourFrom: Int?, hourTo: Int?
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = "yyyy-MM-dd"
-        guard formatter.date(from: date) != nil else {
+        guard let parsed = formatter.date(from: date), formatter.string(from: parsed) == date else {
             throw CLIError("--date must use YYYY-MM-DD.")
         }
     }
@@ -2233,40 +1938,6 @@ private func distinctVenueIDs(in candidates: [VenueIdentityAuditCandidate]) -> I
 private func candidateCheckinTotal(in candidates: [VenueIdentityAuditCandidate]) -> Int {
     let venues = Dictionary(candidates.flatMap { candidate in candidate.venues.map { ($0.venueID, $0.visitCount) } }, uniquingKeysWith: { left, _ in left })
     return venues.values.reduce(0, +)
-}
-
-private func venueDrillDown(
-    account: String,
-    dbPath: String,
-    venueID: String,
-    fromCreatedAt: Int?,
-    toCreatedAt: Int?,
-    date: String?,
-    hourFrom: Int?,
-    hourTo: Int?
-) -> EvidenceDrillDown {
-    var arguments = [
-        "query", "visits",
-        "--account", account,
-        "--db", dbPath,
-        "--venue-id", venueID
-    ]
-    if let fromCreatedAt {
-        arguments.append(contentsOf: ["--from", String(fromCreatedAt)])
-    }
-    if let toCreatedAt {
-        arguments.append(contentsOf: ["--to", String(toCreatedAt)])
-    }
-    if let date {
-        arguments.append(contentsOf: ["--date", date])
-    }
-    if let hourFrom {
-        arguments.append(contentsOf: ["--hour-from", String(hourFrom)])
-    }
-    if let hourTo {
-        arguments.append(contentsOf: ["--hour-to", String(hourTo)])
-    }
-    return EvidenceDrillDown(command: "swarm-cadence", arguments: arguments)
 }
 
 private func queryDateBound(timestamp: Int) -> QueryDateBound {

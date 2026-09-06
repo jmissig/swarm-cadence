@@ -168,3 +168,78 @@ Use `annotations` to preserve human-known caveats such as “this was the old Bl
 Date-only `--from` starts at UTC midnight. Date-only `--to` includes the full UTC day for current instant-bound query filters. Almanac-style calendar/time-of-day filters should use imported local-time fields and treat local check-in calendar/time as the default; UTC/absolute filters should be explicitly named when added.
 
 Fuzzy labels such as “lunch” or “morning” belong to the LLM/Almanac layer choosing explicit windows, not to hidden presets in this evidence CLI.
+
+## Evidence correctness contracts (2026-09)
+
+### Account inputs
+
+JSON credentials are selected by the exact account label, not by a flattened
+uppercase key. Labels such as `a-b` and `a_b` can have independent JSON entries.
+Legacy environment/dotenv/flat overrides are accepted only when their account
+mapping is unambiguous. Hyphenated or mixed-case labels must use exact account
+JSON bindings instead of ambiguous legacy overrides. Errors name the mapping,
+never its credential values.
+
+### Provenance and migration
+
+New raw artifacts are identified by account, adapter, and content SHA256. Repeated
+identical bytes reuse the artifact; another snapshot called `checkins1.json` with
+different bytes does not overwrite it. `source_observations` separately retains
+source locations, fetch times, and import times. `raw_files.relative_path` retains
+its historical column name but holds the immutable artifact key for new rows;
+`raw_file_name` and observation paths hold human-readable source locations.
+
+The v5/v6 migrations preserve existing IDs and annotations. Older raw-file rows
+remain unverified: migration cannot recover metadata already overwritten by a
+previous import. `db stats` reports `unverified_source_files`; the count includes
+legacy artifacts referenced by the requested account's check-ins. Actual recovery
+requires the original archives and an explicit reconciliation operation.
+
+Audits validate v2 manifests, account attribution, byte counts, hashes, and payload
+shape. Wrong-account, malformed, or unmanifested inputs fail the audit rather than
+silently being counted. Export ownership remains the caller's explicit account
+assertion; the tool does not infer a remote identity from export filenames.
+
+### Freshness is not archive completeness
+
+A successful, validated all-known-ID page records a source observation even when
+no visits are inserted. It advances `last_fetched_at` and the sync state's
+`last_successful_check_at`, without advancing `last_imported_at` solely for that
+check. This does not promise that normalized venue/category metadata was refreshed.
+Offline reimport can update import time, but is not a new live source check.
+
+Stats and query/evidence freshness include `sync` with the latest attempt/status,
+recent-sync completion, and historical coverage. `complete` in ingest output
+continues to mean invocation/recent-sync completion, not complete lifetime history.
+Coverage is `unknown`, `partial`, or `verified_as_of` with an observation timestamp.
+A capped traversal remains partial after a later run encounters known IDs. A
+verified traversal requires validated pages accounting for the source total; the
+claim is scoped to those observations and the limitations of offset pagination,
+not a permanent snapshot or proof that Swarm retained every historical record.
+A killed run can remain `running`; that is incomplete, not success.
+
+`current_through` remains the newest imported check-in instant, not the time at
+which the account was last checked. `next_offset_hint` is diagnostic, not a stable
+resume position in a changing remote feed. Collection remains bounded; this change
+does not introduce automatic historical backfill.
+
+### Comparison windows and drill-downs
+
+`query compare` and `query lapses` schema version 2 choose candidate venues using
+baseline support and `--min-baseline-visits`, then aggregate baseline and recent
+windows independently. Disjoint and overlapping windows are supported. Venues
+seen only in the recent window do not enter the baseline candidate set.
+`previous_visit_count` means baseline visits before the recent window starts.
+
+`metric_scope: baseline_window` explicitly scopes first/last timestamps, gaps,
+and days-since calculations. `baseline_drill_down` and `recent_drill_down` reproduce
+their respective windows; the existing `drill_down` remains the baseline alias.
+Date-only `--to`, `--baseline-to`, and `--recent-to` include the complete UTC date.
+Explicit timestamps remain instants. Visit-local `--date` retains its distinct
+local-calendar meaning.
+
+`query visits` now accepts repeated `--category` filters. Summary and drill-down
+membership share the same selection contract, including category and calendar
+filters. Geography first selects an exact venue; the drill-down uses that venue ID
+without re-resolving mutable named presets. Visit output reports total support and
+returned rows separately; its normal output limit still applies.

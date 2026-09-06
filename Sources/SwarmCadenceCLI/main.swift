@@ -1,6 +1,6 @@
 import Darwin
 import Foundation
-import SwarmCadenceCore
+import SwarmCadenceCommands
 
 let exitCode = SwarmCadenceCommand.run(
     arguments: Array(CommandLine.arguments.dropFirst()),

@@ -19,17 +19,20 @@ let package = Package(
         .target(
             name: "SwarmCadenceCore",
             dependencies: [
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "GRDB", package: "GRDB.swift")
             ]
         ),
+        .target(
+            name: "SwarmCadenceCommands",
+            dependencies: ["SwarmCadenceCore", .product(name: "ArgumentParser", package: "swift-argument-parser")]
+        ),
         .executableTarget(
             name: "SwarmCadenceCLI",
-            dependencies: ["SwarmCadenceCore"]
+            dependencies: ["SwarmCadenceCommands"]
         ),
         .testTarget(
             name: "SwarmCadenceTests",
-            dependencies: ["SwarmCadenceCore"]
+            dependencies: ["SwarmCadenceCore", "SwarmCadenceCommands"]
         )
     ]
 )

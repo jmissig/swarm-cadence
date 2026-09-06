@@ -1,6 +1,7 @@
 import Foundation
 import XCTest
 @testable import SwarmCadenceCore
+@testable import SwarmCadenceCommands
 
 final class SourceStatusTests: XCTestCase {
     func testFormatHumanIsRejectedInFavorOfAutoOrText() throws {

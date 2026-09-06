@@ -68,7 +68,7 @@ Attractive but wrong expansion: **do not build a general personal-location intel
 The repository is now a Swift Package Manager project with:
 
 - executable target `swarm-cadence`;
-- library target `SwarmCadenceCore`;
+- library target `SwarmCadenceCore` and CLI-support target `SwarmCadenceCommands`;
 - `swift-argument-parser` for CLI option parsing behind the testable `SwarmCadenceCommand.run(...)` seam;
 - GRDB-backed SQLite import/stats code;
 - explicit dry `source probe` for `v2` and `historysearch` config validation;
@@ -564,3 +564,23 @@ Watch for:
 Build the small thing that does its job clearly.
 
 Do not build an empire.
+
+## Evidence correctness architecture (2026-09-06)
+
+- `SwarmCadenceCore` owns account/config resolution, sources, storage, sync state,
+  and evidence queries. It has no ArgumentParser dependency.
+- `SwarmCadenceCommands` owns the testable `SwarmCadenceCommand.run` seam, parser,
+  command families, options, and rendering. Its invocation context owns environment,
+  transport, clock, input/output, and exit code; no global command runtime.
+- `AccountConfiguration` selects exact account-keyed JSON before translating the
+  selected values for thin source adapters. Never restore whole-config flattening.
+- `ValidatedV2Source` and `ValidatedExportSource` are shared import/audit readers.
+  New source identity is account + adapter + content hash; source observations and
+  ingestion runs are distinct from normalized evidence. Legacy provenance is
+  unverified, not silently repaired by migration.
+- `EvidenceSelection` owns common summary/support membership; independent typed
+  comparison windows prevent recent support from being clipped by baseline SQL.
+- Preserve annotations and existing references during migrations. Source freshness,
+  latest check-in time, recent-sync completion, and historical coverage are distinct.
+- See `docs/operations-and-query-semantics.md` for output/schema details and
+  `docs/plans/2026-09-06-evidence-correctness.md` for implementation scope.

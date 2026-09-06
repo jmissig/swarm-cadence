@@ -321,20 +321,12 @@ public enum RawFetch {
             rawValue = nil
         }
 
-        guard let rawValue, !isPlaceholder(rawValue) else {
+        guard let rawValue, !CredentialValue.isPlaceholder(rawValue) else {
             return nil
         }
         return rawValue
     }
 
-    private static func isPlaceholder(_ value: String) -> Bool {
-        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalized.isEmpty ||
-            normalized.hasPrefix("replace-with-") ||
-            normalized == "changeme" ||
-            normalized == "change-me" ||
-            normalized == "todo"
-    }
 
     private static var iso8601Formatter: ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()

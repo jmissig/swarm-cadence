@@ -41,10 +41,10 @@ public struct SetupAuthInputs: Equatable {
     }
 }
 
-enum SetupAuth {
-    static let defaultRedirectURI = "http://localhost:17342/foursquare/callback"
+package enum SetupAuth {
+    package static let defaultRedirectURI = "http://localhost:17342/foursquare/callback"
 
-    static func status(
+    package static func status(
         account: String?,
         configPath explicitConfigPath: String?,
         environment: [String: String]
@@ -62,7 +62,7 @@ enum SetupAuth {
         )
     }
 
-    static func setup(
+    package static func setup(
         action: String = "login",
         account rawAccount: String?,
         configPath explicitConfigPath: String?,
@@ -84,13 +84,14 @@ enum SetupAuth {
             input: input,
             output: promptOutput
         )
-        let existingValues = try existing.map { try JSONConfig.flatten($0) } ?? [:]
+        let resolvedInputs = try AccountConfiguration(existing ?? [:]).resolve(account: account, environment: environment)
+        let existingValues = resolvedInputs.config
         var networkPerformed = false
 
         let accountKey = AccountLabel.environmentComponent(for: account)
         let existingToken = existingCredential(
             name: "SWARM_CADENCE_\(accountKey)_V2_ACCESS_TOKEN",
-            environment: environment,
+            environment: resolvedInputs.environment,
             config: existingValues
         )
         var token = trimmedNonEmpty(inputs.accessToken)
@@ -122,17 +123,17 @@ enum SetupAuth {
             } else {
                 clientID = clientID ?? existingCredential(
                     name: "SWARM_CADENCE_\(accountKey)_V2_CLIENT_ID",
-                    environment: environment,
+                    environment: resolvedInputs.environment,
                     config: existingValues
                 )
                 clientSecret = clientSecret ?? existingCredential(
                     name: "SWARM_CADENCE_\(accountKey)_V2_CLIENT_SECRET",
-                    environment: environment,
+                    environment: resolvedInputs.environment,
                     config: existingValues
                 )
                 redirectURI = redirectURI ?? existingCredential(
                     name: "SWARM_CADENCE_\(accountKey)_V2_REDIRECT_URI",
-                    environment: environment,
+                    environment: resolvedInputs.environment,
                     config: existingValues
                 ) ?? defaultRedirectURI
                 guard clientID != nil, clientSecret != nil, authorizationCode != nil else {
@@ -152,17 +153,17 @@ enum SetupAuth {
 
             clientID = try clientID ?? existingCredential(
                 name: "SWARM_CADENCE_\(accountKey)_V2_CLIENT_ID",
-                environment: environment,
+                environment: resolvedInputs.environment,
                 config: existingValues
             ) ?? promptRequired("Client ID", input: input, output: promptOutput)
             clientSecret = try clientSecret ?? existingCredential(
                 name: "SWARM_CADENCE_\(accountKey)_V2_CLIENT_SECRET",
-                environment: environment,
+                environment: resolvedInputs.environment,
                 config: existingValues
             ) ?? promptRequired("Client Secret", input: input, output: promptOutput)
             redirectURI = try redirectURI ?? existingCredential(
                 name: "SWARM_CADENCE_\(accountKey)_V2_REDIRECT_URI",
-                environment: environment,
+                environment: resolvedInputs.environment,
                 config: existingValues
             ) ?? promptWithDefault("Redirect URI", defaultValue: defaultRedirectURI, input: input, output: promptOutput)
 
@@ -205,7 +206,7 @@ enum SetupAuth {
         )
     }
 
-    static func clear(
+    package static func clear(
         account: String?,
         configPath explicitConfigPath: String?,
         environment: [String: String],
@@ -239,12 +240,15 @@ enum SetupAuth {
         messageOverride: String?
     ) throws -> SetupAuthResult {
         let configExists = FileManager.default.fileExists(atPath: configPath)
-        let config = configExists ? try ConfigFile.load(path: configPath) : [:]
+        let resolved = try configExists
+            ? ConfigFile.resolve(account: account, path: configPath, environment: environment)
+            : AccountConfiguration([:]).resolve(account: account, environment: environment)
+        let config = resolved.config
         let accountKey = AccountLabel.environmentComponent(for: account)
-        let tokenPresent = credentialPresent("SWARM_CADENCE_\(accountKey)_V2_ACCESS_TOKEN", environment: environment, config: config)
-        let clientIDPresent = credentialPresent("SWARM_CADENCE_\(accountKey)_V2_CLIENT_ID", environment: environment, config: config)
-        let clientSecretPresent = credentialPresent("SWARM_CADENCE_\(accountKey)_V2_CLIENT_SECRET", environment: environment, config: config)
-        let redirectURIPresent = credentialPresent("SWARM_CADENCE_\(accountKey)_V2_REDIRECT_URI", environment: environment, config: config)
+        let tokenPresent = credentialPresent("SWARM_CADENCE_\(accountKey)_V2_ACCESS_TOKEN", environment: resolved.environment, config: config)
+        let clientIDPresent = credentialPresent("SWARM_CADENCE_\(accountKey)_V2_CLIENT_ID", environment: resolved.environment, config: config)
+        let clientSecretPresent = credentialPresent("SWARM_CADENCE_\(accountKey)_V2_CLIENT_SECRET", environment: resolved.environment, config: config)
+        let redirectURIPresent = credentialPresent("SWARM_CADENCE_\(accountKey)_V2_REDIRECT_URI", environment: resolved.environment, config: config)
         let nextCommand = tokenPresent
             ? "swarm-cadence source probe --account \(account) --adapter v2 --live"
             : "swarm-cadence auth login --account \(account)"
@@ -316,10 +320,10 @@ enum SetupAuth {
     }
 
     private static func existingCredential(name: String, environment: [String: String], config: [String: String]) -> String? {
-        if let value = trimmedNonEmpty(environment[name]), !isPlaceholder(value) {
+        if let value = trimmedNonEmpty(environment[name]), !CredentialValue.isPlaceholder(value) {
             return value
         }
-        if let value = trimmedNonEmpty(config[name]), !isPlaceholder(value) {
+        if let value = trimmedNonEmpty(config[name]), !CredentialValue.isPlaceholder(value) {
             return value
         }
         return nil
@@ -352,14 +356,6 @@ enum SetupAuth {
         return trimmedNonEmpty(value) ?? defaultValue
     }
 
-    private static func isPlaceholder(_ value: String) -> Bool {
-        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalized.isEmpty ||
-            normalized.hasPrefix("replace-with-") ||
-            normalized == "changeme" ||
-            normalized == "change-me" ||
-            normalized == "todo"
-    }
 
     private static func trimmedNonEmpty(_ value: String?) -> String? {
         guard let value else { return nil }
@@ -458,15 +454,15 @@ enum FoursquareOAuth {
     }
 }
 
-enum SetupConfigStore {
-    static func accountLabels(in object: [String: Any]?) -> [String] {
+package enum SetupConfigStore {
+    package static func accountLabels(in object: [String: Any]?) -> [String] {
         guard let accounts = object?["accounts"] as? [String: Any] else {
             return []
         }
         return accounts.keys.sorted()
     }
 
-    static func loadObjectIfPresent(path: String) throws -> [String: Any]? {
+    package static func loadObjectIfPresent(path: String) throws -> [String: Any]? {
         guard FileManager.default.fileExists(atPath: path) else {
             return nil
         }
@@ -478,7 +474,7 @@ enum SetupConfigStore {
         return dictionary
     }
 
-    static func upsertV2(account: String, values: [String: String], at path: String) throws {
+    package static func upsertV2(account: String, values: [String: String], at path: String) throws {
         var object = try loadObjectIfPresent(path: path) ?? [:]
         var accounts = object["accounts"] as? [String: Any] ?? [:]
         var accountObject = accounts[account] as? [String: Any] ?? [:]
@@ -494,7 +490,7 @@ enum SetupConfigStore {
         try save(object, to: path)
     }
 
-    static func clearV2(account: String, at path: String) throws {
+    package static func clearV2(account: String, at path: String) throws {
         guard var object = try loadObjectIfPresent(path: path) else {
             return
         }

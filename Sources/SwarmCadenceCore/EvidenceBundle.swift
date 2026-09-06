@@ -22,6 +22,8 @@ public struct EvidenceGeography: Codable, Equatable {
 }
 
 public struct EvidenceSourceCoverage: Codable, Equatable {
+    public let sync: SourceSyncState
+    public let unverifiedSourceFiles: Int
     public let dbPath: String
     public let checkins: Int
     public let venues: Int
@@ -291,6 +293,8 @@ private func trimmedEvidenceOptional(_ value: String?) -> String? {
 
 private func evidenceSourceCoverage(dbPath: String, stats: DatabaseStatsResult) -> EvidenceSourceCoverage {
     EvidenceSourceCoverage(
+        sync: stats.sync,
+        unverifiedSourceFiles: stats.unverifiedSourceFiles,
         dbPath: dbPath,
         checkins: stats.checkins,
         venues: stats.venues,
