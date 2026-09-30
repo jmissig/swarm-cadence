@@ -7,16 +7,11 @@ lives in `README.md`; focused contracts live in `Docs/`.
 ## Now
 
 - [ ] Expand Linux verification and CI coverage while preserving macOS behavior.
-  - [ ] Rerun Linux tests with warnings treated as errors after the five
-    test-warning fixes. Normal build, all 129 tests, CLI/import/query, and XDG
-    checks passed in operator testing with Swift 6.4 at `693b0e6`.
-  - [ ] Verify the minimum Swift 6.2 toolchain on Linux; operator testing used 6.4.
   - [ ] Add Linux CI for offline fixture/temp-path tests and CLI smoke checks,
     without live credentials or operator data.
   - [ ] Document verified Linux distributions/architectures and build/install
-    steps, including the tested SQLite package/version. Linux needs a
-    Linux-targeted executable, not the macOS binary plus a Swift runtime.
-  - Verification handoff: [Linux portability](docs/linux-portability.md).
+    steps, including the tested SQLite package/version.
+  - Test results: [Linux compatibility and verification](docs/linux-portability.md).
 
 - [ ] Exercise the current evidence and annotation surfaces in real
   Almanac/Guide work.

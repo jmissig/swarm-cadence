@@ -136,9 +136,7 @@ with an offline URLProtocol fixture, never live credentials or network.
 
 Linux portability uses conditional Darwin/Glibc and FoundationNetworking
 imports, explicit Dispatch, and Swift Crypto's `Crypto` module on both platforms.
-Preserve SHA-256 digests used for evidence identity. Linux execution testing is
-an operator handoff; see `docs/linux-portability.md` for verified scope and
-remaining checks. Do not generalize one tested environment to all Linux targets.
+Preserve SHA-256 digests used for evidence identity.
 The offline URLProtocol fixture restates `@unchecked Sendable` only on Darwin;
 FoundationNetworking marks the superclass's conformance unavailable.
 

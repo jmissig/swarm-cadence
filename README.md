@@ -165,8 +165,7 @@ still take precedence for their respective files/directories.
 
 Raw responses are preserved, and the SQLite database can be rebuilt from them
 and from file imports. Existing macOS paths do not change; files are not moved
-automatically. See the [Linux verification notes](docs/linux-portability.md)
-for tested scope and remaining checks.
+automatically.
 
 ## Related Docs
 
