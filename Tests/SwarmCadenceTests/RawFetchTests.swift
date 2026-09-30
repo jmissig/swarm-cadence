@@ -218,7 +218,7 @@ final class RawFetchTests: XCTestCase {
                 "--format", "json"
             ],
             environment: [
-                "HOME": home.path,
+                "SWARM_CADENCE_APP_SUPPORT_DIR": home.path,
                 "SWARM_CADENCE_JULIAN_V2_ACCESS_TOKEN": "raw-secret-token"
             ],
             liveTransport: transport,
@@ -234,7 +234,7 @@ final class RawFetchTests: XCTestCase {
         XCTAssertEqual(defaultLimitExit, 0)
         XCTAssertEqual(queryItems["limit"], "250")
         XCTAssertEqual(queryItems["offset"], "0")
-        XCTAssertTrue(result.rawFilePath.contains("Library/Application Support/swarm-cadence/accounts/julian/raw/v2/checkins"))
+        XCTAssertTrue(result.rawFilePath.hasPrefix(home.appendingPathComponent("accounts/julian/raw/v2/checkins").path + "/"))
     }
 
 
@@ -322,7 +322,7 @@ final class RawFetchTests: XCTestCase {
     }
 
     private func isolatedEnvironment(_ values: [String: String] = [:]) -> [String: String] {
-        var environment = ["HOME": FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path]
+        var environment = ["SWARM_CADENCE_APP_SUPPORT_DIR": FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path]
         for (key, value) in values {
             environment[key] = value
         }

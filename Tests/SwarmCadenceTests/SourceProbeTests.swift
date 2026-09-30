@@ -184,9 +184,6 @@ final class SourceProbeTests: XCTestCase {
         let home = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let appSupport = home
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("swarm-cadence", isDirectory: true)
         try FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
         let config = appSupport.appendingPathComponent("config.json")
         try """
@@ -209,7 +206,7 @@ final class SourceProbeTests: XCTestCase {
                 "--adapter", "v2",
                 "--format", "json"
             ],
-            environment: ["HOME": home.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": home.path],
             output: { rendered = $0 },
             errorOutput: { _ in }
         )
@@ -402,7 +399,7 @@ final class SourceProbeTests: XCTestCase {
     }
 
     private func isolatedEnvironment(_ values: [String: String] = [:]) -> [String: String] {
-        var environment = ["HOME": FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path]
+        var environment = ["SWARM_CADENCE_APP_SUPPORT_DIR": FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path]
         for (key, value) in values {
             environment[key] = value
         }

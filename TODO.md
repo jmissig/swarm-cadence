@@ -7,9 +7,6 @@ lives in `README.md`; focused contracts live in `Docs/`.
 ## Now
 
 - [ ] Make the CLI Linux-compatible while preserving macOS behavior.
-  - [ ] Add Linux-appropriate config/data defaults using XDG conventions, while
-    retaining macOS Application Support paths and explicit path overrides.
-    Update path tests, Makefile defaults, CLI help, and installation docs.
   - [ ] Verify the pinned GRDB/SQLite stack on Linux, including required system
     packages (such as `libsqlite3-dev`). GRDB's Linux support is
     contributor-maintained and not automatically tested by the pinned release.

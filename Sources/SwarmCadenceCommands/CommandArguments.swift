@@ -4,7 +4,7 @@ import SwarmCadenceCore
 
 struct SetupArguments: ParsableArguments {
     @Option(help: "Account label to configure, such as default or partner. Text mode prompts when omitted.") var account: String?
-    @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(help: "Config JSON path. Defaults to config.json under the platform application support app root.") var config: String?
     @Option(help: "Output format: auto, text, or json. JSON mode never prompts.") var format = "auto"
     @Option(name: .customLong("access-token"), help: "Existing Foursquare v2 access token. Fastest path; skips the browser OAuth flow.") var accessToken: String?
     @Option(name: .customLong("client-id"), help: "Foursquare developer app client id, used only when exchanging an authorization code.") var clientID: String?
@@ -38,7 +38,7 @@ struct RawFetchArguments: ParsableArguments {
     @Option(help: "Account label to fetch for, such as default or partner.") var account: String?
     @Option(help: "Source adapter to use. Currently only v2 is supported for live raw fetches.") var adapter = "v2"
     @Option(help: "Output format: auto, text, or json.") var format = "auto"
-    @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(help: "Config JSON path. Defaults to config.json under the platform application support app root.") var config: String?
     @Option(name: .customLong("out"), help: "Directory for preserved raw response and manifest files. Defaults to the account raw/v2/checkins directory.") var outputDirectory: String?
     @Option(help: "Maximum check-ins to request in this page. Must be within the tool's bounded source limit.") var limit = RawFetch.defaultLimit
     @Option(help: "Source pagination offset for this one-page fetch.") var offset = 0
@@ -49,7 +49,7 @@ struct RawFetchPagesArguments: ParsableArguments {
     @Option(help: "Account label to fetch for, such as default or partner.") var account: String?
     @Option(help: "Source adapter to use. Currently only v2 is supported for live raw fetches.") var adapter = "v2"
     @Option(help: "Output format: auto, text, or json.") var format = "auto"
-    @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(help: "Config JSON path. Defaults to config.json under the platform application support app root.") var config: String?
     @Option(name: .customLong("out"), help: "Directory for preserved raw response and manifest files. Defaults to the account raw/v2/checkins directory.") var outputDirectory: String?
     @Option(help: "Maximum check-ins to request per page. Must be within the tool's bounded source limit.") var limit = RawFetch.defaultLimit
     @Option(name: .customLong("start-offset"), help: "Source pagination offset for the first page.") var startOffset = 0
@@ -62,7 +62,7 @@ struct IngestUpdateArguments: ParsableArguments {
     @Option(help: "Account label to update, such as default or partner.") var account: String?
     @Option(help: "Source adapter to use. Ingest currently supports v2 only.") var adapter = "v2"
     @Option(help: "Output format: auto, text, or json.") var format = "auto"
-    @Option(help: "Config JSON path. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(help: "Config JSON path. Defaults to config.json under the platform application support app root.") var config: String?
     @Option(name: .customLong("raw-dir"), help: "Directory containing/preserving v2 raw response and manifest files. Defaults to the account raw/v2/checkins directory.") var rawDirectory: String?
     @Option(name: .customLong("db"), help: "SQLite evidence database path. Defaults to the account swarm-cadence.sqlite file.") var dbPath: String?
     @Option(help: "Maximum number of recent source pages to fetch during this update.") var pages = IngestUpdate.defaultPages
@@ -134,7 +134,7 @@ struct QueryCategoriesArguments: ParsableArguments {
 struct QueryVenuesArguments: ParsableArguments {
     @Option var account: String?
     @Option(name: .customLong("db")) var dbPath: String?
-    @Option(help: "Config JSON path for named geography presets. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(help: "Config JSON path for named geography presets. Defaults to config.json under the platform application support app root.") var config: String?
     @Option(name: .customLong("from")) var from: String?
     @Option(name: .customLong("to")) var to: String?
     @Option var date: String?
@@ -177,7 +177,7 @@ struct QueryVisitsArguments: ParsableArguments {
 struct QueryCadenceArguments: ParsableArguments {
     @Option var account: String?
     @Option(name: .customLong("db")) var dbPath: String?
-    @Option(help: "Config JSON path for named geography presets. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(help: "Config JSON path for named geography presets. Defaults to config.json under the platform application support app root.") var config: String?
     @Option(name: .customLong("venue-id")) var venueID: String?
     @Option(name: .customLong("from")) var from: String?
     @Option(name: .customLong("to")) var to: String?
@@ -203,7 +203,7 @@ struct QueryCadenceArguments: ParsableArguments {
 struct QueryCompareArguments: ParsableArguments {
     @Option var account: String?
     @Option(name: .customLong("db")) var dbPath: String?
-    @Option(help: "Config JSON path for named geography presets. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(help: "Config JSON path for named geography presets. Defaults to config.json under the platform application support app root.") var config: String?
     @Option(name: .customLong("baseline-from")) var baselineFrom: String?
     @Option(name: .customLong("baseline-to")) var baselineTo: String?
     @Option(name: .customLong("recent-from")) var recentFrom: String?
@@ -273,7 +273,7 @@ struct EvidenceWindowArguments: ParsableArguments {
 struct EvidencePacketArguments: ParsableArguments {
     @Option var account: String?
     @Option(name: .customLong("db")) var dbPath: String?
-    @Option(help: "Config JSON path for named geography presets. Defaults to Application Support/swarm-cadence/config.json.") var config: String?
+    @Option(help: "Config JSON path for named geography presets. Defaults to config.json under the platform application support app root.") var config: String?
     @Option var date: String?
     @Option(name: .customLong("baseline-from")) var baselineFrom: String?
     @Option(name: .customLong("baseline-to")) var baselineTo: String?

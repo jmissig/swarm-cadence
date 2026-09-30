@@ -138,8 +138,15 @@ Linux portability uses conditional Darwin/Glibc and FoundationNetworking
 imports, explicit Dispatch, and Swift Crypto's `Crypto` module on both platforms.
 Preserve SHA-256 digests used for evidence identity. First-pass changes are
 macOS-verified only; Linux execution testing is a separate operator handoff.
-See `docs/linux-portability.md`. Keep existing config/data defaults until the
-separate XDG-path work is requested; do not claim verified Linux support yet.
+See `docs/linux-portability.md`; do not claim verified Linux support yet.
+
+Use Foundation's standard directory APIs, not manually assembled platform paths.
+`URL.applicationSupportDirectory` resolves the default app-support base; append
+`swarm-cadence`. `SWARM_CADENCE_APP_SUPPORT_DIR` overrides the complete app root
+and is the per-invocation test-injection seam. Tests must use this override or
+explicit paths rather than a fake HOME or process-wide environment mutation.
+Config and data remain together; there is no separate Linux config-directory
+policy or automatic migration. Keep Makefile defaults aligned with the API.
 
 Routine checks:
 
@@ -283,7 +290,7 @@ not a broad connector or Foursquare SDK.
 
 ## Default local paths
 
-Normal operator defaults mirror the other installed CLI tools and live under Application Support rather than repo-local dotfiles:
+Normal operator defaults use Foundation application support rather than repo-local dotfiles. On macOS:
 
 ```text
 ~/Library/Application Support/swarm-cadence/config.json
@@ -292,6 +299,10 @@ Normal operator defaults mirror the other installed CLI tools and live under App
 ~/Library/Application Support/swarm-cadence/accounts/alice/raw/v2/checkins
 ~/Library/Application Support/swarm-cadence/accounts/alice/swarm-cadence.sqlite
 ```
+
+On Linux, the app root is `$XDG_DATA_HOME/swarm-cadence`, falling back to
+`~/.local/share/swarm-cadence`. The layout beneath it is the same.
+`SWARM_CADENCE_APP_SUPPORT_DIR` overrides the complete app root on either platform.
 
 `config.json` is account-structured: `accounts.julian` and `accounts.alice` are first-class sibling account profiles. Default raw and SQLite paths are also per-account. Environment variables and explicit `--config`, `--db`, `--raw-dir`, and `--out` paths remain available for tests, probes, and sandboxed runs.
 

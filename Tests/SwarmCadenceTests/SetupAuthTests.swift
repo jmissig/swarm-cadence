@@ -14,7 +14,7 @@ final class SetupAuthTests: XCTestCase {
         var rendered = ""
         let exit = SwarmCadenceCommand.run(
             arguments: ["auth", "status", "--account", "julian", "--config", config.path, "--format", "json"],
-            environment: ["HOME": home.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": home.path],
             output: { rendered = $0 },
             errorOutput: { _ in }
         )
@@ -34,7 +34,7 @@ final class SetupAuthTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: ["setup", "--account", "julian", "--config", config.path],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             input: { inputs.removeFirst() },
             output: { output += $0 + "\n" },
             errorOutput: { output += $0 + "\n" }
@@ -82,7 +82,7 @@ final class SetupAuthTests: XCTestCase {
                 "--config", config.path,
                 "--access-token", "julian-new-token"
             ],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             output: { rendered = $0 },
             errorOutput: { _ in }
         )
@@ -115,7 +115,7 @@ final class SetupAuthTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: ["setup", "--account", "julian", "--config", config.path],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             liveTransport: transport,
             input: { inputs.removeFirst() },
             output: { output += $0 + "\n" },
@@ -167,7 +167,7 @@ final class SetupAuthTests: XCTestCase {
         var output = ""
         let exit = SwarmCadenceCommand.run(
             arguments: ["setup", "--account", "julian", "--config", config.path],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             input: { XCTFail("setup should not prompt when an existing token is present"); return nil },
             output: { output += $0 + "\n" },
             errorOutput: { output += $0 + "\n" }
@@ -192,7 +192,7 @@ final class SetupAuthTests: XCTestCase {
                 "--format", "json",
                 "--client-id", "partial-client-id"
             ],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             input: { XCTFail("JSON setup should not prompt"); return nil },
             output: { _ in },
             errorOutput: { error += $0 + "\n" }
@@ -223,7 +223,7 @@ final class SetupAuthTests: XCTestCase {
 
         XCTAssertEqual(SwarmCadenceCommand.run(
             arguments: ["auth", "clear", "--account", "julian", "--config", config.path],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             output: { _ in },
             errorOutput: { _ in }
         ), 2)
@@ -231,7 +231,7 @@ final class SetupAuthTests: XCTestCase {
         var output = ""
         XCTAssertEqual(SwarmCadenceCommand.run(
             arguments: ["auth", "clear", "--account", "julian", "--config", config.path, "--force"],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             output: { output += $0 + "\n" },
             errorOutput: { _ in }
         ), 0)
@@ -251,7 +251,7 @@ final class SetupAuthTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: ["auth", "login", "--config", config.path],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             input: { inputs.removeFirst() },
             output: { output += $0 + "\n" },
             errorOutput: { output += $0 + "\n" }
@@ -273,7 +273,7 @@ final class SetupAuthTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: ["auth", "login", "--account", "julian", "--config", config.path],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             isInputTTY: false,
             input: { XCTFail("non-TTY auth login must not read input"); return nil },
             output: { output += $0 + "\n" },
@@ -299,7 +299,7 @@ final class SetupAuthTests: XCTestCase {
                 "--non-interactive",
                 "--access-token", "one-shot-token"
             ],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             input: { XCTFail("--non-interactive must not read input"); return nil },
             output: { output += $0 + "\n" },
             errorOutput: { output += $0 + "\n" }
@@ -326,7 +326,7 @@ final class SetupAuthTests: XCTestCase {
                 "--no-input",
                 "--access-token", "alias-token"
             ],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             input: { XCTFail("--no-input must not read input"); return nil },
             output: { output += $0 + "\n" },
             errorOutput: { output += $0 + "\n" }
@@ -358,7 +358,7 @@ final class SetupAuthTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: ["auth", "login", "--config", config.path, "--access-token", "replacement-token"],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             input: { XCTFail("single-account auth login should not prompt for an account label"); return nil },
             output: { output += $0 + "\n" },
             errorOutput: { output += $0 + "\n" }
@@ -386,7 +386,7 @@ final class SetupAuthTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: ["auth", "login", "--config", config.path, "--access-token", "replacement-token"],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             input: { XCTFail("multi-account auth login should not prompt"); return nil },
             output: { _ in },
             errorOutput: { error += $0 + "\n" }
@@ -407,7 +407,7 @@ final class SetupAuthTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: ["auth", "login", "--config", config.path, "--format", "json", "--access-token", "token"],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             input: { XCTFail("JSON login should not prompt"); return nil },
             output: { _ in },
             errorOutput: { error += $0 + "\n" }
@@ -436,7 +436,7 @@ final class SetupAuthTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: ["auth", "login", "--config", config.path, "--format", "json", "--access-token", "new-token"],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             input: { XCTFail("JSON login should not prompt"); return nil },
             output: { output = $0 },
             errorOutput: { _ in }

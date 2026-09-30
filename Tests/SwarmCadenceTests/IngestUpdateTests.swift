@@ -441,7 +441,7 @@ final class IngestUpdateTests: XCTestCase {
     }
 
     private func isolatedEnvironment(_ values: [String: String] = [:], home: URL? = nil) -> [String: String] {
-        var environment = ["HOME": (home ?? FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)).path]
+        var environment = ["SWARM_CADENCE_APP_SUPPORT_DIR": (home ?? FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)).path]
         for (key, value) in values {
             environment[key] = value
         }

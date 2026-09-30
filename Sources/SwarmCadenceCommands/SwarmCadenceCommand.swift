@@ -155,8 +155,12 @@ struct SwarmCadenceCLI: InvocableCommand {
           swarm-cadence query lapses --account default --baseline-from 2024-01-01 --recent-from 2026-01-01
           swarm-cadence evidence packet --account default --date 2026-03-25 --baseline-from 2026-03-01 --recent-from 2026-04-01
 
-        Defaults live under ~/Library/Application Support/swarm-cadence: config.json
-        plus per-account raw archives and SQLite DBs under accounts/<label>/.
+        Defaults use Foundation's application support directory plus swarm-cadence:
+        ~/Library/Application Support/swarm-cadence on macOS; $XDG_DATA_HOME/swarm-cadence
+        or ~/.local/share/swarm-cadence on Linux. This contains config.json and
+        per-account raw archives and SQLite DBs under accounts/<label>/.
+        SWARM_CADENCE_APP_SUPPORT_DIR overrides the whole app root; explicit path
+        options take precedence.
 
         For detailed command options, run a command with --help.
         """,

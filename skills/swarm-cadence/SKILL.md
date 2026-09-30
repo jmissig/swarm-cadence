@@ -21,12 +21,16 @@ Local, read-only evidence tool for Foursquare Swarm check-in history. Use it whe
 - Use explicit windows, categories, and geography. Do not invent fuzzy filters inside the CLI.
 - Prefer JSON for tool/agent work; summarize in friendly Guide/Almanac language for humans.
 
-Default local paths:
+Foundation chooses the app-support base. The app root is
+`~/Library/Application Support/swarm-cadence` on macOS and
+`$XDG_DATA_HOME/swarm-cadence` (default `~/.local/share/swarm-cadence`) on Linux.
+`SWARM_CADENCE_APP_SUPPORT_DIR` overrides that complete app root; explicit CLI
+path options take precedence. Linux execution verification is still pending.
 
 ```text
-~/Library/Application Support/swarm-cadence/config.json
-~/Library/Application Support/swarm-cadence/accounts/<account>/swarm-cadence.sqlite
-~/Library/Application Support/swarm-cadence/accounts/<account>/raw/v2/checkins
+<app-root>/config.json
+<app-root>/accounts/<account>/swarm-cadence.sqlite
+<app-root>/accounts/<account>/raw/v2/checkins
 ```
 
 ---

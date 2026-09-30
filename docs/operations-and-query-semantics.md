@@ -4,11 +4,16 @@ This note holds the operator/query detail that should stay out of the top-level 
 
 ## Configuration and accounts
 
-The normal config location is:
+Foundation's `URL.applicationSupportDirectory` supplies the base directory.
+The app root is `~/Library/Application Support/swarm-cadence` on macOS and
+`$XDG_DATA_HOME/swarm-cadence` (default `~/.local/share/swarm-cadence`) on Linux.
+`SWARM_CADENCE_APP_SUPPORT_DIR` overrides the complete app root. Config and data
+remain together; existing files are not moved automatically.
 
-```text
-~/Library/Application Support/swarm-cadence/config.json
-```
+The normal config location is `<app-root>/config.json`. Explicit `--config`,
+`--db`, `--raw-dir`, and `--out` options override their respective paths.
+`make show-defaults` uses the same platform API; a Makefile `APP_SUPPORT_DIR`
+override affects Makefile commands only.
 
 `auth login` creates or updates that JSON without hand-editing:
 
@@ -80,7 +85,7 @@ swarm-cadence raw fetch --account default --adapter v2 --limit 250 --offset 0
 `raw fetch` performs exactly one request per invocation. `--limit` defaults to `250` and cannot exceed `250`; `--offset` defaults to `0` and must be non-negative. By default, raw files are written under:
 
 ```text
-~/Library/Application Support/swarm-cadence/accounts/<account>/raw/v2/checkins
+<app-root>/accounts/<account>/raw/v2/checkins
 ```
 
 The command writes one unmodified `*.raw.json` response and one adjacent redacted `*.manifest.json`. Console output is a compact summary only. `data/` is git-ignored; do not commit raw check-in data.
@@ -106,7 +111,7 @@ The importer performs no network calls. It verifies each raw file against its ma
 The default SQLite path is:
 
 ```text
-~/Library/Application Support/swarm-cadence/accounts/<account>/swarm-cadence.sqlite
+<app-root>/accounts/<account>/swarm-cadence.sqlite
 ```
 
 Import official Foursquare export/takeout files:

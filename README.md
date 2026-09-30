@@ -151,12 +151,20 @@ name—without changing the preserved source evidence.
 
 ## Local Data
 
-By default, account data lives under
-`~/Library/Application Support/swarm-cadence/accounts/<account>/`, while config
-and credentials live in
-`~/Library/Application Support/swarm-cadence/config.json`. Raw responses are
-preserved, and the SQLite database can be rebuilt from them and from file
-imports.
+Foundation selects the platform's application support directory, and the tool
+appends `swarm-cadence`:
+
+- macOS: `~/Library/Application Support/swarm-cadence`
+- Linux: `$XDG_DATA_HOME/swarm-cadence`, or `~/.local/share/swarm-cadence` by default
+
+Config and credentials stay in `config.json` under that app root; account data
+lives in `accounts/<account>/`. Set `SWARM_CADENCE_APP_SUPPORT_DIR` to override
+the entire app root. Explicit `--config`, `--db`, `--raw-dir`, and `--out` options
+still take precedence for their respective files/directories.
+
+Raw responses are preserved, and the SQLite database can be rebuilt from them
+and from file imports. Existing macOS paths do not change; files are not moved
+automatically. Linux execution testing remains pending.
 
 ## Related Docs
 

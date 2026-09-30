@@ -24,7 +24,7 @@ final class CommandIsolationTests: XCTestCase {
                 environment: [:], output: { inner = $0 }), 0)
         }
         let exit = SwarmCadenceCommand.run(arguments: ["ingest", "--account", "outer", "--raw-dir", f.root.appendingPathComponent("raw").path, "--db", f.db, "--format", "json"],
-            environment: ["HOME": f.root.path, "SWARM_CADENCE_OUTER_V2_ACCESS_TOKEN": "fixture-only"],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": f.root.path, "SWARM_CADENCE_OUTER_V2_ACCESS_TOKEN": "fixture-only"],
             liveTransport: transport, output: { outer = $0 })
         XCTAssertEqual(exit, 1)
         XCTAssertTrue(outer.contains("source_blocked"))

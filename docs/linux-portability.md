@@ -2,11 +2,14 @@
 
 The source now has conditional Darwin/Glibc and FoundationNetworking imports,
 explicit Dispatch imports, Foundation-based standard-error output, and Swift
-Crypto hashing. Existing config/data paths and installation behavior are unchanged.
+Crypto hashing. Foundation's `URL.applicationSupportDirectory` now supplies the
+platform-specific base for config and data, with `swarm-cadence` appended.
+macOS paths remain unchanged; Linux uses `$XDG_DATA_HOME/swarm-cadence`, falling
+back to `~/.local/share/swarm-cadence`. No existing files are moved.
 
 ## Verification status
 
-- macOS, Swift 6.2.4: warnings-as-errors build and all 127 offline tests passed,
+- macOS, Swift 6.2.4: warnings-as-errors build and all 129 offline tests passed,
   including SHA-256 known-answer checks and HTTP transport fixtures.
 - CLI version/help/error output and a synthetic export import/venue/visit query
   passed on macOS using a temporary database. No live credentials or network
@@ -56,8 +59,10 @@ synthetic smoke-test output and can be discarded afterward.
 
 - GRDB 7.10.0 has contributor-maintained Linux support; verify the actual
   compiler, SQLite linking, and runtime behavior before claiming compatibility.
-- Default paths still use `~/Library/Application Support/swarm-cadence` even
-  on Linux. Use explicit paths while testing; XDG defaults are separate work.
+- Verify Foundation's default path and `XDG_DATA_HOME` handling on Linux.
+  Config and data share one app root. `SWARM_CADENCE_APP_SUPPORT_DIR` overrides
+  that root; explicit path options still take precedence. Tests inject temporary
+  app roots without changing the process environment or visiting real user data.
 - Packaging, installers, CI, and distribution/architecture coverage remain
   separate follow-ups. Record the Linux distribution, architecture, Swift
   version, and test results when verification is performed.

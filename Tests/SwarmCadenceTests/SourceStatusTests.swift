@@ -13,7 +13,7 @@ final class SourceStatusTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: ["source", "status", "--format", "human"],
-            environment: ["HOME": temporaryDirectory().path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": temporaryDirectory().path],
             liveTransport: FailingSourceStatusTransport(),
             output: { output = $0 },
             errorOutput: { error = $0 }
@@ -31,7 +31,7 @@ final class SourceStatusTests: XCTestCase {
         var rendered = ""
         let exit = SwarmCadenceCommand.run(
             arguments: ["source", "status", "--config", config.path, "--format", "json"],
-            environment: ["HOME": home.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": home.path],
             liveTransport: FailingSourceStatusTransport(),
             output: { rendered = $0 },
             errorOutput: { _ in }
@@ -51,9 +51,6 @@ final class SourceStatusTests: XCTestCase {
     func testSourceStatusUsesExplicitAccountWithoutLeakingSecrets() throws {
         let home = temporaryDirectory()
         let appSupport = home
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("swarm-cadence", isDirectory: true)
         try FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
         let config = appSupport.appendingPathComponent("config.json")
         try """
@@ -94,7 +91,7 @@ final class SourceStatusTests: XCTestCase {
         var rendered = ""
         let exit = SwarmCadenceCommand.run(
             arguments: ["source", "status", "--account", "julian", "--format", "json"],
-            environment: ["HOME": home.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": home.path],
             liveTransport: FailingSourceStatusTransport(),
             output: { rendered = $0 },
             errorOutput: { _ in }
@@ -120,9 +117,6 @@ final class SourceStatusTests: XCTestCase {
     func testSourceStatusForExplicitAccountWorksWithoutConfiguredAccount() throws {
         let home = temporaryDirectory()
         let sqlite = home
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("swarm-cadence", isDirectory: true)
             .appendingPathComponent("accounts", isDirectory: true)
             .appendingPathComponent("static-only", isDirectory: true)
             .appendingPathComponent("swarm-cadence.sqlite")
@@ -132,7 +126,7 @@ final class SourceStatusTests: XCTestCase {
         var rendered = ""
         let exit = SwarmCadenceCommand.run(
             arguments: ["source", "status", "--account", "static-only", "--format", "json"],
-            environment: ["HOME": home.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": home.path],
             liveTransport: FailingSourceStatusTransport(),
             output: { rendered = $0 },
             errorOutput: { _ in }

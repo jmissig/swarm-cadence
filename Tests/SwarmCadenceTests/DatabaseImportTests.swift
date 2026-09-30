@@ -192,9 +192,6 @@ final class DatabaseImportTests: XCTestCase {
     func testCLIDefaultsKeepJulianAndAliceInParallelEvidenceStores() throws {
         let home = try makeTemporaryDirectory()
         let appRoot = home
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("swarm-cadence", isDirectory: true)
         let julianRawDirectory = appRoot
             .appendingPathComponent("accounts", isDirectory: true)
             .appendingPathComponent("julian", isDirectory: true)
@@ -226,14 +223,14 @@ final class DatabaseImportTests: XCTestCase {
         var julianImportOutput = ""
         let julianImportExit = SwarmCadenceCommand.run(
             arguments: ["db", "import-raw", "--account", "julian", "--format", "json"],
-            environment: ["HOME": home.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": home.path],
             output: { julianImportOutput = $0 },
             errorOutput: { _ in }
         )
         var aliceImportOutput = ""
         let aliceImportExit = SwarmCadenceCommand.run(
             arguments: ["db", "import-raw", "--account", "alice", "--format", "json"],
-            environment: ["HOME": home.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": home.path],
             output: { aliceImportOutput = $0 },
             errorOutput: { _ in }
         )
@@ -241,14 +238,14 @@ final class DatabaseImportTests: XCTestCase {
         var julianStatsOutput = ""
         let julianStatsExit = SwarmCadenceCommand.run(
             arguments: ["db", "stats", "--account", "julian", "--format", "json"],
-            environment: ["HOME": home.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": home.path],
             output: { julianStatsOutput = $0 },
             errorOutput: { _ in }
         )
         var aliceStatsOutput = ""
         let aliceStatsExit = SwarmCadenceCommand.run(
             arguments: ["db", "stats", "--account", "alice", "--format", "json"],
-            environment: ["HOME": home.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": home.path],
             output: { aliceStatsOutput = $0 },
             errorOutput: { _ in }
         )
@@ -279,14 +276,14 @@ final class DatabaseImportTests: XCTestCase {
         var julianVenuesOutput = ""
         let julianVenuesExit = SwarmCadenceCommand.run(
             arguments: ["query", "venues", "--account", "julian", "--format", "json"],
-            environment: ["HOME": home.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": home.path],
             output: { julianVenuesOutput = $0 },
             errorOutput: { _ in }
         )
         var aliceVenuesOutput = ""
         let aliceVenuesExit = SwarmCadenceCommand.run(
             arguments: ["query", "venues", "--account", "alice", "--format", "json"],
-            environment: ["HOME": home.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": home.path],
             output: { aliceVenuesOutput = $0 },
             errorOutput: { _ in }
         )
@@ -424,7 +421,7 @@ final class DatabaseImportTests: XCTestCase {
                 "--raw-dir", rawDirectory.path,
                 "--format", "json"
             ],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             output: { importOutput = $0 },
             errorOutput: { _ in }
         )
@@ -437,7 +434,7 @@ final class DatabaseImportTests: XCTestCase {
                 "--limit", "10",
                 "--format", "json"
             ],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             output: { categoriesOutput = $0 },
             errorOutput: { _ in }
         )
@@ -456,7 +453,7 @@ final class DatabaseImportTests: XCTestCase {
 
         let exit = SwarmCadenceCommand.run(
             arguments: ["query", "categories", "--format", "json"],
-            environment: ["HOME": directory.path],
+            environment: ["SWARM_CADENCE_APP_SUPPORT_DIR": directory.path],
             output: { _ in },
             errorOutput: { error += $0 + "\n" }
         )
@@ -2296,9 +2293,6 @@ final class DatabaseImportTests: XCTestCase {
 
     private func writeConfig(accounts labels: [String], home: URL) throws {
         let configURL = home
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("swarm-cadence", isDirectory: true)
             .appendingPathComponent("config.json")
         try FileManager.default.createDirectory(at: configURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         let accounts = labels.map { label in

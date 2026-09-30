@@ -1,6 +1,6 @@
 SWIFT ?= swift
 CONFIG_EXAMPLE ?= config/swarm-cadence.config.example.json
-APP_SUPPORT_DIR ?= $(HOME)/Library/Application Support/swarm-cadence
+APP_SUPPORT_DIR ?= $(if $(SWARM_CADENCE_APP_SUPPORT_DIR),$(SWARM_CADENCE_APP_SUPPORT_DIR),$(shell $(SWIFT) -e 'import Foundation; print(URL.applicationSupportDirectory.appendingPathComponent("swarm-cadence", isDirectory: true).path)'))
 PREFIX ?= $(HOME)
 BINDIR ?= $(PREFIX)/bin
 PRODUCT ?= swarm-cadence
@@ -45,6 +45,7 @@ clean:
 	$(SWIFT) package clean
 
 show-defaults:
+	@test -n '$(APP_SUPPORT_DIR)' || (echo "Unable to resolve application support directory" >&2; exit 1)
 	@printf 'config:      %s\n' '$(APP_SUPPORT_DIR)/config.json'
 	@printf 'raw dir:     %s\n' '$(APP_SUPPORT_DIR)/accounts/<account>/raw/v2/checkins'
 	@printf 'sqlite db:   %s\n' '$(APP_SUPPORT_DIR)/accounts/<account>/swarm-cadence.sqlite'
@@ -55,6 +56,7 @@ install: release
 	@printf 'installed %s\n' '$(BINDIR)/$(PRODUCT)'
 
 install-config-example:
+	@test -n '$(APP_SUPPORT_DIR)' || (echo "Unable to resolve application support directory" >&2; exit 1)
 	install -d '$(APP_SUPPORT_DIR)'
 	@if [ -e '$(APP_SUPPORT_DIR)/config.json' ]; then \
 		echo 'refusing to overwrite $(APP_SUPPORT_DIR)/config.json'; \

@@ -34,16 +34,10 @@ package enum AppSupportDefaults {
     package static let appDirectoryName = "swarm-cadence"
 
     package static func appSupportDirectory(environment: [String: String]) -> String {
-        if let home = environment["HOME"], !home.isEmpty {
-            return URL(fileURLWithPath: home)
-                .appendingPathComponent("Library", isDirectory: true)
-                .appendingPathComponent("Application Support", isDirectory: true)
-                .appendingPathComponent(appDirectoryName, isDirectory: true)
-                .path
+        if let override = environment["SWARM_CADENCE_APP_SUPPORT_DIR"], !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true).path
         }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
+        return URL.applicationSupportDirectory
             .appendingPathComponent(appDirectoryName, isDirectory: true)
             .path
     }
