@@ -6,6 +6,27 @@ lives in `README.md`; focused contracts live in `Docs/`.
 
 ## Now
 
+- [ ] Make the CLI Linux-compatible while preserving macOS behavior.
+  - [ ] Replace the unconditional `import Darwin` in the executable with
+    conditional Darwin/Glibc imports for terminal detection and process exit.
+  - [ ] Use Swift Crypto's cross-platform `Crypto` module for SHA-256 hashing
+    instead of the unconditional `CryptoKit` import; add the package dependency.
+  - [ ] Add conditional `FoundationNetworking` imports wherever production code
+    or tests use `URLSession`, `URLRequest`, or related networking types.
+  - [ ] Add Linux-appropriate config/data defaults using XDG conventions, while
+    retaining macOS Application Support paths and explicit path overrides.
+    Update path tests, Makefile defaults, CLI help, and installation docs.
+  - [ ] Verify the pinned GRDB/SQLite stack on Linux, including required system
+    packages (such as `libsqlite3-dev`). GRDB's Linux support is
+    contributor-maintained and not automatically tested by the pinned release.
+  - [ ] Verify Linux with the project's Swift 6.2+ toolchain requirement.
+  - [ ] Build and run the offline fixture/temp-path test suite on Linux and
+    macOS; smoke-test CLI help/version, import, and queries without live
+    credentials or operator data. Add Linux CI once the build is working.
+  - [ ] Document verified Linux distributions/architectures and build/install
+    steps. Linux needs a Linux-targeted executable, not the macOS binary plus
+    a Swift runtime. Linux compatibility is not yet verified.
+
 - [ ] Exercise the current evidence and annotation surfaces in real
   Almanac/Guide work.
   - Prefer the stable query verbs (`venues`, `visits`, `cadence`, `compare`, and

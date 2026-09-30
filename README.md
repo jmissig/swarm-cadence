@@ -21,6 +21,8 @@ places, infer favorites, or make recommendations by itself.
 
 ### Command-Line Tool
 
+Building requires Swift 6.2 or newer. The CLI supports macOS 13 or newer.
+
 ```bash
 make install
 swarm-cadence --version

@@ -128,6 +128,12 @@ Do not broaden this into a general connector while filling in the next slices.
 
 ## Validation
 
+Use Swift 6.2 or newer. All project targets use Swift 6 language mode; retain
+macOS 13 deployment support. The synchronous HTTP transport uses a per-request,
+lock-protected result handoff; keep callback state concurrency-safe rather than
+suppressing compiler diagnostics. Transport tests use an injected URLSession
+with an offline URLProtocol fixture, never live credentials or network.
+
 Routine checks:
 
 ```bash

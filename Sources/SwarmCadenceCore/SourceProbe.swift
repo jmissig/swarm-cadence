@@ -435,7 +435,7 @@ extension SourceProbeResult {
     }
 }
 
-public struct ProbeHTTPResponse {
+public struct ProbeHTTPResponse: Sendable {
     public let statusCode: Int
     public let data: Data
     public let headers: [String: String]
@@ -452,22 +452,26 @@ public protocol ProbeHTTPTransport {
 }
 
 public final class URLSessionProbeHTTPTransport: ProbeHTTPTransport {
-    public init() {}
+    private let session: URLSession
+
+    public init(session: URLSession = .shared) {
+        self.session = session
+    }
 
     public func perform(_ request: URLRequest) throws -> ProbeHTTPResponse {
         let semaphore = DispatchSemaphore(value: 0)
-        var result: Result<ProbeHTTPResponse, Error>!
+        let result = HTTPResponseResult()
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        session.dataTask(with: request) { data, response, error in
             defer { semaphore.signal() }
 
             if let error {
-                result = .failure(error)
+                result.store(.failure(error))
                 return
             }
 
             guard let httpResponse = response as? HTTPURLResponse else {
-                result = .failure(ProbeTransportError("missing HTTP response"))
+                result.store(.failure(ProbeTransportError("missing HTTP response")))
                 return
             }
 
@@ -477,10 +481,30 @@ public final class URLSessionProbeHTTPTransport: ProbeHTTPTransport {
                     headers[key] = String(describing: value)
                 }
             }
-            result = .success(ProbeHTTPResponse(statusCode: httpResponse.statusCode, data: data ?? Data(), headers: headers))
+            result.store(.success(ProbeHTTPResponse(statusCode: httpResponse.statusCode, data: data ?? Data(), headers: headers)))
         }.resume()
 
         semaphore.wait()
+        return try result.get()
+    }
+}
+
+/// The callback and waiting caller share only this lock-protected result.
+/// Every access to `value` holds `lock`; the stored response and error are Sendable.
+/// NSLock preserves macOS 13 support without requiring newer synchronization APIs.
+private final class HTTPResponseResult: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Result<ProbeHTTPResponse, Error>?
+
+    func store(_ result: Result<ProbeHTTPResponse, Error>) {
+        lock.withLock { value = result }
+    }
+
+    func get() throws -> ProbeHTTPResponse {
+        let result = lock.withLock { value }
+        guard let result else {
+            throw ProbeTransportError("HTTP request completed without a result")
+        }
         return try result.get()
     }
 }
