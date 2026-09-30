@@ -1,9 +1,23 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import XCTest
 @testable import SwarmCadenceCore
 @testable import SwarmCadenceCommands
 
 final class RawFetchTests: XCTestCase {
+    func testSHA256MatchesKnownDigests() {
+        XCTAssertEqual(
+            RawFetch.sha256Hex(Data()),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        )
+        XCTAssertEqual(
+            RawFetch.sha256Hex(Data("abc".utf8)),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        )
+    }
+
     func testRawFetchRequestUsesBoundedLimitOffsetAndSingleTransportCall() throws {
         let outputDirectory = try makeTemporaryDirectory()
         let transport = CapturingRawTransport(response: ProbeHTTPResponse(statusCode: 200, data: successBody))

@@ -7,12 +7,6 @@ lives in `README.md`; focused contracts live in `Docs/`.
 ## Now
 
 - [ ] Make the CLI Linux-compatible while preserving macOS behavior.
-  - [ ] Replace the unconditional `import Darwin` in the executable with
-    conditional Darwin/Glibc imports for terminal detection and process exit.
-  - [ ] Use Swift Crypto's cross-platform `Crypto` module for SHA-256 hashing
-    instead of the unconditional `CryptoKit` import; add the package dependency.
-  - [ ] Add conditional `FoundationNetworking` imports wherever production code
-    or tests use `URLSession`, `URLRequest`, or related networking types.
   - [ ] Add Linux-appropriate config/data defaults using XDG conventions, while
     retaining macOS Application Support paths and explicit path overrides.
     Update path tests, Makefile defaults, CLI help, and installation docs.
@@ -26,6 +20,7 @@ lives in `README.md`; focused contracts live in `Docs/`.
   - [ ] Document verified Linux distributions/architectures and build/install
     steps. Linux needs a Linux-targeted executable, not the macOS binary plus
     a Swift runtime. Linux compatibility is not yet verified.
+  - Verification handoff: [Linux portability](docs/linux-portability.md).
 
 - [ ] Exercise the current evidence and annotation surfaces in real
   Almanac/Guide work.

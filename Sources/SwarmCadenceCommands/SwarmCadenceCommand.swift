@@ -11,7 +11,9 @@ public enum SwarmCadenceCommand {
         now: @escaping () -> Date = Date.init,
         input: @escaping () -> String? = { readLine(strippingNewline: true) },
         output: @escaping (String) -> Void = { print($0) },
-        errorOutput: @escaping (String) -> Void = { fputs($0 + "\n", stderr) }
+        errorOutput: @escaping (String) -> Void = {
+            FileHandle.standardError.write(Data(($0 + "\n").utf8))
+        }
     ) -> Int {
         let runtime = CommandRuntime(
             arguments: Self.normalizeSignedValues(arguments),

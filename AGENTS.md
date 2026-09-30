@@ -134,6 +134,13 @@ lock-protected result handoff; keep callback state concurrency-safe rather than
 suppressing compiler diagnostics. Transport tests use an injected URLSession
 with an offline URLProtocol fixture, never live credentials or network.
 
+Linux portability uses conditional Darwin/Glibc and FoundationNetworking
+imports, explicit Dispatch, and Swift Crypto's `Crypto` module on both platforms.
+Preserve SHA-256 digests used for evidence identity. First-pass changes are
+macOS-verified only; Linux execution testing is a separate operator handoff.
+See `docs/linux-portability.md`. Keep existing config/data defaults until the
+separate XDG-path work is requested; do not claim verified Linux support yet.
+
 Routine checks:
 
 ```bash

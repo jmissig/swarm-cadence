@@ -22,6 +22,7 @@ places, infer favorites, or make recommendations by itself.
 ### Command-Line Tool
 
 Building requires Swift 6.2 or newer. The CLI supports macOS 13 or newer.
+Linux portability is in progress; see the [verification notes](docs/linux-portability.md).
 
 ```bash
 make install

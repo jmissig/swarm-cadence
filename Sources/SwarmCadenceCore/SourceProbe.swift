@@ -1,4 +1,8 @@
+import Dispatch
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 public enum SourceAdapter: String, Codable {
     case v2
