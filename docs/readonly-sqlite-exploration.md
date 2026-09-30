@@ -30,19 +30,15 @@ replace the stable CLI verbs in normal answers.
 
 ## Open The Database Safely
 
-Default account DB path:
-
-```text
-~/Library/Application Support/swarm-cadence/accounts/<account>/swarm-cadence.sqlite
-```
-
-Prefer an explicit DB path supplied by the human or discovered via
-`swarm-cadence source status --format json`. Keep account scope explicit.
+Use the explicit DB path supplied for the task, or discover the selected
+account's database path and existence via `swarm-cadence source status --format json`.
+Defaults vary by platform and app-root overrides; do not assemble a path from
+the home directory. If the database is absent, report that instead of creating it.
 
 For `sqlite3`, open read-only and turn on query-only mode before inspecting:
 
 ```bash
-DB="$HOME/Library/Application Support/swarm-cadence/accounts/<account>/swarm-cadence.sqlite"
+DB="/absolute/path/to/the/selected/account/swarm-cadence.sqlite" # Replace with the supplied or discovered path.
 sqlite3 -readonly "$DB"
 ```
 
@@ -100,8 +96,9 @@ Never run:
 - `swarm-cadence ingest`, `db import-*`, `db migrate`, or `annotations add`
   during read-only exploration.
 
-If a query reveals an interpretation that should change future answers, ask the
-human before creating an annotation through the normal CLI.
+If a query reveals context worth retaining, offer a Swarm annotation unless
+the human already requested one. Add it through the normal CLI as a separate
+authorized write, not through exploratory SQL.
 
 ## Current Evidence Tables
 

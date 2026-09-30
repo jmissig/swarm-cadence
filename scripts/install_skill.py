@@ -59,13 +59,12 @@ def command_lines_for_account(account: str | None) -> list[str]:
         f"swarm-cadence source status{account_flag} --format json",
         f"swarm-cadence auth status{account_flag} --format json",
         f"swarm-cadence db stats{account_flag} --format json",
-        f"swarm-cadence ingest{account_flag} --adapter v2 --format json",
         f"swarm-cadence query categories{account_flag} --format json",
         f"swarm-cadence query venues{account_flag} --format json",
         f"swarm-cadence query visits{account_flag} --venue-id <venue-id> --format json",
         f"swarm-cadence query cadence{account_flag} --venue-id <venue-id> --from 2024-01-01 --format json",
         f"swarm-cadence query compare{account_flag} --baseline-from 2024-01-01 --recent-from 2026-01-01 --format json",
-        f"swarm-cadence evidence packet{account_flag} --date 2026-04-27 --baseline-from 2024-01-01 --recent-from 2026-01-01 --format json",
+        f"swarm-cadence query lapses{account_flag} --baseline-from 2024-01-01 --recent-from 2026-01-01 --format json",
     ]
 
 
