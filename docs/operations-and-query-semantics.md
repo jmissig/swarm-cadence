@@ -4,7 +4,8 @@ This note holds the operator/query detail that should stay out of the top-level 
 
 ## Configuration and accounts
 
-Foundation's `URL.applicationSupportDirectory` supplies the base directory.
+Foundation's `FileManager.urls(for:in:)` with `.applicationSupportDirectory`
+and `.userDomainMask` supplies the base directory.
 The app root is `~/Library/Application Support/swarm-cadence` on macOS and
 `$XDG_DATA_HOME/swarm-cadence` (default `~/.local/share/swarm-cadence`) on Linux.
 `SWARM_CADENCE_APP_SUPPORT_DIR` overrides the complete app root. Config and data

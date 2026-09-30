@@ -1,6 +1,6 @@
 SWIFT ?= swift
 CONFIG_EXAMPLE ?= config/swarm-cadence.config.example.json
-APP_SUPPORT_DIR ?= $(if $(SWARM_CADENCE_APP_SUPPORT_DIR),$(SWARM_CADENCE_APP_SUPPORT_DIR),$(shell $(SWIFT) -e 'import Foundation; print(URL.applicationSupportDirectory.appendingPathComponent("swarm-cadence", isDirectory: true).path)'))
+APP_SUPPORT_DIR ?= $(if $(SWARM_CADENCE_APP_SUPPORT_DIR),$(SWARM_CADENCE_APP_SUPPORT_DIR),$(shell $(SWIFT) -e 'import Foundation; print(FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("swarm-cadence", isDirectory: true).path)'))
 PREFIX ?= $(HOME)
 BINDIR ?= $(PREFIX)/bin
 PRODUCT ?= swarm-cadence

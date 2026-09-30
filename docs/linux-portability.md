@@ -2,8 +2,9 @@
 
 The source now has conditional Darwin/Glibc and FoundationNetworking imports,
 explicit Dispatch imports, Foundation-based standard-error output, and Swift
-Crypto hashing. Foundation's `URL.applicationSupportDirectory` now supplies the
-platform-specific base for config and data, with `swarm-cadence` appended.
+Crypto hashing. Foundation's `FileManager.urls(for:in:)` with
+`.applicationSupportDirectory` and `.userDomainMask` supplies the platform-specific
+base for config and data, with `swarm-cadence` appended.
 macOS paths remain unchanged; Linux uses `$XDG_DATA_HOME/swarm-cadence`, falling
 back to `~/.local/share/swarm-cadence`. No existing files are moved.
 
@@ -14,8 +15,11 @@ back to `~/.local/share/swarm-cadence`. No existing files are moved.
 - CLI version/help/error output and a synthetic export import/venue/visit query
   passed on macOS using a temporary database. No live credentials or network
   were used by these checks.
-- Linux: not built or executed yet. Linux verification is an operator handoff;
-  no Linux environment was installed for this work.
+- Linux: an operator build with Swift 6.4 and SQLite available failed because
+  `URL.applicationSupportDirectory` is not exposed by Linux Foundation. Both
+  runtime and Makefile now use FileManager instead; the Linux rebuild is pending.
+  No Linux tests or CLI smoke checks have run. Linux verification remains an
+  operator handoff; no Linux environment was installed for this work.
 - The first target is glibc-based Linux. Alpine/musl and other platforms have
   not been assessed.
 

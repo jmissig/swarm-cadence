@@ -37,7 +37,8 @@ package enum AppSupportDefaults {
         if let override = environment["SWARM_CADENCE_APP_SUPPORT_DIR"], !override.isEmpty {
             return URL(fileURLWithPath: override, isDirectory: true).path
         }
-        return URL.applicationSupportDirectory
+        // Use FileManager: Linux Foundation does not expose the URL convenience property.
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(appDirectoryName, isDirectory: true)
             .path
     }

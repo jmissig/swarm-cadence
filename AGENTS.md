@@ -141,8 +141,12 @@ macOS-verified only; Linux execution testing is a separate operator handoff.
 See `docs/linux-portability.md`; do not claim verified Linux support yet.
 
 Use Foundation's standard directory APIs, not manually assembled platform paths.
-`URL.applicationSupportDirectory` resolves the default app-support base; append
-`swarm-cadence`. `SWARM_CADENCE_APP_SUPPORT_DIR` overrides the complete app root
+`FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)`
+resolves the default app-support base; append `swarm-cadence`. Do not use the
+`URL.applicationSupportDirectory` convenience property: it is not exposed by
+Linux Foundation (confirmed by the operator's Swift 6.4 build). Verify API
+availability in the actual module/platform, not just its presence in source.
+`SWARM_CADENCE_APP_SUPPORT_DIR` overrides the complete app root
 and is the per-invocation test-injection seam. Tests must use this override or
 explicit paths rather than a fake HOME or process-wide environment mutation.
 Config and data remain together; there is no separate Linux config-directory
