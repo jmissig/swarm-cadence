@@ -36,7 +36,7 @@ final class HTTPTransportTests: XCTestCase {
 }
 
 /// Scenarios are request-local: no shared mutable handlers or network access.
-private final class OfflineHTTPProtocol: URLProtocol, @unchecked Sendable {
+private final class OfflineHTTPProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
@@ -60,3 +60,9 @@ private final class OfflineHTTPProtocol: URLProtocol, @unchecked Sendable {
 
     override func stopLoading() {}
 }
+
+#if canImport(Darwin)
+// Darwin requires restating the superclass's conformance; FoundationNetworking
+// explicitly marks URLProtocol's Sendable conformance unavailable.
+extension OfflineHTTPProtocol: @unchecked Sendable {}
+#endif

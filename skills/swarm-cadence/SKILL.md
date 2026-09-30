@@ -25,7 +25,8 @@ Foundation chooses the app-support base. The app root is
 `~/Library/Application Support/swarm-cadence` on macOS and
 `$XDG_DATA_HOME/swarm-cadence` (default `~/.local/share/swarm-cadence`) on Linux.
 `SWARM_CADENCE_APP_SUPPORT_DIR` overrides that complete app root; explicit CLI
-path options take precedence. Linux execution verification is still pending.
+path options take precedence. See `docs/linux-portability.md` for Linux
+verification status and remaining checks.
 
 ```text
 <app-root>/config.json

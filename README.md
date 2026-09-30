@@ -1,7 +1,7 @@
 # swarm-cadence
 
-`swarm-cadence` is a macOS command-line tool for preserving and querying a
-private local copy of your Foursquare Swarm check-in history.
+`swarm-cadence` is a command-line tool for preserving and querying a private
+local copy of your Foursquare Swarm check-in history on macOS and Linux.
 
 The repository also includes skills that help OpenClaw, ChatGPT, and Claude use
 the tool to answer questions grounded in that history.
@@ -21,8 +21,9 @@ places, infer favorites, or make recommendations by itself.
 
 ### Command-Line Tool
 
-Building requires Swift 6.2 or newer. The CLI supports macOS 13 or newer.
-Linux portability is in progress; see the [verification notes](docs/linux-portability.md).
+Building requires Swift 6.2 or newer. The CLI has been tested on macOS and some
+flavors of Linux; macOS 13 or newer is supported. See the
+[verification notes](docs/linux-portability.md) for details.
 
 ```bash
 make install
@@ -164,7 +165,8 @@ still take precedence for their respective files/directories.
 
 Raw responses are preserved, and the SQLite database can be rebuilt from them
 and from file imports. Existing macOS paths do not change; files are not moved
-automatically. Linux execution testing remains pending.
+automatically. See the [Linux verification notes](docs/linux-portability.md)
+for tested scope and remaining checks.
 
 ## Related Docs
 

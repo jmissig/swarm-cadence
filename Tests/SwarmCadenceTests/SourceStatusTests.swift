@@ -86,7 +86,7 @@ final class SourceStatusTests: XCTestCase {
             .appendingPathComponent("alice", isDirectory: true)
             .appendingPathComponent("swarm-cadence.sqlite")
         try FileManager.default.createDirectory(at: aliceDB.deletingLastPathComponent(), withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: aliceDB.path, contents: Data())
+        XCTAssertTrue(FileManager.default.createFile(atPath: aliceDB.path, contents: Data()))
 
         var rendered = ""
         let exit = SwarmCadenceCommand.run(
@@ -121,7 +121,7 @@ final class SourceStatusTests: XCTestCase {
             .appendingPathComponent("static-only", isDirectory: true)
             .appendingPathComponent("swarm-cadence.sqlite")
         try FileManager.default.createDirectory(at: sqlite.deletingLastPathComponent(), withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: sqlite.path, contents: Data())
+        XCTAssertTrue(FileManager.default.createFile(atPath: sqlite.path, contents: Data()))
 
         var rendered = ""
         let exit = SwarmCadenceCommand.run(

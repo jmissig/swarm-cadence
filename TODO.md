@@ -6,17 +6,16 @@ lives in `README.md`; focused contracts live in `Docs/`.
 
 ## Now
 
-- [ ] Make the CLI Linux-compatible while preserving macOS behavior.
-  - [ ] Verify the pinned GRDB/SQLite stack on Linux, including required system
-    packages (such as `libsqlite3-dev`). GRDB's Linux support is
-    contributor-maintained and not automatically tested by the pinned release.
-  - [ ] Verify Linux with the project's Swift 6.2+ toolchain requirement.
-  - [ ] Build and run the offline fixture/temp-path test suite on Linux and
-    macOS; smoke-test CLI help/version, import, and queries without live
-    credentials or operator data. Add Linux CI once the build is working.
+- [ ] Expand Linux verification and CI coverage while preserving macOS behavior.
+  - [ ] Rerun Linux tests with warnings treated as errors after the five
+    test-warning fixes. Normal build, all 129 tests, CLI/import/query, and XDG
+    checks passed in operator testing with Swift 6.4 at `693b0e6`.
+  - [ ] Verify the minimum Swift 6.2 toolchain on Linux; operator testing used 6.4.
+  - [ ] Add Linux CI for offline fixture/temp-path tests and CLI smoke checks,
+    without live credentials or operator data.
   - [ ] Document verified Linux distributions/architectures and build/install
-    steps. Linux needs a Linux-targeted executable, not the macOS binary plus
-    a Swift runtime. Linux compatibility is not yet verified.
+    steps, including the tested SQLite package/version. Linux needs a
+    Linux-targeted executable, not the macOS binary plus a Swift runtime.
   - Verification handoff: [Linux portability](docs/linux-portability.md).
 
 - [ ] Exercise the current evidence and annotation surfaces in real

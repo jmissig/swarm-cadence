@@ -1,4 +1,4 @@
-# Linux portability: first-pass verification
+# Linux compatibility and verification
 
 The source now has conditional Darwin/Glibc and FoundationNetworking imports,
 explicit Dispatch imports, Foundation-based standard-error output, and Swift
@@ -15,11 +15,16 @@ back to `~/.local/share/swarm-cadence`. No existing files are moved.
 - CLI version/help/error output and a synthetic export import/venue/visit query
   passed on macOS using a temporary database. No live credentials or network
   were used by these checks.
-- Linux: an operator build with Swift 6.4 and SQLite available failed because
-  `URL.applicationSupportDirectory` is not exposed by Linux Foundation. Both
-  runtime and Makefile now use FileManager instead; the Linux rebuild is pending.
-  No Linux tests or CLI smoke checks have run. Linux verification remains an
-  operator handoff; no Linux environment was installed for this work.
+- Linux, Swift 6.4, at `693b0e6`: the operator reports a successful build,
+  all 129 tests passing normally, and passing CLI, synthetic import/query, and
+  Linux/XDG path checks. Distribution and architecture have not been recorded.
+- The operator's warnings-as-errors check found five test-only warning sites:
+  URLProtocol's unavailable inherited Sendable conformance, two deprecated
+  implicit-encoding string reads, and two unused file-creation results.
+  The follow-up scopes the Sendable restatement to Darwin, specifies UTF-8,
+  and asserts file creation succeeds. Linux strict-check rerun remains pending.
+  Linux verification is an operator handoff; no Linux environment was installed
+  for this work.
 - The first target is glibc-based Linux. Alpine/musl and other platforms have
   not been assessed.
 
@@ -61,10 +66,11 @@ synthetic smoke-test output and can be discarded afterward.
 
 ## Remaining boundaries
 
-- GRDB 7.10.0 has contributor-maintained Linux support; verify the actual
-  compiler, SQLite linking, and runtime behavior before claiming compatibility.
-- Verify Foundation's default path and `XDG_DATA_HOME` handling on Linux.
-  Config and data share one app root. `SWARM_CADENCE_APP_SUPPORT_DIR` overrides
+- GRDB 7.10.0 and SQLite passed the operator's Linux build and fixture checks.
+  Record the system SQLite package/version and assess additional environments;
+  GRDB's Linux support is contributor-maintained.
+- Foundation's default path and `XDG_DATA_HOME` checks passed in the operator's
+  Linux environment. Config and data share one app root. `SWARM_CADENCE_APP_SUPPORT_DIR` overrides
   that root; explicit path options still take precedence. Tests inject temporary
   app roots without changing the process environment or visiting real user data.
 - Packaging, installers, CI, and distribution/architecture coverage remain

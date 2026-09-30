@@ -101,7 +101,7 @@ extension EvidenceCorrectnessTests {
         let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/legacy-v4.sql")
         let queue = try DatabaseQueue(path: f.db)
         try queue.write { db in
-            try db.execute(sql: String(contentsOf: fixture))
+            try db.execute(sql: String(contentsOf: fixture, encoding: .utf8))
             try db.execute(sql: """
                 INSERT INTO raw_files(id,relative_path,raw_file_name,manifest_file_name,sha256,bytes,fetched_at,adapter,account,endpoint,api_version,"limit","offset",http_status,imported_at)
                 VALUES (7,'checkins1.json','checkins1.json','','legacy-overwritten',1,'2020-01-01T00:00:00Z','export','partner','fixture','export',1,0,0,'2020-01-01T00:00:00Z');
@@ -160,7 +160,7 @@ extension EvidenceCorrectnessTests {
         let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/legacy-v4.sql")
         let queue = try DatabaseQueue(path: f.db)
         try queue.write { db in
-            try db.execute(sql: String(contentsOf: fixture))
+            try db.execute(sql: String(contentsOf: fixture, encoding: .utf8))
             // Simulate a conflicting locally created object: v5 must not leave
             // half of its schema applied when creation of its second object fails.
             try db.execute(sql: "CREATE TABLE source_observations (id INTEGER PRIMARY KEY)")

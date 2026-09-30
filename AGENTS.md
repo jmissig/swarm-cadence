@@ -136,9 +136,11 @@ with an offline URLProtocol fixture, never live credentials or network.
 
 Linux portability uses conditional Darwin/Glibc and FoundationNetworking
 imports, explicit Dispatch, and Swift Crypto's `Crypto` module on both platforms.
-Preserve SHA-256 digests used for evidence identity. First-pass changes are
-macOS-verified only; Linux execution testing is a separate operator handoff.
-See `docs/linux-portability.md`; do not claim verified Linux support yet.
+Preserve SHA-256 digests used for evidence identity. Linux execution testing is
+an operator handoff; see `docs/linux-portability.md` for verified scope and
+remaining checks. Do not generalize one tested environment to all Linux targets.
+The offline URLProtocol fixture restates `@unchecked Sendable` only on Darwin;
+FoundationNetworking marks the superclass's conformance unavailable.
 
 Use Foundation's standard directory APIs, not manually assembled platform paths.
 `FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)`
