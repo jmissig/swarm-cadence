@@ -3,8 +3,9 @@
 `swarm-cadence` is a command-line tool for preserving and querying a private
 local copy of your Foursquare Swarm check-in history on macOS and Linux.
 
-The repository also includes skills that help OpenClaw, ChatGPT, and Claude use
-the tool to answer questions grounded in that history.
+The tool works with agents including OpenClaw, ChatGPT, Claude, and Dots to
+answer questions grounded in that history. The repository also includes agent
+skills, with installation options below.
 
 Use it to answer things like:
 
